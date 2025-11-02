@@ -5,6 +5,7 @@ import {
   rejectFriendRequest,
   getUserProfile 
 } from "../firebase/firestore";
+import '../styles/Notifications.css'; // Import the CSS file
 
 function Notifications({ user }) {
   const [profile, setProfile] = useState(null);
@@ -85,7 +86,7 @@ function Notifications({ user }) {
   };
 
   if (!profile) {
-    return <div style={{ padding: '20px' }}>Loading notifications...</div>;
+    return <div className="notifications-loading">Loading notifications...</div>;
   }
 
   const friendRequests = profile.friendRequests || [];
@@ -97,39 +98,33 @@ function Notifications({ user }) {
   });
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <h2>Notifications</h2>
+    <div className="notifications-container">
+      <h2 className="notifications-title">Notifications</h2>
       
       {actionMessage && (
-        <div style={{
-          padding: '10px',
-          backgroundColor: actionMessage.includes('✅') ? '#e8f5e8' : '#ffebee',
-          border: '1px solid',
-          borderColor: actionMessage.includes('✅') ? '#4caf50' : '#f44336',
-          borderRadius: '4px',
-          marginBottom: '20px',
-          color: actionMessage.includes('✅') ? '#2e7d32' : '#c62828'
-        }}>
+        <div className={`notifications-message ${
+          actionMessage.includes('✅') 
+            ? 'notifications-message-success' 
+            : 'notifications-message-error'
+        }`}>
           {actionMessage}
         </div>
       )}
       
       {activeFriendRequests.length === 0 ? (
-        <div style={{ 
-          padding: '40px', 
-          textAlign: 'center',
-          border: '1px dashed #ccc',
-          borderRadius: '8px',
-          backgroundColor: '#f9f9f9'
-        }}>
+        <div className="notifications-empty">
+          <div className="notifications-empty-illustration">📭</div>
           <p>No new notifications</p>
-          <p style={{ color: '#666', fontSize: '14px' }}>
+          <p className="notifications-empty-subtext">
             You're all caught up! New friend requests will appear here.
           </p>
         </div>
       ) : (
-        <div>
-          <h3>Friend Requests ({activeFriendRequests.length})</h3>
+        <div className="notifications-section">
+          <h3 className="notifications-section-title">
+            Friend Requests 
+            <span className="notifications-badge">{activeFriendRequests.length}</span>
+          </h3>
           {activeFriendRequests.map((request, index) => (
             <FriendRequestItem 
               key={`${request.from}_${index}`}
@@ -172,14 +167,7 @@ function FriendRequestItem({ request, index, onAccept, onReject, loading, isProc
 
   if (profileLoading) {
     return (
-      <div style={{
-        padding: '15px',
-        border: '1px solid #eee',
-        borderRadius: '8px',
-        marginBottom: '10px',
-        backgroundColor: '#f9f9f9',
-        textAlign: 'center'
-      }}>
+      <div className="notifications-request-loading">
         Loading user information...
       </div>
     );
@@ -188,84 +176,51 @@ function FriendRequestItem({ request, index, onAccept, onReject, loading, isProc
   const requesterName = requesterProfile?.displayName || "Unknown User";
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '15px',
-      border: '1px solid #eee',
-      borderRadius: '8px',
-      marginBottom: '10px',
-      backgroundColor: '#f9f9f9',
-      opacity: loading ? 0.7 : 1,
-      transition: 'opacity 0.3s ease'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+    <div className={`notifications-request-item ${
+      loading ? 'notifications-request-item-loading' : ''
+    }`}>
+      <div className="notifications-request-content">
         {requesterProfile ? (
           <>
             <img 
               src={requesterProfile.photoURL} 
               alt={requesterProfile.displayName}
-              style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '50%',
-                marginRight: '15px'
-              }}
+              className="notifications-request-avatar"
             />
-            <div>
-              <h4 style={{ margin: 0 }}>{requesterProfile.displayName}</h4>
-              <p style={{ margin: 0, color: '#666' }}>@{requesterProfile.username}</p>
+            <div className="notifications-request-info">
+              <h4 className="notifications-request-name">{requesterProfile.displayName}</h4>
+              <p className="notifications-request-username">@{requesterProfile.username}</p>
               {requesterProfile.bio && (
-                <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#999' }}>
+                <p className="notifications-request-bio">
                   {requesterProfile.bio}
                 </p>
               )}
-              <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#999' }}>
+              <p className="notifications-request-time">
                 {request.timestamp?.toDate?.()?.toLocaleString() || 'Recently'}
               </p>
             </div>
           </>
         ) : (
-          <div>
-            <p style={{ margin: 0, color: '#666' }}>User not found</p>
-            <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#999' }}>
+          <div className="notifications-request-info">
+            <p className="notifications-request-name">User not found</p>
+            <p className="notifications-request-time">
               User ID: {request.from}
             </p>
           </div>
         )}
       </div>
-      <div>
+      <div className="notifications-request-actions">
         <button 
           onClick={() => onAccept(request.from, index, requesterName)}
           disabled={loading}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#34a853',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            marginRight: '10px',
-            opacity: loading ? 0.6 : 1,
-            transition: 'opacity 0.3s ease'
-          }}
+          className="notifications-button notifications-button-accept"
         >
           {loading ? '...' : 'Accept'}
         </button>
         <button 
           onClick={() => onReject(request.from, index, requesterName)}
           disabled={loading}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#ea4335',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            opacity: loading ? 0.6 : 1,
-            transition: 'opacity 0.3s ease'
-          }}
+          className="notifications-button notifications-button-reject"
         >
           {loading ? '...' : 'Reject'}
         </button>

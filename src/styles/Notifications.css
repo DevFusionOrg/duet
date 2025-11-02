@@ -1,0 +1,363 @@
+/* Notifications.css */
+.notifications-container {
+  padding: 20px;
+  max-width: 600px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+.notifications-title {
+  margin: 0 0 20px 0;
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+}
+
+.notifications-message {
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.notifications-message-success {
+  background-color: #e8f5e8;
+  border: 1px solid #4caf50;
+  color: #2e7d32;
+}
+
+.notifications-message-error {
+  background-color: #ffebee;
+  border: 1px solid #f44336;
+  color: #c62828;
+}
+
+.notifications-empty {
+  padding: 40px;
+  text-align: center;
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  margin-bottom: 20px;
+}
+
+.notifications-empty p {
+  margin: 0 0 8px 0;
+  color: #333;
+}
+
+.notifications-empty-subtext {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+}
+
+.notifications-section {
+  margin-bottom: 30px;
+}
+
+.notifications-section-title {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Friend Request Item */
+.notifications-request-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background-color: white;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.notifications-request-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.notifications-request-item-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.notifications-request-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.notifications-request-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  margin-right: 15px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.notifications-request-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.notifications-request-name {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notifications-request-username {
+  margin: 0 0 8px 0;
+  color: #666;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notifications-request-bio {
+  margin: 5px 0 0 0;
+  font-size: 12px;
+  color: #999;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notifications-request-time {
+  margin: 5px 0 0 0;
+  font-size: 12px;
+  color: #999;
+}
+
+.notifications-request-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.notifications-button {
+  padding: 8px 16px;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  min-width: 80px;
+  font-family: inherit;
+}
+
+.notifications-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.notifications-button-accept {
+  background-color: #34a853;
+}
+
+.notifications-button-accept:hover:not(:disabled) {
+  background-color: #2d9448;
+  transform: translateY(-1px);
+}
+
+.notifications-button-reject {
+  background-color: #ea4335;
+}
+
+.notifications-button-reject:hover:not(:disabled) {
+  background-color: #d33426;
+  transform: translateY(-1px);
+}
+
+/* Loading States */
+.notifications-loading {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+  font-size: 16px;
+}
+
+.notifications-request-loading {
+  padding: 15px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background-color: #f9f9f9;
+  text-align: center;
+  color: #666;
+}
+
+/* Skeleton Loading */
+.notifications-skeleton {
+  animation: notifications-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes notifications-pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.notifications-skeleton-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: #e0e0e0;
+  margin-right: 15px;
+}
+
+.notifications-skeleton-text {
+  height: 12px;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.notifications-skeleton-text-short {
+  width: 120px;
+}
+
+.notifications-skeleton-text-medium {
+  width: 200px;
+}
+
+.notifications-skeleton-text-long {
+  width: 160px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .notifications-container {
+    padding: 16px;
+  }
+  
+  .notifications-title {
+    font-size: 22px;
+  }
+  
+  .notifications-request-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+  
+  .notifications-request-content {
+    width: 100%;
+  }
+  
+  .notifications-request-actions {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .notifications-button {
+    flex: 1;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .notifications-container {
+    padding: 12px;
+  }
+  
+  .notifications-empty {
+    padding: 30px 20px;
+  }
+  
+  .notifications-request-item {
+    padding: 12px;
+  }
+  
+  .notifications-request-avatar {
+    width: 45px;
+    height: 45px;
+    margin-right: 12px;
+  }
+  
+  .notifications-request-name {
+    font-size: 15px;
+  }
+  
+  .notifications-request-username {
+    font-size: 13px;
+  }
+  
+  .notifications-button {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Accessibility */
+.notifications-button:focus-visible,
+.notifications-request-item:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .notifications-request-item,
+  .notifications-button {
+    transition: none;
+  }
+  
+  .notifications-request-item:hover {
+    transform: none;
+  }
+  
+  .notifications-button:hover:not(:disabled) {
+    transform: none;
+  }
+  
+  .notifications-skeleton {
+    animation: none;
+  }
+}
+
+/* Empty state illustration */
+.notifications-empty-illustration {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+
+/* Badge for request count */
+.notifications-badge {
+  display: inline-block;
+  background-color: #ea4335;
+  color: white;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 8px;
+  vertical-align: middle;
+}

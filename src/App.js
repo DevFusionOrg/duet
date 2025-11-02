@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { auth } from "./firebase/firebase";
 import { createUserProfile } from "./firebase/firestore";
-import Auth from "./pages/Auth"; // Updated import
+import Auth from "./pages/Auth";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import Home from "./pages/Home";
 import Search from "./pages/Search";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
+import "./App.css"; // Import the CSS file
 
 function App() {
   const [user, setUser] = useState(null);
@@ -41,23 +42,9 @@ function App() {
   // Show loading only while checking auth state
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        fontSize: '18px',
-        backgroundColor: '#f5f5f5'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            fontSize: '48px',
-            marginBottom: '16px',
-            background: 'linear-gradient(135deg, #4285f4, #34a853)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}>
+      <div className="app-loading">
+        <div className="app-loading-content">
+          <div className="app-logo">
             Duet
           </div>
           <p>Loading...</p>
@@ -69,30 +56,13 @@ function App() {
   // Show auth error if any
   if (authError) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        fontSize: '18px',
-        flexDirection: 'column',
-        textAlign: 'center',
-        backgroundColor: '#f5f5f5'
-      }}>
+      <div className="app-error">
         <h2>Authentication Error</h2>
-        <p style={{ color: 'red', margin: '20px' }}>{authError}</p>
+        <p className="app-error-message">{authError}</p>
         <p>Please check your Firestore security rules and refresh the page.</p>
         <button 
           onClick={() => window.location.reload()}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#4285f4',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            marginTop: '10px'
-          }}
+          className="app-error-button"
         >
           Refresh Page
         </button>
@@ -108,46 +78,25 @@ function App() {
   // User is authenticated
   return (
     <Router>
-      <nav style={{ 
-        padding: '15px 20px', 
-        borderBottom: '1px solid #e0e0e0',
-        backgroundColor: 'white',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link to="/" style={{ 
-            textDecoration: 'none', 
-            fontSize: '20px',
-            fontWeight: 'bold',
-            color: '#4285f4'
-          }}>
+      <nav className="app-nav">
+        <div className="app-nav-left">
+          <Link to="/" className="app-nav-brand">
             Duet
           </Link>
-          <div style={{ display: 'flex', gap: '15px' }}>
-            <Link to="/" style={navLinkStyle}>Home</Link>
-            <Link to="/search" style={navLinkStyle}>Search</Link>
-            <Link to="/notifications" style={navLinkStyle}>Notifications</Link>
-            <Link to="/profile" style={navLinkStyle}>Profile</Link>
+          <div className="app-nav-links">
+            <Link to="/" className="app-nav-link">Home</Link>
+            <Link to="/search" className="app-nav-link">Search</Link>
+            <Link to="/notifications" className="app-nav-link">Notifications</Link>
+            <Link to="/profile" className="app-nav-link">Profile</Link>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <span style={{ color: '#666', fontSize: '14px' }}>
+        <div className="app-nav-right">
+          <span className="app-user-greeting">
             Hello, {user.displayName || 'User'}!
           </span>
           <button 
             onClick={() => auth.signOut()} 
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#ea4335',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
+            className="app-logout-button"
           >
             Logout
           </button>
@@ -163,20 +112,5 @@ function App() {
     </Router>
   );
 }
-
-const navLinkStyle = {
-  textDecoration: 'none',
-  color: '#333',
-  padding: '8px 12px',
-  borderRadius: '6px',
-  transition: 'background-color 0.2s ease',
-  fontSize: '14px',
-  fontWeight: '500'
-};
-
-// Add hover effect
-navLinkStyle[':hover'] = {
-  backgroundColor: '#f5f5f5'
-};
 
 export default App;
