@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { auth } from "../firebase/firebase";
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
-import { updateDoc, doc, getDoc, setDoc } from "firebase/firestore"; // Added setDoc here
+import { updateDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { listenToUserProfile, getUserProfile } from "../firebase/firestore";
+import '../styles/Profile.css'; // Import the CSS file
 
 export default function Profile({ user }) {
   const [profile, setProfile] = useState(null);
@@ -70,7 +71,7 @@ export default function Profile({ user }) {
         
         // Save to Firestore
         const userRef = doc(db, "users", user.uid);
-        await setDoc(userRef, userProfile); // This is where setDoc is used
+        await setDoc(userRef, userProfile);
       }
       
       setProfile(userProfile);
@@ -163,24 +164,29 @@ export default function Profile({ user }) {
     setLoading(false);
   };
 
+  // Calculate profile completion percentage
+  const calculateProfileCompletion = () => {
+    if (!profile) return 0;
+    let completed = 0;
+    const total = 3; // displayName, username, bio
+    
+    if (profile.displayName && profile.displayName.trim()) completed++;
+    if (profile.username && profile.username.trim()) completed++;
+    if (profile.bio && profile.bio.trim()) completed++;
+    
+    return Math.round((completed / total) * 100);
+  };
+
   // If profile is still loading after 3 seconds, show fallback
   if (!profile) {
     return (
-      <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-        <h2>Your Profile</h2>
-        <div style={{ textAlign: 'center', padding: '40px' }}>
+      <div className="profile-container">
+        <h2 className="profile-title">Your Profile</h2>
+        <div className="profile-loading">
           <p>Loading profile...</p>
           <button 
             onClick={loadProfileFallback}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#4285f4',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              marginTop: '10px'
-            }}
+            className="profile-fallback-button"
           >
             Click here if loading takes too long
           </button>
@@ -189,62 +195,62 @@ export default function Profile({ user }) {
     );
   }
 
+  const profileCompletion = calculateProfileCompletion();
+
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>Your Profile</h2>
+    <div className="profile-container">
+      <div className="profile-header">
+        <h2 className="profile-title">Your Profile</h2>
         <button 
           onClick={() => {
             setEditing(!editing);
             setChangingPassword(false);
             setMessage("");
           }}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: editing ? '#666' : '#4285f4',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
+          className={`profile-edit-button ${
+            editing ? 'profile-edit-button-secondary' : 'profile-edit-button-primary'
+          }`}
         >
           {editing ? 'Cancel' : 'Edit Profile'}
         </button>
       </div>
 
+      {/* Profile Completion */}
+      {profileCompletion < 100 && !editing && (
+        <div className="profile-completion">
+          <h3 className="profile-completion-title">Complete Your Profile</h3>
+          <div className="profile-completion-bar">
+            <div 
+              className="profile-completion-progress" 
+              style={{ width: `${profileCompletion}%` }}
+            ></div>
+          </div>
+          <p className="profile-completion-text">{profileCompletion}% Complete</p>
+        </div>
+      )}
+
       {/* Profile Picture Section */}
-      <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+      <div className="profile-picture-section">
         <img 
           src={user.photoURL || '/default-avatar.png'} 
           alt="Profile" 
-          style={{ 
-            width: '120px', 
-            height: '120px', 
-            borderRadius: '50%',
-            marginBottom: '15px'
-          }}
+          className="profile-picture"
         />
-        <p style={{ color: '#666' }}>Profile picture from Google</p>
+        <p className="profile-picture-note">Profile picture from Google</p>
       </div>
 
       {message && (
-        <div style={{
-          padding: '10px',
-          backgroundColor: message.includes('Error') ? '#ffebee' : '#e8f5e8',
-          border: '1px solid',
-          borderColor: message.includes('Error') ? '#f44336' : '#4caf50',
-          borderRadius: '4px',
-          marginBottom: '20px',
-          color: message.includes('Error') ? '#c62828' : '#2e7d32'
-        }}>
+        <div className={`profile-message ${
+          message.includes('Error') ? 'profile-message-error' : 'profile-message-success'
+        }`}>
           {message}
         </div>
       )}
 
       {editing ? (
-        <form onSubmit={handleUpdate}>
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+        <form onSubmit={handleUpdate} className="profile-form">
+          <div className="profile-form-group">
+            <label className="profile-label">
               Display Name:
             </label>
             <input 
@@ -252,17 +258,12 @@ export default function Profile({ user }) {
               value={formData.displayName}
               onChange={(e) => setFormData({...formData, displayName: e.target.value})}
               required
-              style={{
-                width: '100%',
-                padding: '8px',
-                border: '1px solid #ddd',
-                borderRadius: '4px'
-              }}
+              className="profile-input"
             />
           </div>
 
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+          <div className="profile-form-group">
+            <label className="profile-label">
               Username:
             </label>
             <input 
@@ -270,30 +271,19 @@ export default function Profile({ user }) {
               value={formData.username}
               onChange={(e) => setFormData({...formData, username: e.target.value})}
               required
-              style={{
-                width: '100%',
-                padding: '8px',
-                border: '1px solid #ddd',
-                borderRadius: '4px'
-              }}
+              className="profile-input"
             />
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+          <div className="profile-form-group">
+            <label className="profile-label">
               Bio:
             </label>
             <textarea 
               value={formData.bio}
               onChange={(e) => setFormData({...formData, bio: e.target.value})}
               rows="4"
-              style={{
-                width: '100%',
-                padding: '8px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                resize: 'vertical'
-              }}
+              className="profile-input profile-textarea"
               placeholder="Tell others about yourself..."
             />
           </div>
@@ -301,68 +291,66 @@ export default function Profile({ user }) {
           <button 
             type="submit"
             disabled={loading}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#34a853',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              opacity: loading ? 0.6 : 1
-            }}
+            className="profile-save-button"
           >
             {loading ? 'Saving...' : 'Save Changes'}
           </button>
         </form>
       ) : (
-        <div>
-          <div style={{ marginBottom: '15px' }}>
-            <strong>Name:</strong> {profile.displayName}
+        <div className="profile-display">
+          <div className="profile-field">
+            <div className="profile-field-label">Name:</div>
+            <div className="profile-field-value">{profile.displayName}</div>
           </div>
-          <div style={{ marginBottom: '15px' }}>
-            <strong>Username:</strong> @{profile.username}
+
+          <div className="profile-field">
+            <div className="profile-field-label">Username:</div>
+            <div className="profile-field-value">@{profile.username}</div>
           </div>
-          <div style={{ marginBottom: '15px' }}>
-            <strong>Email:</strong> {user.email}
+
+          <div className="profile-field">
+            <div className="profile-field-label">Email:</div>
+            <div className="profile-field-value">{user.email}</div>
           </div>
+
           {profile.bio && (
-            <div style={{ marginBottom: '15px' }}>
-              <strong>Bio:</strong> 
-              <p style={{ margin: '5px 0 0 0', padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '4px' }}>
+            <div className="profile-field">
+              <div className="profile-field-label">Bio:</div>
+              <div className="profile-bio-content">
                 {profile.bio}
-              </p>
+              </div>
             </div>
           )}
-          <div style={{ marginBottom: '20px' }}>
-            <strong>Friends:</strong> {profile.friends ? profile.friends.length : 0}
+
+          <div className="profile-stats">
+            <div className="profile-stat">
+              <div className="profile-stat-number">
+                {profile.friends ? profile.friends.length : 0}
+              </div>
+              <div className="profile-stat-label">Friends</div>
+            </div>
+            <div className="profile-stat">
+              <div className="profile-stat-number">
+                {profile.friendRequests ? profile.friendRequests.length : 0}
+              </div>
+              <div className="profile-stat-label">Requests</div>
+            </div>
           </div>
 
           {/* Password Change Section */}
           {!changingPassword ? (
             <button 
               onClick={() => setChangingPassword(true)}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#ff9800',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
+              className="profile-password-button"
             >
               Change Password
             </button>
           ) : (
-            <div style={{ 
-              padding: '20px', 
-              border: '1px solid #ddd', 
-              borderRadius: '8px',
-              backgroundColor: '#f9f9f9'
-            }}>
-              <h3>Change Password</h3>
+            <div className="profile-password-section">
+              <h3 className="profile-password-title">Change Password</h3>
               <form onSubmit={handlePasswordChange}>
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                <div className="profile-form-group">
+                  <label className="profile-label">
                     Current Password:
                   </label>
                   <input 
@@ -370,17 +358,12 @@ export default function Profile({ user }) {
                     value={passwordData.currentPassword}
                     onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
                     required
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
+                    className="profile-input"
                   />
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                <div className="profile-form-group">
+                  <label className="profile-label">
                     New Password:
                   </label>
                   <input 
@@ -388,17 +371,15 @@ export default function Profile({ user }) {
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
                     required
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
+                    className="profile-input"
                   />
+                  <p className="profile-password-requirements">
+                    Password must be at least 6 characters long
+                  </p>
                 </div>
 
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                <div className="profile-form-group">
+                  <label className="profile-label">
                     Confirm New Password:
                   </label>
                   <input 
@@ -406,12 +387,7 @@ export default function Profile({ user }) {
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
                     required
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
+                    className="profile-input"
                   />
                 </div>
 
@@ -419,16 +395,7 @@ export default function Profile({ user }) {
                   <button 
                     type="submit"
                     disabled={loading}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: '#34a853',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      marginRight: '10px',
-                      opacity: loading ? 0.6 : 1
-                    }}
+                    className="profile-save-button"
                   >
                     {loading ? 'Updating...' : 'Update Password'}
                   </button>
@@ -443,14 +410,7 @@ export default function Profile({ user }) {
                       });
                       setMessage("");
                     }}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: '#666',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
+                    className="profile-password-button profile-password-cancel"
                   >
                     Cancel
                   </button>
