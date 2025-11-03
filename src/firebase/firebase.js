@@ -4,7 +4,7 @@ import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 
 // Your Firebase config from Firebase Console
 const firebaseConfig = {
-  apiKey: "AIzaSyCUwuTaHCBxmyKxKbzt8w3QU087zGtPooM",
+  apiKey: process.env.REACT_APP_API_KEY,
   authDomain: "vibechat-f87fe.firebaseapp.com",
   projectId: "vibechat-f87fe",
   storageBucket: "vibechat-f87fe.firebasestorage.app",
