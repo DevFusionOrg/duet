@@ -67,7 +67,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose }) {
   const searchYouTube = async (query) => {
     try {
       // Using YouTube Data API v3 with your API key
-      const API_KEY = process.env.REACT_APP_YOUTUBE_API_KEY || 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'; // Fallback key
+      const API_KEY = process.env.REACT_APP_YOUTUBE_API_KEY ; 
       
       const response = await fetch(
         `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query + " official audio")}&key=${API_KEY}`
