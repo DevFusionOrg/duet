@@ -1,70 +1,86 @@
-# Getting Started with Create React App
+<div align="center">
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+![Duet Logo](https://raw.githubusercontent.com/manulsahu/Duet/master/public/logo192.png) <!-- TODO: Add an actual project logo. This is a placeholder. -->
 
-## Available Scripts
+[![GitHub stars](https://img.shields.io/github/stars/manulsahu/Duet?style=for-the-badge)](https://github.com/manulsahu/Duet/stargazers)
 
-In the project directory, you can run:
+[![GitHub forks](https://img.shields.io/github/forks/manulsahu/Duet?style=for-the-badge)](https://github.com/manulsahu/Duet/network)
 
-### `npm start`
+[![GitHub issues](https://img.shields.io/github/issues/manulsahu/Duet?style=for-the-badge)](https://github.com/manulsahu/Duet/issues)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+</div>
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+<div align="center">
 
-### `npm test`
+# ✨ [👉 CLICK HERE TO USE DUET LIVE](https://duetchat.vercel.app) ✨
+**Chat with friends and listen to music together in perfect sync - RIGHT NOW!**
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+[![Live Demo](https://img.shields.io/badge/%F0%9F%9A%80_Try_Duet_Live-Click_Here!-blue?style=for-the-badge&logo=vercel)](https://duetchat.vercel.app)
 
-### `npm run build`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+</div>
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 🎯 What is Duet?
+**Duet lets you **chat with friends while listening to music together in perfect sync**! No more sending song links and trying to press play at the same time - Duet handles all the synchronization automatically.**
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## ✨ Features
 
-### `npm run eject`
+- 🎯 **Real-time Messaging**: Instant message delivery and updates.
+- 🎵 **Real-time Music Sync**: Play songs simultaneously with friends.
+- 🔐 **User Authentication**: Secure user login and registration.
+- 👥 **User Presence**: Display online/offline status of users.
+- 🖥️ **Cross-platform Audio**: Works on all devices.
+- ⚡ **Sync Controls**: Play, pause, and stop in perfect harmony.
+- 👫 **Friend Management**: Add, accept, and manage friends.
+- 📱 **Responsive Design**: Works on desktop and mobile.
+- 🌙 **Dark/Light Themes**: Comfortable viewing experience.
+- 🔔 **Notifications**: Real-time friend request alerts.
+- 💾 **Message Read Receipts**: Know when messages are seen.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## ⚡ Get Started in 30 Seconds
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+1. **📍 [Visit Duet Now](https://duetchat.vercel.app)**
+2. **👤 Sign up with Google (it's free!)**
+3. **👥 Add friends using their username**
+4. **🎵 Start chatting and playing music together!**
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### 👥 Invite Friends
+**Share this link with your friends: https://duetchat.vercel.app**
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
 
-## Learn More
+**Or copy this message:**
+> 🎵 Hey! Let's listen to music together on Duet - it syncs our music in real-time while we chat! Join me here: https://duetchat.vercel.app
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## 🌟 Perfect For
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+- 🎮 **Gaming sessions** with synchronized background music
+- 💻 **Remote work** with shared focus playlists
+- 🎉 **Virtual parties** where everyone hears the same music
+- 📞 **Long-distance relationships** - share music moments
+- 🎵 **Music discovery** with friends in real-time
 
-### Code Splitting
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## 💡 Pro Tips
 
-### Analyzing the Bundle Size
+1. **Share the experience**: Send the link to 3-5 friends for the best experience
+2. **Create themed sessions**: Study music, party playlists, or discover new artists together
+3. **Use headphones** for the best synchronized audio quality
+4. **Vibe chat** - Start chatting with music vibe together.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
 
-### Making a Progressive Web App
+<div align="center">
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## 🎊 What are you waiting for?
 
-### Advanced Configuration
+# [✨ CLICK HERE TO START YOUR MUSIC JOURNEY](https://duetchat.vercel.app)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+**Invite your friends and experience synchronized music like never before!**
 
-### Deployment
+[![Share on WhatsApp](https://img.shields.io/badge/WhatsApp-Share_Green?style=for-the-badge&logo=whatsapp)](https://wa.me/?text=🎵%20Let's%20listen%20to%20music%20together%20on%20Duet!%20https://duetchat.vercel.app)
+[![Share on Discord](https://img.shields.io/badge/Discord-Invite_Purple?style=for-the-badge&logo=discord)](https://duetchat.vercel.app)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+**⭐ Star this repo if you find it helpful!**
 
-### `npm run build` fails to minify
+Made with ❤️ by [Manul Sahu](https://github.com/manulsahu) & [Dushyant](https://github.com/dushyantrajotia)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+</div>
