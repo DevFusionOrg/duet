@@ -4,9 +4,13 @@ import {
   getOrCreateChat, 
   sendMessage, 
   listenToChatMessages, 
-  markMessagesAsRead 
+  markMessagesAsRead,
+  saveMessage,
+  unsaveMessage,
+  editMessage,
+  getUserFriends
 } from "../firebase/firestore";
-import '../styles/Chat.css'; // Import the CSS file
+import '../styles/Chat.css';
 
 function Chat({ user, friend, onBack }) {
   const [messages, setMessages] = useState([]);
@@ -14,11 +18,21 @@ function Chat({ user, friend, onBack }) {
   const [loading, setLoading] = useState(false);
   const [chatId, setChatId] = useState(null);
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [showMessageMenu, setShowMessageMenu] = useState(false);
+  const [showForwardPopup, setShowForwardPopup] = useState(false);
+  const [friends, setFriends] = useState([]);
+  const [selectedFriends, setSelectedFriends] = useState([]);
+  const [hoveredMessage, setHoveredMessage] = useState(null);
+  const [forwarding, setForwarding] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     if (user && friend) {
       initializeChat();
+      loadFriends();
     }
   }, [user, friend]);
 
@@ -26,23 +40,27 @@ function Chat({ user, friend, onBack }) {
     try {
       const id = await getOrCreateChat(user.uid, friend.uid);
       setChatId(id);
-      
-      // Mark existing messages as read
       await markMessagesAsRead(id, user.uid);
     } catch (error) {
       console.error("Error initializing chat:", error);
     }
   };
 
+  const loadFriends = async () => {
+    try {
+      const userFriends = await getUserFriends(user.uid);
+      setFriends(userFriends);
+    } catch (error) {
+      console.error("Error loading friends:", error);
+    }
+  };
+
   useEffect(() => {
     if (!chatId) return;
 
-    // Listen for real-time messages
     const unsubscribe = listenToChatMessages(chatId, (chatMessages) => {
       setMessages(chatMessages);
       scrollToBottom();
-      
-      // Mark new messages as read
       markMessagesAsRead(chatId, user.uid);
     });
 
@@ -68,10 +86,160 @@ function Chat({ user, friend, onBack }) {
     setLoading(false);
   };
 
+  const handleSaveMessage = async (messageId) => {
+    try {
+      await saveMessage(chatId, messageId, user.uid);
+      setShowMessageMenu(false);
+    } catch (error) {
+      console.error("Error saving message:", error);
+      alert("Error saving message: " + error.message);
+    }
+  };
+
+  const handleUnsaveMessage = async (messageId) => {
+    try {
+      await unsaveMessage(chatId, messageId);
+      setShowMessageMenu(false);
+    } catch (error) {
+      console.error("Error unsaving message:", error);
+      alert("Error unsaving message: " + error.message);
+    }
+  };
+
+  const handleStartEdit = (message) => {
+    if (message.senderId !== user.uid) return;
+    
+    if (!message.canEditUntil) {
+      alert("This message cannot be edited.");
+      return;
+    }
+    
+    const now = new Date();
+    const canEditUntil = message.canEditUntil.toDate ? message.canEditUntil.toDate() : new Date(message.canEditUntil);
+    
+    if (now > canEditUntil) {
+      alert("Edit time expired. You can only edit messages within 15 minutes of sending.");
+      return;
+    }
+    
+    setEditingMessageId(message.id);
+    setEditText(message.text);
+    setShowMessageMenu(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText("");
+  };
+
+  const handleSaveEdit = async (messageId) => {
+    if (!editText.trim()) return;
+
+    try {
+      await editMessage(chatId, messageId, editText.trim(), user.uid);
+      setEditingMessageId(null);
+      setEditText("");
+    } catch (error) {
+      console.error("Error editing message:", error);
+      alert("Error editing message: " + error.message);
+    }
+  };
+
+  const handleMessageHover = (message) => {
+    setHoveredMessage(message);
+  };
+
+  const handleMessageLeave = () => {
+    setHoveredMessage(null);
+  };
+
+  const handleArrowClick = (e, message) => {
+    e.stopPropagation();
+    setSelectedMessage(message);
+    setShowMessageMenu(true);
+  };
+
+  const handleForwardClick = (message) => {
+    setSelectedMessage(message);
+    setSelectedFriends([]);
+    setShowForwardPopup(true);
+    setShowMessageMenu(false);
+  };
+
+  const handleFriendSelection = (friendId) => {
+    setSelectedFriends(prev => {
+      if (prev.includes(friendId)) {
+        return prev.filter(id => id !== friendId);
+      } else {
+        return [...prev, friendId];
+      }
+    });
+  };
+
+  const handleForwardMessages = async () => {
+    if (!selectedMessage || selectedFriends.length === 0) return;
+
+    setForwarding(true);
+    try {
+      // Use Promise.all for faster parallel forwarding
+      const forwardPromises = selectedFriends.map(async (friendId) => {
+        const forwardChatId = await getOrCreateChat(user.uid, friendId);
+        // Forward the original message text without "Forwarded:" prefix
+        await sendMessage(forwardChatId, user.uid, selectedMessage.text);
+      });
+      
+      await Promise.all(forwardPromises);
+      
+      setShowForwardPopup(false);
+      setSelectedFriends([]);
+      setForwarding(false);
+      alert(`Message forwarded to ${selectedFriends.length} friend(s)`);
+    } catch (error) {
+      console.error("Error forwarding message:", error);
+      alert("Error forwarding message: " + error.message);
+      setForwarding(false);
+    }
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showMessageMenu && !e.target.closest('.chat-dropdown-menu') && !e.target.closest('.chat-menu-arrow')) {
+        setShowMessageMenu(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showMessageMenu]);
+
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const canEditMessage = (message) => {
+    if (message.senderId !== user.uid) return false;
+    if (!message.canEditUntil) return false;
+    
+    try {
+      const now = new Date();
+      const canEditUntil = message.canEditUntil.toDate ? message.canEditUntil.toDate() : new Date(message.canEditUntil);
+      return now <= canEditUntil;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const isMessageSaved = (message) => {
+    return message.isSaved === true;
+  };
+
+  const isMessageEdited = (message) => {
+    return message.isEdited === true;
   };
 
   if (!friend) {
@@ -103,7 +271,6 @@ function Chat({ user, friend, onBack }) {
             <p className="chat-user-status">Online</p>
           </div>
         </div>
-        {/* Add Music Button */}
         <button 
           onClick={() => setShowMusicPlayer(true)}
           className="chat-music-button"
@@ -111,6 +278,11 @@ function Chat({ user, friend, onBack }) {
         >
           🎵 Sync Music
         </button>
+      </div>
+
+      {/* Simple centered warning banner */}
+      <div className="chat-auto-deletion-info">
+        ⏰ Messages auto-delete in 72 hours. Tap ⭐ to save important messages.
       </div>
 
       {/* Messages Area */}
@@ -123,23 +295,162 @@ function Chat({ user, friend, onBack }) {
           messages.map((message) => (
             <div
               key={message.id}
-              className={`chat-message-bubble ${
+              className={`chat-message-wrapper ${
+                message.senderId === user.uid 
+                  ? 'chat-sent-wrapper' 
+                  : 'chat-received-wrapper'
+              }`}
+              onMouseEnter={() => handleMessageHover(message)}
+              onMouseLeave={handleMessageLeave}
+            >
+              {/* Menu Arrow - Left side */}
+              {hoveredMessage?.id === message.id && (
+                <div className="chat-menu-arrow-container">
+                  <button 
+                    className="chat-menu-arrow"
+                    onClick={(e) => handleArrowClick(e, message)}
+                    title="Message options"
+                  >
+                    ▼
+                  </button>
+                </div>
+              )}
+
+              {/* Message Bubble */}
+              <div className={`chat-message-bubble ${
                 message.senderId === user.uid 
                   ? 'chat-sent-message' 
                   : 'chat-received-message'
-              }`}
-            >
-              <div className="chat-message-content">
-                <p className="chat-message-text">{message.text}</p>
-                <span className="chat-message-time">
-                  {formatTime(message.timestamp)}
-                </span>
+              } ${isMessageSaved(message) ? 'chat-saved-message' : ''}`}>
+                <div className="chat-message-content">
+                  {editingMessageId === message.id ? (
+                    <div className="chat-edit-container">
+                      <input
+                        type="text"
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        className="chat-edit-input"
+                        autoFocus
+                      />
+                      <div className="chat-edit-actions">
+                        <button 
+                          onClick={() => handleSaveEdit(message.id)}
+                          className="chat-edit-save"
+                        >
+                          Save
+                        </button>
+                        <button 
+                          onClick={handleCancelEdit}
+                          className="chat-edit-cancel"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="chat-message-text">{message.text}</p>
+                      <div className="chat-message-status">
+                        <span className="chat-message-time">
+                          {formatTime(message.timestamp)}
+                        </span>
+                        {isMessageEdited(message) && (
+                          <span className="chat-edited-indicator">Edited</span>
+                        )}
+                        {isMessageSaved(message) && (
+                          <span className="chat-saved-indicator">⭐</span>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
+
+              {/* Dropdown Menu */}
+              {showMessageMenu && selectedMessage?.id === message.id && (
+                <div className="chat-dropdown-menu">
+                  <div className="menu-item" onClick={() => navigator.clipboard.writeText(message.text)}>
+                    Copy
+                  </div>
+                  <div className="menu-item" onClick={() => handleForwardClick(message)}>
+                    Forward
+                  </div>
+                  {isMessageSaved(message) ? (
+                    <div className="menu-item" onClick={() => handleUnsaveMessage(message.id)}>
+                      Unstar
+                    </div>
+                  ) : (
+                    <div className="menu-item" onClick={() => handleSaveMessage(message.id)}>
+                      Star
+                    </div>
+                  )}
+                  {canEditMessage(message) && (
+                    <div className="menu-item" onClick={() => handleStartEdit(message)}>
+                      Edit
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Forward Popup */}
+      {showForwardPopup && (
+        <div className="forward-popup-overlay">
+          <div className="forward-popup">
+            <div className="forward-header">
+              <h3>Forward to...</h3>
+              <button 
+                className="forward-close"
+                onClick={() => setShowForwardPopup(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="forward-search">
+              <input 
+                type="text" 
+                placeholder="Search friends..."
+                className="forward-search-input"
+              />
+            </div>
+            <div className="forward-friends-list">
+              {friends.map(friend => (
+                <div key={friend.uid} className="forward-friend-item">
+                  <label className="forward-friend-label">
+                    <input
+                      type="checkbox"
+                      checked={selectedFriends.includes(friend.uid)}
+                      onChange={() => handleFriendSelection(friend.uid)}
+                      className="forward-checkbox"
+                    />
+                    <img 
+                      src={friend.photoURL} 
+                      alt={friend.displayName}
+                      className="forward-friend-avatar"
+                    />
+                    <div className="forward-friend-info">
+                      <span className="forward-friend-name">{friend.displayName}</span>
+                    </div>
+                  </label>
+                </div>
+              ))}
+            </div>
+            <div className="forward-actions">
+              <button 
+                onClick={handleForwardMessages}
+                disabled={selectedFriends.length === 0 || forwarding}
+                className="forward-button"
+              >
+                {forwarding ? "Forwarding..." : `Forward ${selectedFriends.length > 0 ? `(${selectedFriends.length})` : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Message Input */}
       <form onSubmit={handleSendMessage} className="chat-input-container">
