@@ -6,6 +6,7 @@ import {
   getDoc, 
   updateDoc,
   addDoc,
+  deleteDoc,
   arrayUnion, 
   arrayRemove, 
   query, 
@@ -321,15 +322,28 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
   }
 };
 
-// Send a message
+// Send a message with auto-deletion and edit capabilities
 export const sendMessage = async (chatId, senderId, text) => {
   try {
     const messagesRef = collection(db, 'chats', chatId, 'messages');
+    
+    // Calculate deletion time (72 hours from now)
+    const deletionTime = new Date();
+    deletionTime.setHours(deletionTime.getHours() + 72);
+    
     const messageData = {
       senderId,
       text,
       timestamp: new Date(),
-      read: false
+      read: false,
+      // Auto-deletion fields
+      deletionTime: deletionTime,
+      isSaved: false,
+      // Edit fields
+      isEdited: false,
+      editHistory: [],
+      originalText: text,
+      canEditUntil: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes from now
     };
     
     // Add message to subcollection
@@ -342,7 +356,7 @@ export const sendMessage = async (chatId, senderId, text) => {
       lastMessageAt: new Date()
     });
     
-    console.log("Message sent:", messageRef.id);
+    console.log("Message sent with auto-deletion:", messageRef.id);
     return messageRef.id;
   } catch (error) {
     console.error("Error sending message:", error);
@@ -386,33 +400,68 @@ export const getUserChats = async (userId) => {
   }
 };
 
-// Get messages for a chat
+// Get messages with auto-deletion check
 export const getChatMessages = async (chatId) => {
   try {
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'asc'));
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const now = new Date();
+    const messages = [];
+    
+    for (const doc of querySnapshot.docs) {
+      const messageData = doc.data();
+      
+      // Check if message should be auto-deleted
+      if (messageData.deletionTime && 
+          now > messageData.deletionTime.toDate() && 
+          !messageData.isSaved) {
+        // Auto-delete this message
+        await deleteDoc(doc.ref);
+        continue;
+      }
+      
+      messages.push({
+        id: doc.id,
+        ...messageData
+      });
+    }
+    
+    return messages;
   } catch (error) {
     console.error("Error getting chat messages:", error);
     return [];
   }
 };
 
-// Real-time listener for chat messages
+// Real-time listener with auto-deletion check
 export const listenToChatMessages = (chatId, callback) => {
   const messagesRef = collection(db, 'chats', chatId, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'asc'));
   
-  return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+  return onSnapshot(q, async (snapshot) => {
+    const now = new Date();
+    const messages = [];
+    
+    for (const doc of snapshot.docs) {
+      const messageData = doc.data();
+      
+      // Check if message should be auto-deleted
+      if (messageData.deletionTime && 
+          now > messageData.deletionTime.toDate() && 
+          !messageData.isSaved) {
+        // Auto-delete this message
+        await deleteDoc(doc.ref);
+        continue;
+      }
+      
+      messages.push({
+        id: doc.id,
+        ...messageData
+      });
+    }
+    
     callback(messages);
   });
 };
@@ -589,6 +638,116 @@ export const listenToMusicQueue = (chatId, callback) => {
   });
 };
 
+// ===== AUTO-DELETION AND EDITING FUNCTIONS =====
+
+// Save/star a message to prevent deletion
+export const saveMessage = async (chatId, messageId, userId) => {
+  try {
+    const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
+    await updateDoc(messageRef, {
+      isSaved: true,
+      savedBy: userId,
+      savedAt: new Date()
+    });
+    console.log("Message saved from deletion");
+  } catch (error) {
+    console.error("Error saving message:", error);
+    throw error;
+  }
+};
+
+// Unsave a message
+export const unsaveMessage = async (chatId, messageId) => {
+  try {
+    const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
+    await updateDoc(messageRef, {
+      isSaved: false,
+      savedBy: null,
+      savedAt: null
+    });
+    console.log("Message unsaved");
+  } catch (error) {
+    console.error("Error unsaving message:", error);
+    throw error;
+  }
+};
+
+// Edit a message (within 15 minutes)
+export const editMessage = async (chatId, messageId, newText, userId) => {
+  try {
+    const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
+    const messageSnap = await getDoc(messageRef);
+    
+    if (!messageSnap.exists()) {
+      throw new Error("Message not found");
+    }
+    
+    const messageData = messageSnap.data();
+    
+    // Check if user is the sender
+    if (messageData.senderId !== userId) {
+      throw new Error("You can only edit your own messages");
+    }
+    
+    // Check if edit window is still open (15 minutes)
+    const now = new Date();
+    const canEditUntil = messageData.canEditUntil.toDate();
+    
+    if (now > canEditUntil) {
+      throw new Error("Edit time expired. You can only edit messages within 15 minutes of sending.");
+    }
+    
+    // Add to edit history
+    const editHistory = messageData.editHistory || [];
+    editHistory.push({
+      previousText: messageData.text,
+      editedAt: new Date()
+    });
+    
+    await updateDoc(messageRef, {
+      text: newText,
+      isEdited: true,
+      editHistory: editHistory,
+      lastEditedAt: new Date()
+    });
+    
+    console.log("Message edited successfully");
+  } catch (error) {
+    console.error("Error editing message:", error);
+    throw error;
+  }
+};
+
+// Schedule auto-deletion cleanup (run this periodically)
+export const cleanupExpiredMessages = async () => {
+  try {
+    const chatsRef = collection(db, 'chats');
+    const chatsSnapshot = await getDocs(chatsRef);
+    
+    const now = new Date();
+    const cleanupPromises = [];
+    
+    for (const chatDoc of chatsSnapshot.docs) {
+      const messagesRef = collection(db, 'chats', chatDoc.id, 'messages');
+      const messagesQuery = query(
+        messagesRef,
+        where('deletionTime', '<=', now),
+        where('isSaved', '==', false)
+      );
+      
+      const messagesSnapshot = await getDocs(messagesQuery);
+      
+      messagesSnapshot.docs.forEach(doc => {
+        cleanupPromises.push(deleteDoc(doc.ref));
+      });
+    }
+    
+    await Promise.all(cleanupPromises);
+    console.log(`Cleaned up ${cleanupPromises.length} expired messages`);
+  } catch (error) {
+    console.error("Error cleaning up expired messages:", error);
+  }
+};
 
 // Real-time listener for user profile updates with offline handling
 export const listenToUserProfile = (userId, callback) => {
