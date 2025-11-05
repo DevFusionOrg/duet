@@ -1,27 +1,60 @@
 import React, { useState } from "react";
-import { signInWithPopup } from "firebase/auth";
+import { 
+  signInWithPopup, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  updateProfile 
+} from "firebase/auth";
 import { auth, googleProvider } from "../firebase/firebase";
-import '../styles/Auth.css'; // Import the CSS file
+import '../styles/Auth.css';
 
 function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const signInWithGoogle = async () => {
     try {
+      setLoading(true);
+      setError("");
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error("Error signing in with Google:", error);
-      alert("Error signing in with Google: " + error.message);
+      setError("Error signing in with Google: " + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleEmailAuth = async (e) => {
     e.preventDefault();
-    // For now, we'll just show an alert since we're focused on Google auth
-    alert("Email/password authentication will be implemented later. Please use Google Sign-In for now.");
+    setLoading(true);
+    setError("");
+
+    try {
+      if (isLogin) {
+        // Sign in existing user
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        // Create new user
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        // Update profile with display name
+        if (name) {
+          await updateProfile(userCredential.user, {
+            displayName: name
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Authentication error:", error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,6 +65,13 @@ function Auth() {
           <h1 className="auth-title">Duet</h1>
           <p className="auth-subtitle">Chat with friends and listen to music together</p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="auth-error">
+            {error}
+          </div>
+        )}
 
         {/* Toggle between Login and Signup */}
         <div className="auth-toggle-container">
@@ -86,11 +126,16 @@ function Auth() {
               placeholder="Enter your password"
               className="auth-input"
               required
+              minLength={6}
             />
           </div>
 
-          <button type="submit" className="auth-email-button">
-            {isLogin ? "Sign In" : "Sign Up"}
+          <button 
+            type="submit" 
+            className="auth-email-button"
+            disabled={loading}
+          >
+            {loading ? "Loading..." : (isLogin ? "Sign In" : "Sign Up")}
           </button>
         </form>
 
@@ -100,13 +145,17 @@ function Auth() {
         </div>
 
         {/* Google Sign In */}
-        <button onClick={signInWithGoogle} className="auth-google-button">
+        <button 
+          onClick={signInWithGoogle} 
+          className="auth-google-button"
+          disabled={loading}
+        >
           <img 
             src="https://developers.google.com/identity/images/g-logo.png" 
             alt="Google" 
             className="auth-google-icon"
           />
-          Sign in with Google
+          {loading ? "Loading..." : "Sign in with Google"}
         </button>
 
         {/* Switch between Login and Signup */}
