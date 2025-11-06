@@ -12,14 +12,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  background-color: #075e54;
+  background-color: #ffffff;
   color: white;
 }
 
 .chat-back-button {
   background: none;
   border: none;
-  color: white;
+  color: rgb(0, 119, 255);
   font-size: 18px;
   cursor: pointer;
   padding: 8px;

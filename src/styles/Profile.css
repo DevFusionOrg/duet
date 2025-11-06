@@ -4,7 +4,7 @@
   max-width: 600px;
   margin: 0 auto;
   min-height: 100vh;
-  background-color: #f8f9fa;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .profile-header {
@@ -23,7 +23,7 @@
 
 .profile-edit-button {
   padding: 8px 16px;
-  color: white;
+  color: rgb(0, 0, 0);
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -34,19 +34,19 @@
 }
 
 .profile-edit-button-primary {
-  background-color: #4285f4;
+  background-color: #ffffff;
 }
 
 .profile-edit-button-primary:hover {
-  background-color: #3367d6;
+  background-color: #ffae00;
 }
 
 .profile-edit-button-secondary {
-  background-color: #666;
+  background-color: #ffae00
 }
 
 .profile-edit-button-secondary:hover {
-  background-color: #555;
+  background-color: #ffffff;
 }
 
 .profile-picture-section {
@@ -65,7 +65,7 @@
 }
 
 .profile-picture-note {
-  color: #666;
+  color: #000000;
   font-size: 14px;
   margin: 0;
 }
