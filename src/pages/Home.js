@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { getUserFriends, listenToUserChats } from "../firebase/firestore";
 import Chat from "./Chat";
+import '../styles/Home.css'; // We'll create this CSS file
 
 function Home({ user }) {
   const [friends, setFriends] = useState([]);
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFriend, setSelectedFriend] = useState(null);
-  const [activeView, setActiveView] = useState('friends'); // 'friends' or 'chats'
+  const [activeView, setActiveView] = useState('friends');
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState(null);
 
   useEffect(() => {
     const loadFriends = async () => {
@@ -28,7 +31,6 @@ function Home({ user }) {
   useEffect(() => {
     if (!user) return;
 
-    // Listen for real-time chat updates
     const unsubscribe = listenToUserChats(user.uid, (userChats) => {
       setChats(userChats);
     });
@@ -44,6 +46,19 @@ function Home({ user }) {
     setSelectedFriend(null);
   };
 
+  const handleFriendCardClick = (friend, e) => {
+    // Only open profile if chat button wasn't clicked
+    if (!e.target.closest('.chat-button')) {
+      setSelectedProfile(friend);
+      setShowProfilePopup(true);
+    }
+  };
+
+  const handleCloseProfilePopup = () => {
+    setShowProfilePopup(false);
+    setSelectedProfile(null);
+  };
+
   // If chat is open, show chat interface
   if (selectedFriend) {
     return (
@@ -56,40 +71,39 @@ function Home({ user }) {
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>Welcome to Duet, {user?.displayName}! 🎵</h2>
-        <p style={styles.subtitle}>Chat with friends and listen to music together in real-time.</p>
+    <div className="home-container">
+      <div className="home-header">
+        <div className="welcome-section">
+          <h1 className="welcome-title">Welcome to Duet, {user?.displayName}! 🎵</h1>
+          <p className="welcome-subtitle">Chat with friends and listen to music together in real-time.</p>
+        </div>
         
         {/* View Toggle */}
-        <div style={styles.toggleContainer}>
+        <div className="view-toggle">
           <button
-            style={{
-              ...styles.toggleButton,
-              ...(activeView === 'friends' ? styles.activeToggle : {})
-            }}
+            className={`toggle-btn ${activeView === 'friends' ? 'active' : ''}`}
             onClick={() => setActiveView('friends')}
           >
+            <span className="toggle-icon">👥</span>
             Friends ({friends.length})
           </button>
           <button
-            style={{
-              ...styles.toggleButton,
-              ...(activeView === 'chats' ? styles.activeToggle : {})
-            }}
+            className={`toggle-btn ${activeView === 'chats' ? 'active' : ''}`}
             onClick={() => setActiveView('chats')}
           >
+            <span className="toggle-icon">💬</span>
             Chats ({chats.length})
           </button>
         </div>
       </div>
 
-      <div style={styles.content}>
+      <div className="home-content">
         {activeView === 'friends' ? (
           <FriendsView 
             friends={friends} 
             loading={loading} 
             onStartChat={handleStartChat}
+            onFriendCardClick={handleFriendCardClick}
           />
         ) : (
           <ChatsView 
@@ -99,63 +113,70 @@ function Home({ user }) {
           />
         )}
       </div>
+
+      {/* Profile Popup */}
+      {showProfilePopup && selectedProfile && (
+        <ProfilePopup 
+          friend={selectedProfile}
+          onClose={handleCloseProfilePopup}
+        />
+      )}
     </div>
   );
 }
 
 // Friends View Component
-function FriendsView({ friends, loading, onStartChat }) {
+function FriendsView({ friends, loading, onStartChat, onFriendCardClick }) {
   if (loading) {
-    return <div style={styles.loading}>Loading friends...</div>;
+    return (
+      <div className="loading-state">
+        <div className="loading-spinner"></div>
+        <p>Loading friends...</p>
+      </div>
+    );
   }
 
   if (friends.length === 0) {
     return (
-      <div style={styles.emptyState}>
-        <p>You don't have any friends yet.</p>
+      <div className="empty-state">
+        <div className="empty-icon">👥</div>
+        <h3>No Friends Yet</h3>
         <p>Go to the Search page to find and add friends!</p>
       </div>
     );
   }
 
   return (
-    <div style={styles.grid}>
+    <div className="friends-grid">
       {friends.map(friend => (
         <div 
           key={friend.uid} 
-          style={styles.card}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-          }}
+          className="friend-card"
+          onClick={(e) => onFriendCardClick(friend, e)}
         >
-          <img 
-            src={friend.photoURL} 
-            alt={friend.displayName}
-            style={styles.avatar}
-          />
-          <div style={styles.cardContent}>
-            <h4 style={styles.cardTitle}>{friend.displayName}</h4>
-            <p style={styles.cardSubtitle}>@{friend.username}</p>
+          <div className="friend-avatar-section">
+            <img 
+              src={friend.photoURL} 
+              alt={friend.displayName}
+              className="friend-avatar"
+            />
+            <div className="online-indicator"></div>
+          </div>
+          
+          <div className="friend-info">
+            <h3 className="friend-name">{friend.displayName}</h3>
+            <p className="friend-username">@{friend.username}</p>
             {friend.bio && (
-              <p style={styles.cardBio}>{friend.bio}</p>
+              <p className="friend-bio">{friend.bio}</p>
             )}
           </div>
+
           <button 
             onClick={() => onStartChat(friend)}
-            style={styles.chatButton}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = '#3367d6';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = '#4285f4';
-            }}
+            className="chat-button"
           >
-            💬 Chat
+            <span className="chat-icon">💬</span>
+            Chat
           </button>
         </div>
       ))}
@@ -166,52 +187,55 @@ function FriendsView({ friends, loading, onStartChat }) {
 // Chats View Component
 function ChatsView({ chats, loading, onStartChat }) {
   if (loading) {
-    return <div style={styles.loading}>Loading chats...</div>;
+    return (
+      <div className="loading-state">
+        <div className="loading-spinner"></div>
+        <p>Loading chats...</p>
+      </div>
+    );
   }
 
   if (chats.length === 0) {
     return (
-      <div style={styles.emptyState}>
-        <p>No active chats yet.</p>
+      <div className="empty-state">
+        <div className="empty-icon">💬</div>
+        <h3>No Active Chats</h3>
         <p>Start a conversation with one of your friends!</p>
       </div>
     );
   }
 
   return (
-    <div style={styles.chatList}>
+    <div className="chats-list">
       {chats.map(chat => (
         <div 
           key={chat.id} 
-          style={styles.chatItem}
+          className="chat-item"
           onClick={() => onStartChat(chat.otherParticipant)}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#f8f9fa';
-            e.currentTarget.style.transform = 'translateX(4px)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'white';
-            e.currentTarget.style.transform = 'translateX(0)';
-          }}
         >
-          <img 
-            src={chat.otherParticipant.photoURL} 
-            alt={chat.otherParticipant.displayName}
-            style={styles.chatAvatar}
-          />
-          <div style={styles.chatInfo}>
-            <div style={styles.chatHeader}>
-              <h4 style={styles.chatName}>{chat.otherParticipant.displayName}</h4>
-              <span style={styles.chatTime}>
+          <div className="chat-avatar-section">
+            <img 
+              src={chat.otherParticipant.photoURL} 
+              alt={chat.otherParticipant.displayName}
+              className="chat-avatar"
+            />
+            <div className="online-indicator"></div>
+          </div>
+          
+          <div className="chat-info">
+            <div className="chat-header">
+              <h4 className="chat-name">{chat.otherParticipant.displayName}</h4>
+              <span className="chat-time">
                 {chat.lastMessageAt?.toDate?.()?.toLocaleDateString() || 'New'}
               </span>
             </div>
-            <p style={styles.lastMessage}>
+            <p className="last-message">
               {chat.lastMessage || 'Start a conversation...'}
             </p>
           </div>
+          
           {chat.unreadCount > 0 && (
-            <div style={styles.unreadBadge}>
+            <div className="unread-badge">
               {chat.unreadCount}
             </div>
           )}
@@ -221,222 +245,63 @@ function ChatsView({ chats, loading, onStartChat }) {
   );
 }
 
-const styles = {
-  container: {
-    padding: '20px',
-    maxWidth: '1200px',
-    margin: '0 auto',
-    minHeight: '100vh',
-    backgroundColor: '#f8f9fa'
-  },
-  header: {
-    marginBottom: '30px',
-    textAlign: 'center'
-  },
-  title: {
-    fontSize: '28px',
-    fontWeight: 'bold',
-    color: '#333',
-    margin: '0 0 8px 0'
-  },
-  subtitle: {
-    fontSize: '16px',
-    color: '#666',
-    margin: '0 0 20px 0'
-  },
-  toggleContainer: {
-    display: 'inline-flex',
-    backgroundColor: '#e9ecef',
-    borderRadius: '8px',
-    padding: '4px',
-    marginBottom: '20px'
-  },
-  toggleButton: {
-    padding: '10px 20px',
-    border: 'none',
-    backgroundColor: 'transparent',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-    transition: 'all 0.2s ease'
-  },
-  activeToggle: {
-    backgroundColor: 'white',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-    color: '#4285f4'
-  },
-  content: {
-    marginBottom: '40px'
-  },
-  loading: {
-    textAlign: 'center',
-    padding: '40px',
-    color: '#666',
-    fontSize: '16px'
-  },
-  emptyState: {
-    textAlign: 'center',
-    padding: '60px 40px',
-    color: '#666',
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    border: '2px dashed #ddd',
-    fontSize: '16px',
-    lineHeight: '1.6'
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-    gap: '20px'
-  },
-  card: {
-    backgroundColor: 'white',
-    padding: '20px',
-    borderRadius: '12px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '15px',
-    transition: 'all 0.2s ease',
-    cursor: 'pointer'
-  },
-  avatar: {
-    width: '60px',
-    height: '60px',
-    borderRadius: '50%',
-    objectFit: 'cover'
-  },
-  cardContent: {
-    flex: 1,
-    minWidth: 0
-  },
-  cardTitle: {
-    margin: '0 0 4px 0',
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#333',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
-  },
-  cardSubtitle: {
-    margin: '0 0 8px 0',
-    fontSize: '14px',
-    color: '#666',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
-  },
-  cardBio: {
-    margin: 0,
-    fontSize: '12px',
-    color: '#999',
-    lineHeight: '1.4',
-    display: '-webkit-box',
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: 'vertical',
-    overflow: 'hidden'
-  },
-  chatButton: {
-    padding: '8px 16px',
-    backgroundColor: '#4285f4',
-    color: 'white',
-    border: 'none',
-    borderRadius: '20px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-    transition: 'background-color 0.2s ease',
-    whiteSpace: 'nowrap'
-  },
-  chatList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px'
-  },
-  chatItem: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '16px 20px',
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    position: 'relative'
-  },
-  chatAvatar: {
-    width: '50px',
-    height: '50px',
-    borderRadius: '50%',
-    marginRight: '15px',
-    objectFit: 'cover'
-  },
-  chatInfo: {
-    flex: 1,
-    minWidth: 0
-  },
-  chatHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '4px'
-  },
-  chatName: {
-    margin: 0,
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#333',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
-  },
-  chatTime: {
-    fontSize: '12px',
-    color: '#999',
-    whiteSpace: 'nowrap',
-    marginLeft: '10px'
-  },
-  lastMessage: {
-    margin: 0,
-    fontSize: '14px',
-    color: '#666',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap'
-  },
-  unreadBadge: {
-    position: 'absolute',
-    top: '12px',
-    right: '12px',
-    backgroundColor: '#ea4335',
-    color: 'white',
-    borderRadius: '50%',
-    width: '20px',
-    height: '20px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '12px',
-    fontWeight: 'bold'
-  },
-  comingSoon: {
-    backgroundColor: '#e8f4fd',
-    padding: '25px',
-    borderRadius: '12px',
-    border: '1px solid #b3d9ff',
-    textAlign: 'center',
-    marginTop: '40px'
-  },
-  featureList: {
-    textAlign: 'left',
-    maxWidth: '400px',
-    margin: '20px auto 0',
-    color: '#666',
-    paddingLeft: '20px',
-    lineHeight: '1.6'
-  }
-};
+// Profile Popup Component
+function ProfilePopup({ friend, onClose }) {
+  return (
+    <div className="profile-popup-overlay" onClick={onClose}>
+      <div className="profile-popup" onClick={(e) => e.stopPropagation()}>
+        <div className="popup-header">
+          <h2>Profile</h2>
+          <button className="close-button" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        
+        <div className="popup-content">
+          <div className="profile-picture-section">
+            <img 
+              src={friend.photoURL} 
+              alt={friend.displayName}
+              className="profile-picture-large"
+            />
+          </div>
+
+          <div className="profile-info">
+            <div className="info-field">
+              <label>Name:</label>
+              <span>{friend.displayName}</span>
+            </div>
+            
+            <div className="info-field">
+              <label>Username:</label>
+              <span>@{friend.username}</span>
+            </div>
+            
+            {friend.email && (
+              <div className="info-field">
+                <label>Email:</label>
+                <span>{friend.email}</span>
+              </div>
+            )}
+            
+            {friend.bio && (
+              <div className="info-field">
+                <label>Bio:</label>
+                <span className="bio-text">{friend.bio}</span>
+              </div>
+            )}
+            
+            <div className="profile-stats">
+              <div className="stat-item">
+                <span className="stat-number">{friend.friends ? friend.friends.length : 0}</span>
+                <span className="stat-label">Friends</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default Home;
