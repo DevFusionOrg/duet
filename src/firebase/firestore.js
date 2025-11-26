@@ -48,7 +48,7 @@ export const createUserProfile = async (user) => {
     }
   } catch (error) {
     console.error("Error creating user profile:", error);
-    throw error; // Re-throw to handle in calling function
+    throw error;
   }
 };
 
@@ -61,7 +61,6 @@ export const getUserProfile = async (userId) => {
     return userSnap.exists() ? userSnap.data() : null;
   } catch (error) {
     console.error("Error in getUserProfile:", error);
-    // Return a basic profile if offline
     return {
       uid: userId,
       displayName: "User",
@@ -80,14 +79,12 @@ export const searchUsers = async (searchTerm) => {
   try {
     const usersRef = collection(db, 'users');
     
-    // Search in displayName
     const displayNameQuery = query(
       usersRef, 
       where('displayName', '>=', searchTerm),
       where('displayName', '<=', searchTerm + '\uf8ff')
     );
     
-    // Search in username
     const usernameQuery = query(
       usersRef,
       where('username', '>=', searchTerm),
@@ -101,7 +98,6 @@ export const searchUsers = async (searchTerm) => {
 
     const users = new Map();
     
-    // Combine results and remove duplicates
     displayNameSnapshot.forEach(doc => {
       users.set(doc.id, { id: doc.id, ...doc.data() });
     });
@@ -122,18 +118,15 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
   try {
     console.log("Sending friend request from:", fromUserId, "to:", toUserId);
     
-    // First, check if the target user exists
     const toUserProfile = await getUserProfile(toUserId);
     if (!toUserProfile) {
       throw new Error("User not found");
     }
     
-    // Check if already friends
     if (toUserProfile.friends && toUserProfile.friends.includes(fromUserId)) {
       throw new Error("You are already friends with this user");
     }
     
-    // Check if request already sent
     if (toUserProfile.friendRequests) {
       const existingRequest = toUserProfile.friendRequests.find(
         req => req.from === fromUserId && req.status === 'pending'
@@ -158,7 +151,6 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
   } catch (error) {
     console.error("Error sending friend request:", error);
     
-    // Provide more specific error messages
     let errorMessage = "Error sending friend request";
     if (error.code === 'permission-denied') {
       errorMessage = "Permission denied. Please check Firestore rules.";
@@ -184,7 +176,6 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
     const userRef = doc(db, 'users', userId);
     const fromUserRef = doc(db, 'users', requestFromId);
     
-    // First, get current data to find the exact request object
     const userSnap = await getDoc(userRef);
     const fromUserSnap = await getDoc(fromUserRef);
     
@@ -195,7 +186,6 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
     const userData = userSnap.data();
     const fromUserData = fromUserSnap.data();
     
-    // Find the exact request object to remove
     const requestToRemove = userData.friendRequests?.find(
       req => req.from === requestFromId && req.status === 'pending'
     );
@@ -204,7 +194,6 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
       throw new Error("Friend request not found");
     }
     
-    // Remove from friendRequests and add to friends for both users
     const batchUpdates = [
       updateDoc(userRef, {
         friends: arrayUnion(requestFromId),
@@ -239,7 +228,6 @@ export const rejectFriendRequest = async (userId, requestFromId) => {
     
     const userRef = doc(db, 'users', userId);
     
-    // First, get current data to find the exact request object
     const userSnap = await getDoc(userRef);
     
     if (!userSnap.exists()) {
@@ -248,7 +236,6 @@ export const rejectFriendRequest = async (userId, requestFromId) => {
     
     const userData = userSnap.data();
     
-    // Find the exact request object to remove
     const requestToRemove = userData.friendRequests?.find(
       req => req.from === requestFromId && req.status === 'pending'
     );
@@ -257,7 +244,6 @@ export const rejectFriendRequest = async (userId, requestFromId) => {
       throw new Error("Friend request not found");
     }
     
-    // Remove the friend request
     await updateDoc(userRef, {
       friendRequests: arrayRemove(requestToRemove)
     });
@@ -297,14 +283,12 @@ export const getUserFriends = async (userId) => {
 // Create or get existing chat between two users
 export const getOrCreateChat = async (user1Id, user2Id) => {
   try {
-    // Create a consistent chat ID regardless of order
     const chatId = [user1Id, user2Id].sort().join('_');
     const chatRef = doc(db, 'chats', chatId);
     
     const chatSnap = await getDoc(chatRef);
     
     if (!chatSnap.exists()) {
-      // Create new chat
       await setDoc(chatRef, {
         id: chatId,
         participants: [user1Id, user2Id],
@@ -323,40 +307,49 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
 };
 
 // Send a message with auto-deletion and edit capabilities
-export const sendMessage = async (chatId, senderId, text) => {
+export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     
-    // Calculate deletion time (72 hours from now)
     const deletionTime = new Date();
-    deletionTime.setHours(deletionTime.getHours() + 72);
+    deletionTime.setHours(deletionTime.getHours() + 24);
     
     const messageData = {
       senderId,
-      text,
+      text: text || '',
       timestamp: new Date(),
       read: false,
-      // Auto-deletion fields
       deletionTime: deletionTime,
       isSaved: false,
-      // Edit fields
       isEdited: false,
       editHistory: [],
-      originalText: text,
-      canEditUntil: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes from now
+      originalText: text || '',
+      canEditUntil: new Date(Date.now() + 15 * 60 * 1000)
     };
     
-    // Add message to subcollection
+    // Add image data if available - FIXED: parameter name
+    if (imageData) {
+      messageData.image = {
+        publicId: imageData.public_id,
+        url: imageData.secure_url,
+        width: imageData.width,
+        height: imageData.height,
+        format: imageData.format
+      };
+      messageData.type = 'image';
+    } else {
+      messageData.type = 'text';
+    }
+    
     const messageRef = await addDoc(messagesRef, messageData);
     
-    // Update chat's last message
     const chatRef = doc(db, 'chats', chatId);
     await updateDoc(chatRef, {
-      lastMessage: text,
+      lastMessage: text || '📷 Image',
       lastMessageAt: new Date()
     });
     
-    console.log("Message sent with auto-deletion:", messageRef.id);
+    console.log("Message sent:", messageRef.id);
     return messageRef.id;
   } catch (error) {
     console.error("Error sending message:", error);
@@ -375,11 +368,9 @@ export const getUserChats = async (userId) => {
     for (const docSnap of querySnapshot.docs) {
       const chatData = docSnap.data();
       
-      // Get the other participant's info
       const otherParticipantId = chatData.participants.find(id => id !== userId);
       const otherUser = await getUserProfile(otherParticipantId);
       
-      // Get unread count
       const unreadCount = await getUnreadCount(chatData.id, userId);
       
       chats.push({
@@ -390,7 +381,6 @@ export const getUserChats = async (userId) => {
       });
     }
     
-    // Sort by last message time
     chats.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
     
     return chats;
@@ -413,11 +403,9 @@ export const getChatMessages = async (chatId) => {
     for (const doc of querySnapshot.docs) {
       const messageData = doc.data();
       
-      // Check if message should be auto-deleted
       if (messageData.deletionTime && 
           now > messageData.deletionTime.toDate() && 
           !messageData.isSaved) {
-        // Auto-delete this message
         await deleteDoc(doc.ref);
         continue;
       }
@@ -447,11 +435,9 @@ export const listenToChatMessages = (chatId, callback) => {
     for (const doc of snapshot.docs) {
       const messageData = doc.data();
       
-      // Check if message should be auto-deleted
       if (messageData.deletionTime && 
           now > messageData.deletionTime.toDate() && 
           !messageData.isSaved) {
-        // Auto-delete this message
         await deleteDoc(doc.ref);
         continue;
       }
@@ -488,7 +474,6 @@ export const listenToUserChats = (userId, callback) => {
       });
     }
     
-    // Sort by last message time
     chats.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
     callback(chats);
   });
@@ -536,10 +521,7 @@ export const getUnreadCount = async (chatId, userId) => {
   }
 };
 
-
 // Music Sync Functions
-
-// Update music state in a chat
 export const updateMusicState = async (chatId, musicState) => {
   try {
     const chatRef = doc(db, 'chats', chatId);
@@ -557,7 +539,6 @@ export const updateMusicState = async (chatId, musicState) => {
   }
 };
 
-// Get current music state for a chat
 export const getMusicState = async (chatId) => {
   try {
     const chatRef = doc(db, 'chats', chatId);
@@ -569,7 +550,6 @@ export const getMusicState = async (chatId) => {
   }
 };
 
-// Real-time listener for music state changes
 export const listenToMusicState = (chatId, callback) => {
   const chatRef = doc(db, 'chats', chatId);
   
@@ -581,7 +561,6 @@ export const listenToMusicState = (chatId, callback) => {
   });
 };
 
-// Add music to queue
 export const addToMusicQueue = async (chatId, videoData, addedBy) => {
   try {
     const chatRef = doc(db, 'chats', chatId);
@@ -614,7 +593,6 @@ export const addToMusicQueue = async (chatId, videoData, addedBy) => {
   }
 };
 
-// Get music queue
 export const getMusicQueue = async (chatId) => {
   try {
     const chatRef = doc(db, 'chats', chatId);
@@ -626,7 +604,6 @@ export const getMusicQueue = async (chatId) => {
   }
 };
 
-// Real-time listener for music queue
 export const listenToMusicQueue = (chatId, callback) => {
   const chatRef = doc(db, 'chats', chatId);
   
@@ -639,8 +616,6 @@ export const listenToMusicQueue = (chatId, callback) => {
 };
 
 // ===== AUTO-DELETION AND EDITING FUNCTIONS =====
-
-// Save/star a message to prevent deletion
 export const saveMessage = async (chatId, messageId, userId) => {
   try {
     const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
@@ -656,7 +631,6 @@ export const saveMessage = async (chatId, messageId, userId) => {
   }
 };
 
-// Unsave a message
 export const unsaveMessage = async (chatId, messageId) => {
   try {
     const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
@@ -672,7 +646,6 @@ export const unsaveMessage = async (chatId, messageId) => {
   }
 };
 
-// Edit a message (within 15 minutes)
 export const editMessage = async (chatId, messageId, newText, userId) => {
   try {
     const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
@@ -684,12 +657,10 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
     
     const messageData = messageSnap.data();
     
-    // Check if user is the sender
     if (messageData.senderId !== userId) {
       throw new Error("You can only edit your own messages");
     }
     
-    // Check if edit window is still open (15 minutes)
     const now = new Date();
     const canEditUntil = messageData.canEditUntil.toDate();
     
@@ -697,7 +668,6 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
       throw new Error("Edit time expired. You can only edit messages within 15 minutes of sending.");
     }
     
-    // Add to edit history
     const editHistory = messageData.editHistory || [];
     editHistory.push({
       previousText: messageData.text,
@@ -718,7 +688,6 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
   }
 };
 
-// Schedule auto-deletion cleanup (run this periodically)
 export const cleanupExpiredMessages = async () => {
   try {
     const chatsRef = collection(db, 'chats');
@@ -749,7 +718,6 @@ export const cleanupExpiredMessages = async () => {
   }
 };
 
-// Real-time listener for user profile updates with offline handling
 export const listenToUserProfile = (userId, callback) => {
   console.log("Setting up listener for user:", userId);
   const userRef = doc(db, 'users', userId);
@@ -763,7 +731,6 @@ export const listenToUserProfile = (userId, callback) => {
         callback(data);
       } else {
         console.log("No profile found for user:", userId);
-        // Create a basic profile structure if document doesn't exist
         callback({
           uid: userId,
           displayName: "User",
@@ -776,7 +743,6 @@ export const listenToUserProfile = (userId, callback) => {
     },
     (error) => {
       console.error("Error in profile listener:", error);
-      // Provide fallback data when offline
       callback({
         uid: userId,
         displayName: "User",

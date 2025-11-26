@@ -13,7 +13,7 @@
   justify-content: space-between;
   padding: 10px 16px;
   background-color: #ffffff;
-  color: white;
+  color: rgb(0, 0, 0);
 }
 
 .chat-back-button {
@@ -425,6 +425,69 @@
 .chat-send-button:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+}
+
+/* Image Message Styles */
+.chat-image-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-image {
+  max-width: 300px;
+  max-height: 300px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  object-fit: cover;
+}
+
+.chat-image:hover {
+  transform: scale(1.02);
+}
+
+.chat-image-caption {
+  margin: 0;
+  font-size: 14px;
+  color: inherit;
+  word-wrap: break-word;
+  padding: 4px 0;
+}
+
+.chat-image-upload-button {
+  padding: 12px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-image-upload-button:hover:not(:disabled) {
+  background-color: #e0e0e0;
+}
+
+.chat-image-upload-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Make image messages responsive */
+@media (max-width: 768px) {
+  .chat-image {
+    max-width: 250px;
+    max-height: 250px;
+  }
+  
+  .chat-image-upload-button {
+    padding: 10px;
+    font-size: 16px;
+  }
 }
 
 /* Animations */
