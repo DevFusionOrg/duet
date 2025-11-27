@@ -1,0 +1,13 @@
+{
+  "name": "cloudinary-cleanup-script",
+  "version": "1.0.0",
+  "description": "Script to delete unused Cloudinary images",
+  "main": "cleanupCloudinary.js",
+  "scripts": {
+    "cleanup": "node cleanupCloudinary.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "cloudinary": "^2.8.0"
+  }
+}
