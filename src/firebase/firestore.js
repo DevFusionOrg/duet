@@ -438,6 +438,9 @@ export const listenToChatMessages = (chatId, callback) => {
       if (messageData.deletionTime && 
           now > messageData.deletionTime.toDate() && 
           !messageData.isSaved) {
+            if (messageData.type === 'image' && messageData.image) {
+              await trackCloudinaryDeletion(chatId, doc.id, messageData.image);
+            }
         await deleteDoc(doc.ref);
         continue;
       }
@@ -753,4 +756,23 @@ export const listenToUserProfile = (userId, callback) => {
       });
     }
   );
+};
+
+// Enhanced function to track Cloudinary deletions
+export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
+  try {
+    const deletionLogRef = doc(db, 'deletionLogs', `${chatId}_${messageId}`);
+    
+    await setDoc(deletionLogRef, {
+      chatId,
+      messageId,
+      publicId: imageData.publicId,
+      deletedAt: new Date(),
+      scheduledForDeletion: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+    });
+    
+    console.log("Cloudinary deletion tracked for:", imageData.publicId);
+  } catch (error) {
+    console.error("Error tracking Cloudinary deletion:", error);
+  }
 };
