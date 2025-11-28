@@ -24,7 +24,7 @@ jobs:
       - name: Install script dependencies
         run: |
           cd scripts
-          npm ci
+          npm install
           
       - name: Run Cloudinary cleanup
         env:
