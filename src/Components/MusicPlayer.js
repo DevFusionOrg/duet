@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { updateMusicState, listenToMusicState } from "../firebase/firestore";
 import './MusicPlayer.css';
 
-function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
+function MusicPlayer({ chatId, user, isVisible, onClose }) {
   const [songName, setSongName] = useState("");
   const [videoId, setVideoId] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -283,7 +283,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   if (!isVisible) return null;
 
   return (
-    <div className={`musicPlayer ${pinned ? 'pinned' : 'floating'}`}>
+    <div className="musicPlayer">
       {/* Header */}
       <div className="header">
         <h3 className="title">🎵 Universal Music Player</h3>
@@ -347,7 +347,10 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
                 ⏹️ Stop
               </button>
             </div>
-            {/* sync information removed as requested */}
+            <div className="syncInfo">
+              <p>🎧 Both users hear the same full song in real-time</p>
+              <p className="syncSub">Full songs from YouTube - No limitations!</p>
+            </div>
           </>
         ) : (
           <div >
