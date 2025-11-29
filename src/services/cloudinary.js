@@ -1,10 +1,10 @@
-import { Cloudinary } from '@cloudinary/url-gen';
+import { Cloudinary } from "@cloudinary/url-gen";
 
 // Configure Cloudinary instance with environment variables
 const cld = new Cloudinary({
   cloud: {
-    cloudName: process.env.REACT_APP_CLOUDINARY_CLOUD_NAME
-  }
+    cloudName: process.env.REACT_APP_CLOUDINARY_CLOUD_NAME,
+  },
 });
 
 export default cld;
@@ -13,32 +13,32 @@ export default cld;
 export const openUploadWidget = () => {
   return new Promise((resolve, reject) => {
     if (!window.cloudinary) {
-      reject(new Error('Cloudinary widget not loaded'));
+      reject(new Error("Cloudinary widget not loaded"));
       return;
     }
 
     const widget = window.cloudinary.createUploadWidget(
       {
         cloudName: process.env.REACT_APP_CLOUDINARY_CLOUD_NAME,
-        uploadPreset: 'duet_chat',
-        sources: ['local', 'camera'],
+        uploadPreset: "duet_chat",
+        sources: ["local", "camera"],
         multiple: false,
         maxFileSize: 5000000,
-        clientAllowedFormats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-        folder: 'duet-chat',
-        resourceType: 'image'
+        clientAllowedFormats: ["jpg", "jpeg", "png", "gif", "webp"],
+        folder: "duet-chat",
+        resourceType: "image",
       },
       (error, result) => {
         if (error) {
           reject(error);
-        } else if (result && result.event === 'success') {
+        } else if (result && result.event === "success") {
           resolve(result.info);
-        } else if (result && result.event === 'close') {
-          reject(new Error('Upload cancelled'));
+        } else if (result && result.event === "close") {
+          reject(new Error("Upload cancelled"));
         }
-      }
+      },
     );
-    
+
     widget.open();
   });
 };

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { 
-  listenToUserProfile, 
-  acceptFriendRequest, 
+import {
+  listenToUserProfile,
+  acceptFriendRequest,
   rejectFriendRequest,
-  getUserProfile 
+  getUserProfile,
 } from "../firebase/firestore";
-import '../styles/Notifications.css'; // Import the CSS file
+import "../styles/Notifications.css"; // Import the CSS file
 
 function Notifications({ user }) {
   const [profile, setProfile] = useState(null);
@@ -25,72 +25,72 @@ function Notifications({ user }) {
 
   const handleAccept = async (requestFromId, requestIndex, requesterName) => {
     const requestKey = `${requestFromId}_${requestIndex}`;
-    
+
     // Don't process if already handled
     if (processedRequests.has(requestKey)) {
       return;
     }
-    
-    setLoading(prev => ({ ...prev, [requestKey]: true }));
+
+    setLoading((prev) => ({ ...prev, [requestKey]: true }));
     setActionMessage("");
-    
+
     try {
       await acceptFriendRequest(user.uid, requestFromId);
-      
+
       // Mark this request as processed
-      setProcessedRequests(prev => new Set(prev.add(requestKey)));
+      setProcessedRequests((prev) => new Set(prev.add(requestKey)));
       setActionMessage(`✅ Accepted friend request from ${requesterName}`);
-      
+
       console.log("Friend request accepted and marked as processed");
-      
+
       // Clear message after 3 seconds
       setTimeout(() => setActionMessage(""), 3000);
-      
     } catch (error) {
       console.error("Error accepting friend request:", error);
       setActionMessage(`❌ Error: ${error.message}`);
     }
-    
-    setLoading(prev => ({ ...prev, [requestKey]: false }));
+
+    setLoading((prev) => ({ ...prev, [requestKey]: false }));
   };
 
   const handleReject = async (requestFromId, requestIndex, requesterName) => {
     const requestKey = `${requestFromId}_${requestIndex}`;
-    
+
     // Don't process if already handled
     if (processedRequests.has(requestKey)) {
       return;
     }
-    
-    setLoading(prev => ({ ...prev, [requestKey]: true }));
+
+    setLoading((prev) => ({ ...prev, [requestKey]: true }));
     setActionMessage("");
-    
+
     try {
       await rejectFriendRequest(user.uid, requestFromId);
-      
+
       // Mark this request as processed
-      setProcessedRequests(prev => new Set(prev.add(requestKey)));
+      setProcessedRequests((prev) => new Set(prev.add(requestKey)));
       setActionMessage(`❌ Rejected friend request from ${requesterName}`);
-      
+
       console.log("Friend request rejected and marked as processed");
-      
+
       // Clear message after 3 seconds
       setTimeout(() => setActionMessage(""), 3000);
-      
     } catch (error) {
       console.error("Error rejecting friend request:", error);
       setActionMessage(`❌ Error: ${error.message}`);
     }
-    
-    setLoading(prev => ({ ...prev, [requestKey]: false }));
+
+    setLoading((prev) => ({ ...prev, [requestKey]: false }));
   };
 
   if (!profile) {
-    return <div className="notifications-loading">Loading notifications...</div>;
+    return (
+      <div className="notifications-loading">Loading notifications...</div>
+    );
   }
 
   const friendRequests = profile.friendRequests || [];
-  
+
   // Filter out processed requests
   const activeFriendRequests = friendRequests.filter((request, index) => {
     const requestKey = `${request.from}_${index}`;
@@ -100,17 +100,19 @@ function Notifications({ user }) {
   return (
     <div className="notifications-container">
       <h2 className="notifications-title">Notifications</h2>
-      
+
       {actionMessage && (
-        <div className={`notifications-message ${
-          actionMessage.includes('✅') 
-            ? 'notifications-message-success' 
-            : 'notifications-message-error'
-        }`}>
+        <div
+          className={`notifications-message ${
+            actionMessage.includes("✅")
+              ? "notifications-message-success"
+              : "notifications-message-error"
+          }`}
+        >
           {actionMessage}
         </div>
       )}
-      
+
       {activeFriendRequests.length === 0 ? (
         <div className="notifications-empty">
           <div className="notifications-empty-illustration">📭</div>
@@ -122,11 +124,13 @@ function Notifications({ user }) {
       ) : (
         <div className="notifications-section">
           <h3 className="notifications-section-title">
-            Friend Requests 
-            <span className="notifications-badge">{activeFriendRequests.length}</span>
+            Friend Requests
+            <span className="notifications-badge">
+              {activeFriendRequests.length}
+            </span>
           </h3>
           {activeFriendRequests.map((request, index) => (
-            <FriendRequestItem 
+            <FriendRequestItem
               key={`${request.from}_${index}`}
               request={request}
               index={index}
@@ -143,7 +147,14 @@ function Notifications({ user }) {
 }
 
 // Enhanced FriendRequestItem component
-function FriendRequestItem({ request, index, onAccept, onReject, loading, isProcessed }) {
+function FriendRequestItem({
+  request,
+  index,
+  onAccept,
+  onReject,
+  loading,
+  isProcessed,
+}) {
   const [requesterProfile, setRequesterProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
@@ -176,27 +187,33 @@ function FriendRequestItem({ request, index, onAccept, onReject, loading, isProc
   const requesterName = requesterProfile?.displayName || "Unknown User";
 
   return (
-    <div className={`notifications-request-item ${
-      loading ? 'notifications-request-item-loading' : ''
-    }`}>
+    <div
+      className={`notifications-request-item ${
+        loading ? "notifications-request-item-loading" : ""
+      }`}
+    >
       <div className="notifications-request-content">
         {requesterProfile ? (
           <>
-            <img 
-              src={requesterProfile.photoURL} 
+            <img
+              src={requesterProfile.photoURL}
               alt={requesterProfile.displayName}
               className="notifications-request-avatar"
             />
             <div className="notifications-request-info">
-              <h4 className="notifications-request-name">{requesterProfile.displayName}</h4>
-              <p className="notifications-request-username">@{requesterProfile.username}</p>
+              <h4 className="notifications-request-name">
+                {requesterProfile.displayName}
+              </h4>
+              <p className="notifications-request-username">
+                @{requesterProfile.username}
+              </p>
               {requesterProfile.bio && (
                 <p className="notifications-request-bio">
                   {requesterProfile.bio}
                 </p>
               )}
               <p className="notifications-request-time">
-                {request.timestamp?.toDate?.()?.toLocaleString() || 'Recently'}
+                {request.timestamp?.toDate?.()?.toLocaleString() || "Recently"}
               </p>
             </div>
           </>
@@ -210,19 +227,19 @@ function FriendRequestItem({ request, index, onAccept, onReject, loading, isProc
         )}
       </div>
       <div className="notifications-request-actions">
-        <button 
+        <button
           onClick={() => onAccept(request.from, index, requesterName)}
           disabled={loading}
           className="notifications-button notifications-button-accept"
         >
-          {loading ? '...' : 'Accept'}
+          {loading ? "..." : "Accept"}
         </button>
-        <button 
+        <button
           onClick={() => onReject(request.from, index, requesterName)}
           disabled={loading}
           className="notifications-button notifications-button-reject"
         >
-          {loading ? '...' : 'Reject'}
+          {loading ? "..." : "Reject"}
         </button>
       </div>
     </div>
