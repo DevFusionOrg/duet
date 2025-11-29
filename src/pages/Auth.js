@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { 
-  signInWithPopup, 
-  createUserWithEmailAndPassword, 
+import {
+  signInWithPopup,
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  updateProfile 
+  updateProfile,
 } from "firebase/auth";
 import { auth, googleProvider } from "../firebase/firebase";
-import '../styles/Auth.css';
+import "../styles/Auth.css";
 
 function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -40,12 +40,16 @@ function Auth() {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
         // Create new user
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password,
+        );
+
         // Update profile with display name
         if (name) {
           await updateProfile(userCredential.user, {
-            displayName: name
+            displayName: name,
           });
         }
       }
@@ -63,26 +67,24 @@ function Auth() {
         {/* Header */}
         <div className="auth-header">
           <h1 className="auth-title">Duet</h1>
-          <p className="auth-subtitle">Chat with friends and listen to music together</p>
+          <p className="auth-subtitle">
+            Chat with friends and listen to music together
+          </p>
         </div>
 
         {/* Error Message */}
-        {error && (
-          <div className="auth-error">
-            {error}
-          </div>
-        )}
+        {error && <div className="auth-error">{error}</div>}
 
         {/* Toggle between Login and Signup */}
         <div className="auth-toggle-container">
           <button
-            className={`auth-toggle-button ${isLogin ? 'auth-toggle-active' : ''}`}
+            className={`auth-toggle-button ${isLogin ? "auth-toggle-active" : ""}`}
             onClick={() => setIsLogin(true)}
           >
             Sign In
           </button>
           <button
-            className={`auth-toggle-button ${!isLogin ? 'auth-toggle-active' : ''}`}
+            className={`auth-toggle-button ${!isLogin ? "auth-toggle-active" : ""}`}
             onClick={() => setIsLogin(false)}
           >
             Sign Up
@@ -104,7 +106,7 @@ function Auth() {
               />
             </div>
           )}
-          
+
           <div className="auth-input-group">
             <label className="auth-label">Email</label>
             <input
@@ -130,12 +132,12 @@ function Auth() {
             />
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="auth-email-button"
             disabled={loading}
           >
-            {loading ? "Loading..." : (isLogin ? "Sign In" : "Sign Up")}
+            {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
           </button>
         </form>
 
@@ -145,14 +147,14 @@ function Auth() {
         </div>
 
         {/* Google Sign In */}
-        <button 
-          onClick={signInWithGoogle} 
+        <button
+          onClick={signInWithGoogle}
           className="auth-google-button"
           disabled={loading}
         >
-          <img 
-            src="https://developers.google.com/identity/images/g-logo.png" 
-            alt="Google" 
+          <img
+            src="https://developers.google.com/identity/images/g-logo.png"
+            alt="Google"
             className="auth-google-icon"
           />
           {loading ? "Loading..." : "Sign in with Google"}

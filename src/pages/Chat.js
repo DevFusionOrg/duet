@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
-import MusicPlayer from '../Components/MusicPlayer';
-import { 
-  getOrCreateChat, 
-  sendMessage, 
-  listenToChatMessages, 
+import MusicPlayer from "../Components/MusicPlayer";
+import {
+  getOrCreateChat,
+  sendMessage,
+  listenToChatMessages,
   markMessagesAsRead,
   saveMessage,
   unsaveMessage,
   editMessage,
-  getUserFriends
+  getUserFriends,
 } from "../firebase/firestore";
 import { openUploadWidget, getOptimizedImageUrl } from "../services/cloudinary";
-import '../styles/Chat.css';
+import "../styles/Chat.css";
 
 function Chat({ user, friend, onBack }) {
   const [messages, setMessages] = useState([]);
@@ -29,10 +29,11 @@ function Chat({ user, friend, onBack }) {
   const [hoveredMessage, setHoveredMessage] = useState(null);
   const [forwarding, setForwarding] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false); 
+  const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Load Cloudinary script dynamically
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const loadCloudinaryScript = () => {
       if (window.cloudinary) {
@@ -40,21 +41,21 @@ function Chat({ user, friend, onBack }) {
         return;
       }
 
-      const script = document.createElement('script');
-      script.src = 'https://upload-widget.cloudinary.com/global/all.js';
-      script.type = 'text/javascript';
+      const script = document.createElement("script");
+      script.src = "https://upload-widget.cloudinary.com/global/all.js";
+      script.type = "text/javascript";
       script.async = true;
-      
+
       script.onload = () => {
-        console.log('Cloudinary script loaded successfully');
+        console.log("Cloudinary script loaded successfully");
         setCloudinaryLoaded(true);
       };
-      
+
       script.onerror = () => {
-        console.error('Failed to load Cloudinary script');
+        console.error("Failed to load Cloudinary script");
         setCloudinaryLoaded(false);
       };
-      
+
       document.head.appendChild(script);
     };
 
@@ -62,52 +63,51 @@ function Chat({ user, friend, onBack }) {
   }, []);
 
   useEffect(() => {
-    if (user && friend) {
-      initializeChat();
-      loadFriends();
-    }
-  }, [user, friend]);
+    if (!user || !friend) return;
 
-  const initializeChat = async () => {
-    try {
-      const id = await getOrCreateChat(user.uid, friend.uid);
-      setChatId(id);
-      await markMessagesAsRead(id, user.uid);
-    } catch (error) {
-      console.error("Error initializing chat:", error);
-    }
-  };
+    const setup = async () => {
+      try {
+        const id = await getOrCreateChat(user.uid, friend.uid);
+        setChatId(id);
+        await markMessagesAsRead(id, user.uid);
+      } catch (error) {
+        console.error("Error initializing chat:", error);
+      }
+
+      try {
+        const userFriends = await getUserFriends(user.uid);
+        setFriends(userFriends);
+      } catch (error) {
+        console.error("Error loading friends:", error);
+      }
+    };
+
+    setup();
+  }, [user, friend]);
 
   const handleImageUploadClick = async () => {
     if (!cloudinaryLoaded) {
-      alert('Image upload is still loading. Please try again in a moment.');
+      alert("Image upload is still loading. Please try again in a moment.");
       return;
     }
 
     setUploadingImage(true);
     try {
       const imageResult = await openUploadWidget();
-      
+
       if (imageResult) {
-        await sendMessage(chatId, user.uid, '', imageResult);
+        await sendMessage(chatId, user.uid, "", imageResult);
       }
     } catch (error) {
       console.error("Error uploading image:", error);
-      if (error.message !== 'Upload cancelled') {
+      if (error.message !== "Upload cancelled") {
         alert("Error uploading image: " + error.message);
       }
     }
     setUploadingImage(false);
   };
 
-  const loadFriends = async () => {
-    try {
-      const userFriends = await getUserFriends(user.uid);
-      setFriends(userFriends);
-    } catch (error) {
-      console.error("Error loading friends:", error);
-    }
-  };
+  
 
   useEffect(() => {
     if (!chatId) return;
@@ -162,20 +162,24 @@ function Chat({ user, friend, onBack }) {
 
   const handleStartEdit = (message) => {
     if (message.senderId !== user.uid) return;
-    
+
     if (!message.canEditUntil) {
       alert("This message cannot be edited.");
       return;
     }
-    
+
     const now = new Date();
-    const canEditUntil = message.canEditUntil.toDate ? message.canEditUntil.toDate() : new Date(message.canEditUntil);
-    
+    const canEditUntil = message.canEditUntil.toDate
+      ? message.canEditUntil.toDate()
+      : new Date(message.canEditUntil);
+
     if (now > canEditUntil) {
-      alert("Edit time expired. You can only edit messages within 15 minutes of sending.");
+      alert(
+        "Edit time expired. You can only edit messages within 15 minutes of sending.",
+      );
       return;
     }
-    
+
     setEditingMessageId(message.id);
     setEditText(message.text);
     setShowMessageMenu(false);
@@ -221,9 +225,9 @@ function Chat({ user, friend, onBack }) {
   };
 
   const handleFriendSelection = (friendId) => {
-    setSelectedFriends(prev => {
+    setSelectedFriends((prev) => {
       if (prev.includes(friendId)) {
-        return prev.filter(id => id !== friendId);
+        return prev.filter((id) => id !== friendId);
       } else {
         return [...prev, friendId];
       }
@@ -239,9 +243,9 @@ function Chat({ user, friend, onBack }) {
         const forwardChatId = await getOrCreateChat(user.uid, friendId);
         await sendMessage(forwardChatId, user.uid, selectedMessage.text);
       });
-      
+
       await Promise.all(forwardPromises);
-      
+
       setShowForwardPopup(false);
       setSelectedFriends([]);
       setForwarding(false);
@@ -256,30 +260,36 @@ function Chat({ user, friend, onBack }) {
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (showMessageMenu && !e.target.closest('.chat-dropdown-menu') && !e.target.closest('.chat-menu-arrow')) {
+      if (
+        showMessageMenu &&
+        !e.target.closest(".chat-dropdown-menu") &&
+        !e.target.closest(".chat-menu-arrow")
+      ) {
         setShowMessageMenu(false);
       }
     };
 
-    document.addEventListener('click', handleClickOutside);
+    document.addEventListener("click", handleClickOutside);
     return () => {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
     };
   }, [showMessageMenu]);
 
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   const canEditMessage = (message) => {
     if (message.senderId !== user.uid) return false;
     if (!message.canEditUntil) return false;
-    
+
     try {
       const now = new Date();
-      const canEditUntil = message.canEditUntil.toDate ? message.canEditUntil.toDate() : new Date(message.canEditUntil);
+      const canEditUntil = message.canEditUntil.toDate
+        ? message.canEditUntil.toDate()
+        : new Date(message.canEditUntil);
       return now <= canEditUntil;
     } catch (error) {
       return false;
@@ -296,22 +306,20 @@ function Chat({ user, friend, onBack }) {
 
   // Update message rendering to handle images
   const renderMessageContent = (message) => {
-    if (message.type === 'image' && message.image) {
+    if (message.type === "image" && message.image) {
       return (
         <div className="chat-image-message">
-          <img 
+          <img
             src={getOptimizedImageUrl(message.image.publicId, 400, 400)}
-            alt="Shared image"
+            alt={message.text || 'Attachment'}
             className="chat-image"
-            onClick={() => window.open(message.image.url, '_blank')}
+            onClick={() => window.open(message.image.url, "_blank")}
           />
-          {message.text && (
-            <p className="chat-image-caption">{message.text}</p>
-          )}
+          {message.text && <p className="chat-image-caption">{message.text}</p>}
         </div>
       );
     }
-    
+
     return (
       <>
         <p className="chat-message-text">{message.text}</p>
@@ -333,37 +341,52 @@ function Chat({ user, friend, onBack }) {
   // NEW FUNCTION: Render different menu options based on message type
   const renderMenuOptions = (message) => {
     // For IMAGE messages - show only star/unstar
-    if (message.type === 'image') {
+    if (message.type === "image") {
       return (
         <>
           {isMessageSaved(message) ? (
-            <div className="menu-item" onClick={() => handleUnsaveMessage(message.id)}>
+            <div
+              className="menu-item"
+              onClick={() => handleUnsaveMessage(message.id)}
+            >
               Unstar
             </div>
           ) : (
-            <div className="menu-item" onClick={() => handleSaveMessage(message.id)}>
+            <div
+              className="menu-item"
+              onClick={() => handleSaveMessage(message.id)}
+            >
               Star
             </div>
           )}
         </>
       );
     }
-    
+
     // For TEXT messages - show all options
     return (
       <>
-        <div className="menu-item" onClick={() => navigator.clipboard.writeText(message.text)}>
+        <div
+          className="menu-item"
+          onClick={() => navigator.clipboard.writeText(message.text)}
+        >
           Copy
         </div>
         <div className="menu-item" onClick={() => handleForwardClick(message)}>
           Forward
         </div>
         {isMessageSaved(message) ? (
-          <div className="menu-item" onClick={() => handleUnsaveMessage(message.id)}>
+          <div
+            className="menu-item"
+            onClick={() => handleUnsaveMessage(message.id)}
+          >
             Unstar
           </div>
         ) : (
-          <div className="menu-item" onClick={() => handleSaveMessage(message.id)}>
+          <div
+            className="menu-item"
+            onClick={() => handleSaveMessage(message.id)}
+          >
             Star
           </div>
         )}
@@ -381,7 +404,9 @@ function Chat({ user, friend, onBack }) {
       <div className="chat-container">
         <div className="chat-placeholder">
           <h3>Select a friend to start chatting</h3>
-          <p>Choose a friend from your friends list to begin your conversation</p>
+          <p>
+            Choose a friend from your friends list to begin your conversation
+          </p>
         </div>
       </div>
     );
@@ -395,8 +420,8 @@ function Chat({ user, friend, onBack }) {
           ← Back
         </button>
         <div className="chat-user-info">
-          <img 
-            src={friend.photoURL} 
+          <img
+            src={friend.photoURL}
             alt={friend.displayName}
             className="chat-user-avatar"
           />
@@ -405,7 +430,7 @@ function Chat({ user, friend, onBack }) {
             <p className="chat-user-status">Online</p>
           </div>
         </div>
-        <button 
+        <button
           onClick={() => setShowMusicPlayer(true)}
           className="chat-music-button"
           disabled={loading}
@@ -430,9 +455,9 @@ function Chat({ user, friend, onBack }) {
             <div
               key={message.id}
               className={`chat-message-wrapper ${
-                message.senderId === user.uid 
-                  ? 'chat-sent-wrapper' 
-                  : 'chat-received-wrapper'
+                message.senderId === user.uid
+                  ? "chat-sent-wrapper"
+                  : "chat-received-wrapper"
               }`}
               onMouseEnter={() => handleMessageHover(message)}
               onMouseLeave={handleMessageLeave}
@@ -440,7 +465,7 @@ function Chat({ user, friend, onBack }) {
               {/* Menu Arrow - Left side */}
               {hoveredMessage?.id === message.id && (
                 <div className="chat-menu-arrow-container">
-                  <button 
+                  <button
                     className="chat-menu-arrow"
                     onClick={(e) => handleArrowClick(e, message)}
                     title="Message options"
@@ -451,11 +476,13 @@ function Chat({ user, friend, onBack }) {
               )}
 
               {/* Message Bubble */}
-              <div className={`chat-message-bubble ${
-                message.senderId === user.uid 
-                  ? 'chat-sent-message' 
-                  : 'chat-received-message'
-              } ${isMessageSaved(message) ? 'chat-saved-message' : ''}`}>
+              <div
+                className={`chat-message-bubble ${
+                  message.senderId === user.uid
+                    ? "chat-sent-message"
+                    : "chat-received-message"
+                } ${isMessageSaved(message) ? "chat-saved-message" : ""}`}
+              >
                 <div className="chat-message-content">
                   {editingMessageId === message.id ? (
                     <div className="chat-edit-container">
@@ -467,13 +494,13 @@ function Chat({ user, friend, onBack }) {
                         autoFocus
                       />
                       <div className="chat-edit-actions">
-                        <button 
+                        <button
                           onClick={() => handleSaveEdit(message.id)}
                           className="chat-edit-save"
                         >
                           Save
                         </button>
-                        <button 
+                        <button
                           onClick={handleCancelEdit}
                           className="chat-edit-cancel"
                         >
@@ -505,7 +532,7 @@ function Chat({ user, friend, onBack }) {
           <div className="forward-popup">
             <div className="forward-header">
               <h3>Forward to...</h3>
-              <button 
+              <button
                 className="forward-close"
                 onClick={() => setShowForwardPopup(false)}
               >
@@ -513,14 +540,14 @@ function Chat({ user, friend, onBack }) {
               </button>
             </div>
             <div className="forward-search">
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Search friends..."
                 className="forward-search-input"
               />
             </div>
             <div className="forward-friends-list">
-              {friends.map(friend => (
+              {friends.map((friend) => (
                 <div key={friend.uid} className="forward-friend-item">
                   <label className="forward-friend-label">
                     <input
@@ -529,25 +556,29 @@ function Chat({ user, friend, onBack }) {
                       onChange={() => handleFriendSelection(friend.uid)}
                       className="forward-checkbox"
                     />
-                    <img 
-                      src={friend.photoURL} 
+                    <img
+                      src={friend.photoURL}
                       alt={friend.displayName}
                       className="forward-friend-avatar"
                     />
                     <div className="forward-friend-info">
-                      <span className="forward-friend-name">{friend.displayName}</span>
+                      <span className="forward-friend-name">
+                        {friend.displayName}
+                      </span>
                     </div>
                   </label>
                 </div>
               ))}
             </div>
             <div className="forward-actions">
-              <button 
+              <button
                 onClick={handleForwardMessages}
                 disabled={selectedFriends.length === 0 || forwarding}
                 className="forward-button"
               >
-                {forwarding ? "Forwarding..." : `Forward ${selectedFriends.length > 0 ? `(${selectedFriends.length})` : ''}`}
+                {forwarding
+                  ? "Forwarding..."
+                  : `Forward ${selectedFriends.length > 0 ? `(${selectedFriends.length})` : ""}`}
               </button>
             </div>
           </div>
@@ -556,7 +587,7 @@ function Chat({ user, friend, onBack }) {
 
       {/* Message Input */}
       <form onSubmit={handleSendMessage} className="chat-input-container">
-        <button 
+        <button
           type="button"
           onClick={handleImageUploadClick}
           disabled={uploadingImage || loading || !cloudinaryLoaded}
@@ -565,7 +596,7 @@ function Chat({ user, friend, onBack }) {
         >
           {uploadingImage ? "📸" : "📷"}
         </button>
-        
+
         <input
           type="text"
           value={newMessage}
@@ -574,9 +605,9 @@ function Chat({ user, friend, onBack }) {
           className="chat-message-input"
           disabled={loading}
         />
-        
-        <button 
-          type="submit" 
+
+        <button
+          type="submit"
           disabled={loading || (!newMessage.trim() && !uploadingImage)}
           className="chat-send-button"
         >
@@ -584,11 +615,12 @@ function Chat({ user, friend, onBack }) {
         </button>
       </form>
 
-      {/* Music Player */}
+      {/* Music Player (pinned under the auto-delete banner) */}
       <MusicPlayer
         chatId={chatId}
         user={user}
         isVisible={showMusicPlayer}
+        pinned={true}
         onClose={() => setShowMusicPlayer(false)}
       />
     </div>

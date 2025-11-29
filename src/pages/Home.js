@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { getUserFriends, listenToUserChats } from "../firebase/firestore";
+import { useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase/firebase";
+import { getUserFriends, listenToUserChats, listenToUserProfile } from "../firebase/firestore";
 import Chat from "./Chat";
-import '../styles/Home.css'; // We'll create this CSS file
+import '../styles/Home.css';
 
 function Home({ user }) {
+  const navigate = useNavigate();
   const [friends, setFriends] = useState([]);
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,19 +17,34 @@ function Home({ user }) {
   const [selectedProfile, setSelectedProfile] = useState(null);
 
   useEffect(() => {
+    if (!user) return;
+
     const loadFriends = async () => {
-      if (user) {
-        try {
-          const friendsList = await getUserFriends(user.uid);
-          setFriends(friendsList);
-        } catch (error) {
-          console.error("Error loading friends:", error);
-        }
+      try {
+        const friendsList = await getUserFriends(user.uid);
+        setFriends(friendsList);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error loading friends:", error);
         setLoading(false);
       }
     };
 
     loadFriends();
+  }, [user]);
+
+  // Listen to notification count from user profile
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = listenToUserProfile(user.uid, (profile) => {
+      // Profile listener to keep connection alive for notifications
+      if (profile && profile.friendRequests) {
+        // Pending count tracked in profile for UI badge if needed
+      }
+    });
+
+    return unsubscribe;
   }, [user]);
 
   useEffect(() => {
@@ -59,6 +78,15 @@ function Home({ user }) {
     setSelectedProfile(null);
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/');
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
+  };
+
   // If chat is open, show chat interface
   if (selectedFriend) {
     return (
@@ -72,58 +100,108 @@ function Home({ user }) {
 
   return (
     <div className="home-container">
-      <div className="home-header">
-        <div className="welcome-section">
-          <h1 className="welcome-title">Welcome to Duet, {user?.displayName}! 🎵</h1>
-          <p className="welcome-subtitle">Chat with friends and listen to music together in real-time.</p>
+      {/* Side Pane */}
+      <div className="side-pane">
+        <div className="pane-header">
+          <div className="user-profile-section">
+            <img 
+              src={user?.photoURL} 
+              alt={user?.displayName}
+              className="user-avatar"
+            />
+            <div className="user-info">
+              <h3 className="user-name">{user?.displayName}</h3>
+              <p className="user-status">Online</p>
+            </div>
+          </div>
         </div>
-        
-        {/* View Toggle */}
-        <div className="view-toggle">
-          <button
-            className={`toggle-btn ${activeView === 'friends' ? 'active' : ''}`}
+
+        <nav className="pane-nav">
+          <button 
+            className={`nav-item ${activeView === 'friends' ? 'active' : ''}`}
             onClick={() => setActiveView('friends')}
           >
-            <span className="toggle-icon">👥</span>
-            Friends ({friends.length})
+            <span className="nav-icon">👥</span>
+            <span className="nav-text">Friends</span>
+            {friends.length > 0 && <span className="nav-badge">{friends.length}</span>}
           </button>
-          <button
-            className={`toggle-btn ${activeView === 'chats' ? 'active' : ''}`}
+          <button 
+            className={`nav-item ${activeView === 'chats' ? 'active' : ''}`}
             onClick={() => setActiveView('chats')}
           >
-            <span className="toggle-icon">💬</span>
-            Chats ({chats.length})
+            <span className="nav-icon">💬</span>
+            <span className="nav-text">Chats</span>
+            {chats.length > 0 && <span className="nav-badge">{chats.length}</span>}
+          </button>
+          <button 
+            className={`nav-item ${activeView === 'notifications' ? 'active' : ''}`}
+            onClick={() => setActiveView('notifications')}
+            title="View notifications"
+          >
+            <span className="nav-icon">🔔</span>
+            <span className="nav-text">Notifications</span>
+          </button>
+          <button 
+            className={`nav-item ${showProfilePopup && !selectedProfile ? 'active' : ''}`}
+            onClick={() => setShowProfilePopup(true)}
+            title="View profile"
+          >
+            <span className="nav-icon">👤</span>
+            <span className="nav-text">Profile</span>
+          </button>
+        </nav>
+
+        <div className="pane-footer">
+          <button className="nav-item logout-btn" onClick={handleLogout}>
+            <span className="nav-icon">🚪</span>
+            <span className="nav-text">Logout</span>
           </button>
         </div>
       </div>
 
-      <div className="home-content">
-        {activeView === 'friends' ? (
-          <FriendsView 
-            friends={friends} 
-            loading={loading} 
-            onStartChat={handleStartChat}
-            onFriendCardClick={handleFriendCardClick}
-          />
-        ) : (
-          <ChatsView 
-            chats={chats} 
-            loading={loading} 
-            onStartChat={handleStartChat}
-          />
-        )}
+      {/* Main Content */}
+      <div className="main-content">
+        <div className="welcome-section">
+          <h1 className="welcome-title">
+            {activeView === 'friends' && `Welcome ${user?.displayName}! 🎵`}
+            {activeView === 'chats' && 'Messages with Friends 💬'}
+            {activeView === 'notifications' && 'Friend Requests 🔔'}
+          </h1>
+        </div>
+
+        <div className="content-area">
+          {activeView === 'friends' ? (
+            <FriendsView 
+              friends={friends} 
+              loading={loading} 
+              onStartChat={handleStartChat}
+              onFriendCardClick={handleFriendCardClick}
+            />
+          ) : activeView === 'chats' ? (
+            <ChatsView 
+              chats={chats} 
+              loading={loading} 
+              onStartChat={handleStartChat}
+            />
+          ) : activeView === 'notifications' ? (
+            <NotificationsView user={user} />
+          ) : null}
+        </div>
       </div>
 
       {/* Profile Popup */}
-      {showProfilePopup && selectedProfile && (
+      {showProfilePopup && (
         <ProfilePopup 
-          friend={selectedProfile}
+          friend={selectedProfile || user}
+          isOwnProfile={!selectedProfile}
           onClose={handleCloseProfilePopup}
         />
       )}
     </div>
   );
 }
+
+export default Home;
 
 // Friends View Component
 function FriendsView({ friends, loading, onStartChat, onFriendCardClick }) {
@@ -246,12 +324,12 @@ function ChatsView({ chats, loading, onStartChat }) {
 }
 
 // Profile Popup Component
-function ProfilePopup({ friend, onClose }) {
+function ProfilePopup({ friend, isOwnProfile, onClose }) {
   return (
     <div className="profile-popup-overlay" onClick={onClose}>
       <div className="profile-popup" onClick={(e) => e.stopPropagation()}>
         <div className="popup-header">
-          <h2>Profile</h2>
+          <h2>{isOwnProfile ? 'My Profile' : 'Profile'}</h2>
           <button className="close-button" onClick={onClose}>
             ×
           </button>
@@ -260,8 +338,8 @@ function ProfilePopup({ friend, onClose }) {
         <div className="popup-content">
           <div className="profile-picture-section">
             <img 
-              src={friend.photoURL} 
-              alt={friend.displayName}
+              src={friend?.photoURL} 
+              alt={friend?.displayName}
               className="profile-picture-large"
             />
           </div>
@@ -269,31 +347,31 @@ function ProfilePopup({ friend, onClose }) {
           <div className="profile-info">
             <div className="info-field">
               <label>Name:</label>
-              <span>{friend.displayName}</span>
+              <span>{friend?.displayName}</span>
             </div>
             
             <div className="info-field">
               <label>Username:</label>
-              <span>@{friend.username}</span>
+              <span>@{friend?.username}</span>
             </div>
             
-            {friend.email && (
+            {friend?.email && (
               <div className="info-field">
                 <label>Email:</label>
-                <span>{friend.email}</span>
+                <span>{friend?.email}</span>
               </div>
             )}
             
-            {friend.bio && (
+            {friend?.bio && (
               <div className="info-field">
                 <label>Bio:</label>
-                <span className="bio-text">{friend.bio}</span>
+                <span className="bio-text">{friend?.bio}</span>
               </div>
             )}
             
             <div className="profile-stats">
               <div className="stat-item">
-                <span className="stat-number">{friend.friends ? friend.friends.length : 0}</span>
+                <span className="stat-number">{friend?.friends ? friend?.friends.length : 0}</span>
                 <span className="stat-label">Friends</span>
               </div>
             </div>
@@ -304,4 +382,141 @@ function ProfilePopup({ friend, onClose }) {
   );
 }
 
-export default Home;
+// Notifications View Component
+function NotificationsView({ user }) {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState({});
+  const [processedRequests, setProcessedRequests] = useState(new Set());
+  const [actionMessage, setActionMessage] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = listenToUserProfile(user.uid, (userProfile) => {
+      setProfile(userProfile);
+    });
+
+    return unsubscribe;
+  }, [user]);
+
+  const handleAccept = async (requestFromId, requesterName) => {
+    const requestKey = `${requestFromId}_accept`;
+
+    if (processedRequests.has(requestKey)) {
+      return;
+    }
+
+    setLoading((prev) => ({ ...prev, [requestKey]: true }));
+    setActionMessage("");
+
+    try {
+      const { acceptFriendRequest } = await import("../firebase/firestore");
+      await acceptFriendRequest(user.uid, requestFromId);
+
+      setProcessedRequests((prev) => new Set(prev.add(requestKey)));
+      setActionMessage(`✅ Accepted friend request from ${requesterName}`);
+
+      setTimeout(() => setActionMessage(""), 3000);
+    } catch (error) {
+      console.error("Error accepting friend request:", error);
+      setActionMessage(`❌ Error: ${error.message}`);
+    } finally {
+      setLoading((prev) => ({ ...prev, [requestKey]: false }));
+    }
+  };
+
+  const handleReject = async (requestFromId, requesterName) => {
+    const requestKey = `${requestFromId}_reject`;
+
+    if (processedRequests.has(requestKey)) {
+      return;
+    }
+
+    setLoading((prev) => ({ ...prev, [requestKey]: true }));
+    setActionMessage("");
+
+    try {
+      const { rejectFriendRequest } = await import("../firebase/firestore");
+      await rejectFriendRequest(user.uid, requestFromId);
+
+      setProcessedRequests((prev) => new Set(prev.add(requestKey)));
+      setActionMessage(`✅ Rejected friend request from ${requesterName}`);
+
+      setTimeout(() => setActionMessage(""), 3000);
+    } catch (error) {
+      console.error("Error rejecting friend request:", error);
+      setActionMessage(`❌ Error: ${error.message}`);
+    } finally {
+      setLoading((prev) => ({ ...prev, [requestKey]: false }));
+    }
+  };
+
+  if (!profile) {
+    return (
+      <div className="loading-state">
+        <div className="loading-spinner"></div>
+        <p>Loading notifications...</p>
+      </div>
+    );
+  }
+
+  const pendingRequests =
+    profile.friendRequests?.filter((req) => req.status === "pending") || [];
+
+  return (
+    <div className="notifications-container">
+
+      {actionMessage && (
+        <div className="action-message">
+          {actionMessage}
+        </div>
+      )}
+
+      {pendingRequests.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">📭</div>
+          <h3>No Pending Requests</h3>
+          <p>You're all caught up!</p>
+        </div>
+      ) : (
+        <div className="friend-requests-list">
+          {pendingRequests.map((request) => (
+            <div key={request.id} className="friend-request-item">
+              <div className="request-user-info">
+                <img
+                  src={request.photoURL || '/default-avatar.png'}
+                  alt={request.displayName}
+                  className="request-avatar"
+                />
+                <div className="request-details">
+                  <h4>{request.displayName}</h4>
+                  <p className="request-username">@{request.username}</p>
+                </div>
+              </div>
+              <div className="request-actions">
+                <button
+                  onClick={() =>
+                    handleAccept(request.id, request.displayName)
+                  }
+                  disabled={loading[`${request.id}_accept`]}
+                  className="accept-btn"
+                >
+                  {loading[`${request.id}_accept`] ? "..." : "✓ Accept"}
+                </button>
+                <button
+                  onClick={() =>
+                    handleReject(request.id, request.displayName)
+                  }
+                  disabled={loading[`${request.id}_reject`]}
+                  className="reject-btn"
+                >
+                  {loading[`${request.id}_reject`] ? "..." : "✕ Reject"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
