@@ -1,10 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { auth } from "../firebase/firebase";
-import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
-import { updateDoc, doc, getDoc, setDoc } from "firebase/firestore";
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  updateProfile,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+} from "firebase/auth";
+import { updateDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { listenToUserProfile, getUserProfile } from "../firebase/firestore";
-import '../styles/Profile.css'; // Import the CSS file
+import "../styles/Profile.css"; // Import the CSS file
 
 export default function Profile({ user }) {
   const [profile, setProfile] = useState(null);
@@ -12,32 +16,63 @@ export default function Profile({ user }) {
   const [formData, setFormData] = useState({
     displayName: "",
     username: "",
-    bio: ""
+    bio: "",
   });
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
     newPassword: "",
-    confirmPassword: ""
+    confirmPassword: "",
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  // Fallback method to load profile
+  const loadProfileFallback = useCallback(async () => {
+    try {
+      let userProfile = await getUserProfile(user.uid);
+
+      if (!userProfile) {
+        // Create basic profile from auth data
+        userProfile = {
+          uid: user.uid,
+          displayName: user.displayName || "User",
+          email: user.email,
+          photoURL: user.photoURL,
+          username: user.email?.split("@")[0] || "user",
+          bio: "",
+          friends: [],
+          friendRequests: [],
+          createdAt: new Date(),
+        };
+
+        // Save to Firestore
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(userRef, userProfile);
+      }
+
+      setProfile(userProfile);
+      setFormData({
+        displayName: userProfile.displayName || "",
+        username: userProfile.username || "",
+        bio: userProfile.bio || "",
+      });
+    } catch (error) {
+      console.error("Error in fallback:", error);
+    }
+  }, [user]);
 
   // Load profile data with fallback
   useEffect(() => {
     if (!user) return;
 
-    console.log("Current user:", user);
-    
     // Try real-time listener first
     const unsubscribe = listenToUserProfile(user.uid, (userProfile) => {
-      console.log("Real-time profile received:", userProfile);
       if (userProfile) {
         setProfile(userProfile);
         setFormData({
           displayName: userProfile.displayName || user.displayName || "",
-          username: userProfile.username || user.email?.split('@')[0] || "",
-          bio: userProfile.bio || ""
+          username: userProfile.username || user.email?.split("@")[0] || "",
+          bio: userProfile.bio || "",
         });
       } else {
         // If no profile found, create one or use auth data
@@ -46,44 +81,7 @@ export default function Profile({ user }) {
     });
 
     return unsubscribe;
-  }, [user]);
-
-  // Fallback method to load profile
-  const loadProfileFallback = async () => {
-    try {
-      console.log("Trying fallback profile load...");
-      let userProfile = await getUserProfile(user.uid);
-      
-      if (!userProfile) {
-        console.log("No profile found, creating one...");
-        // Create basic profile from auth data
-        userProfile = {
-          uid: user.uid,
-          displayName: user.displayName || "User",
-          email: user.email,
-          photoURL: user.photoURL,
-          username: user.email?.split('@')[0] || "user",
-          bio: "",
-          friends: [],
-          friendRequests: [],
-          createdAt: new Date()
-        };
-        
-        // Save to Firestore
-        const userRef = doc(db, "users", user.uid);
-        await setDoc(userRef, userProfile);
-      }
-      
-      setProfile(userProfile);
-      setFormData({
-        displayName: userProfile.displayName || "",
-        username: userProfile.username || "",
-        bio: userProfile.bio || ""
-      });
-    } catch (error) {
-      console.error("Error in fallback:", error);
-    }
-  };
+  }, [user, loadProfileFallback]);
 
   const handleUpdate = async (e) => {
     e.preventDefault();
@@ -97,13 +95,13 @@ export default function Profile({ user }) {
       if (formData.displayName !== user.displayName) {
         await updateProfile(user, { displayName: formData.displayName });
       }
-      
+
       // Update Firestore user document
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         displayName: formData.displayName,
         username: formData.username,
-        bio: formData.bio
+        bio: formData.bio,
       });
 
       setMessage("Profile updated successfully!");
@@ -139,7 +137,7 @@ export default function Profile({ user }) {
       // Reauthenticate user before password change
       const credential = EmailAuthProvider.credential(
         user.email,
-        passwordData.currentPassword
+        passwordData.currentPassword,
       );
       await reauthenticateWithCredential(user, credential);
 
@@ -150,12 +148,12 @@ export default function Profile({ user }) {
       setPasswordData({
         currentPassword: "",
         newPassword: "",
-        confirmPassword: ""
+        confirmPassword: "",
       });
       setChangingPassword(false);
     } catch (error) {
       console.error("Error updating password:", error);
-      if (error.code === 'auth/wrong-password') {
+      if (error.code === "auth/wrong-password") {
         setMessage("Current password is incorrect");
       } else {
         setMessage("Error updating password: " + error.message);
@@ -169,11 +167,11 @@ export default function Profile({ user }) {
     if (!profile) return 0;
     let completed = 0;
     const total = 3; // displayName, username, bio
-    
+
     if (profile.displayName && profile.displayName.trim()) completed++;
     if (profile.username && profile.username.trim()) completed++;
     if (profile.bio && profile.bio.trim()) completed++;
-    
+
     return Math.round((completed / total) * 100);
   };
 
@@ -184,7 +182,7 @@ export default function Profile({ user }) {
         <h2 className="profile-title">Your Profile</h2>
         <div className="profile-loading">
           <p>Loading profile...</p>
-          <button 
+          <button
             onClick={loadProfileFallback}
             className="profile-fallback-button"
           >
@@ -201,17 +199,19 @@ export default function Profile({ user }) {
     <div className="profile-container">
       <div className="profile-header">
         <h2 className="profile-title">Your Profile</h2>
-        <button 
+        <button
           onClick={() => {
             setEditing(!editing);
             setChangingPassword(false);
             setMessage("");
           }}
           className={`profile-edit-button ${
-            editing ? 'profile-edit-button-secondary' : 'profile-edit-button-primary'
+            editing
+              ? "profile-edit-button-secondary"
+              : "profile-edit-button-primary"
           }`}
         >
-          {editing ? 'Cancel' : 'Edit Profile'}
+          {editing ? "Cancel" : "Edit Profile"}
         </button>
       </div>
 
@@ -220,29 +220,35 @@ export default function Profile({ user }) {
         <div className="profile-completion">
           <h3 className="profile-completion-title">Complete Your Profile</h3>
           <div className="profile-completion-bar">
-            <div 
-              className="profile-completion-progress" 
+            <div
+              className="profile-completion-progress"
               style={{ width: `${profileCompletion}%` }}
             ></div>
           </div>
-          <p className="profile-completion-text">{profileCompletion}% Complete</p>
+          <p className="profile-completion-text">
+            {profileCompletion}% Complete
+          </p>
         </div>
       )}
 
       {/* Profile Picture Section */}
       <div className="profile-picture-section">
-        <img 
-          src={user.photoURL || '/default-avatar.png'} 
-          alt="Profile" 
+        <img
+          src={user.photoURL || "/default-avatar.png"}
+          alt="Profile"
           className="profile-picture"
         />
         <p className="profile-picture-note">Profile picture from Google</p>
       </div>
 
       {message && (
-        <div className={`profile-message ${
-          message.includes('Error') ? 'profile-message-error' : 'profile-message-success'
-        }`}>
+        <div
+          className={`profile-message ${
+            message.includes("Error")
+              ? "profile-message-error"
+              : "profile-message-success"
+          }`}
+        >
           {message}
         </div>
       )}
@@ -250,50 +256,50 @@ export default function Profile({ user }) {
       {editing ? (
         <form onSubmit={handleUpdate} className="profile-form">
           <div className="profile-form-group">
-            <label className="profile-label">
-              Display Name:
-            </label>
-            <input 
+            <label className="profile-label">Display Name:</label>
+            <input
               type="text"
               value={formData.displayName}
-              onChange={(e) => setFormData({...formData, displayName: e.target.value})}
+              onChange={(e) =>
+                setFormData({ ...formData, displayName: e.target.value })
+              }
               required
               className="profile-input"
             />
           </div>
 
           <div className="profile-form-group">
-            <label className="profile-label">
-              Username:
-            </label>
-            <input 
+            <label className="profile-label">Username:</label>
+            <input
               type="text"
               value={formData.username}
-              onChange={(e) => setFormData({...formData, username: e.target.value})}
+              onChange={(e) =>
+                setFormData({ ...formData, username: e.target.value })
+              }
               required
               className="profile-input"
             />
           </div>
 
           <div className="profile-form-group">
-            <label className="profile-label">
-              Bio:
-            </label>
-            <textarea 
+            <label className="profile-label">Bio:</label>
+            <textarea
               value={formData.bio}
-              onChange={(e) => setFormData({...formData, bio: e.target.value})}
+              onChange={(e) =>
+                setFormData({ ...formData, bio: e.target.value })
+              }
               rows="4"
               className="profile-input profile-textarea"
               placeholder="Tell others about yourself..."
             />
           </div>
 
-          <button 
+          <button
             type="submit"
             disabled={loading}
             className="profile-save-button"
           >
-            {loading ? 'Saving...' : 'Save Changes'}
+            {loading ? "Saving..." : "Save Changes"}
           </button>
         </form>
       ) : (
@@ -316,9 +322,7 @@ export default function Profile({ user }) {
           {profile.bio && (
             <div className="profile-field">
               <div className="profile-field-label">Bio:</div>
-              <div className="profile-bio-content">
-                {profile.bio}
-              </div>
+              <div className="profile-bio-content">{profile.bio}</div>
             </div>
           )}
 
@@ -339,7 +343,7 @@ export default function Profile({ user }) {
 
           {/* Password Change Section */}
           {!changingPassword ? (
-            <button 
+            <button
               onClick={() => setChangingPassword(true)}
               className="profile-password-button"
             >
@@ -350,26 +354,32 @@ export default function Profile({ user }) {
               <h3 className="profile-password-title">Change Password</h3>
               <form onSubmit={handlePasswordChange}>
                 <div className="profile-form-group">
-                  <label className="profile-label">
-                    Current Password:
-                  </label>
-                  <input 
+                  <label className="profile-label">Current Password:</label>
+                  <input
                     type="password"
                     value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        currentPassword: e.target.value,
+                      })
+                    }
                     required
                     className="profile-input"
                   />
                 </div>
 
                 <div className="profile-form-group">
-                  <label className="profile-label">
-                    New Password:
-                  </label>
-                  <input 
+                  <label className="profile-label">New Password:</label>
+                  <input
                     type="password"
                     value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        newPassword: e.target.value,
+                      })
+                    }
                     required
                     className="profile-input"
                   />
@@ -379,34 +389,37 @@ export default function Profile({ user }) {
                 </div>
 
                 <div className="profile-form-group">
-                  <label className="profile-label">
-                    Confirm New Password:
-                  </label>
-                  <input 
+                  <label className="profile-label">Confirm New Password:</label>
+                  <input
                     type="password"
                     value={passwordData.confirmPassword}
-                    onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        confirmPassword: e.target.value,
+                      })
+                    }
                     required
                     className="profile-input"
                   />
                 </div>
 
                 <div>
-                  <button 
+                  <button
                     type="submit"
                     disabled={loading}
                     className="profile-save-button"
                   >
-                    {loading ? 'Updating...' : 'Update Password'}
+                    {loading ? "Updating..." : "Update Password"}
                   </button>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       setChangingPassword(false);
                       setPasswordData({
                         currentPassword: "",
                         newPassword: "",
-                        confirmPassword: ""
+                        confirmPassword: "",
                       });
                       setMessage("");
                     }}
