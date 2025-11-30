@@ -7,7 +7,7 @@ import Home from "./pages/Home";
 import Search from "./pages/Search";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
-import "./App.css"; // Import the CSS file
+import "./App.css";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -35,7 +35,6 @@ function App() {
     return unsubscribe;
   }, []);
 
-  // Show loading only while checking auth state
   if (loading) {
     return (
       <div className="app-loading">
@@ -82,6 +81,8 @@ function App() {
         <Route path="/" element={<Home user={user} />} />
         <Route path="/search" element={<Search user={user} />} />
         <Route path="/notifications" element={<Notifications user={user} />} />
+        {/* Both profile routes */}
+        <Route path="/profile" element={<Profile user={user} />} />
         <Route path="/profile/:uid" element={<Profile user={user} />} />
       </Routes>
     </Router>

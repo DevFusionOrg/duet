@@ -10,7 +10,7 @@ const cld = new Cloudinary({
 export default cld;
 
 // Upload image using Cloudinary Upload Widget
-export const openUploadWidget = () => {
+export const openUploadWidget = (options = {}) => {
   return new Promise((resolve, reject) => {
     if (!window.cloudinary) {
       reject(new Error("Cloudinary widget not loaded"));
@@ -27,6 +27,12 @@ export const openUploadWidget = () => {
         clientAllowedFormats: ["jpg", "jpeg", "png", "gif", "webp"],
         folder: "duet-chat",
         resourceType: "image",
+        // Add cropping for better profile pictures
+        cropping: true,
+        croppingAspectRatio: 1, // Square crop for profile pictures
+        croppingDefaultSelectionRatio: 0.9,
+        showSkipCropButton: false,
+        ...options
       },
       (error, result) => {
         if (error) {
@@ -41,6 +47,11 @@ export const openUploadWidget = () => {
 
     widget.open();
   });
+};
+
+// Generate optimized image URL for profile pictures
+export const getOptimizedProfilePictureUrl = (publicId, size = 200) => {
+  return `https://res.cloudinary.com/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload/w_${size},h_${size},c_fill,q_auto,f_auto/${publicId}`;
 };
 
 // Generate optimized image URL
