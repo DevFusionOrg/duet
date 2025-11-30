@@ -1,81 +1,69 @@
-/* Responsive and simplified Music Player styles */
 .musicPlayer {
   position: fixed;
-  bottom: 12px;
   right: 20px;
-  width: 400px;
-  background-color: #ffffff;
+  bottom: 12px;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  background: #fff;
   border: 1px solid #e6e6e6;
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(20,20,40,0.08);
   z-index: 1000;
-  max-height: 80vh;
-  overflow: hidden;
-  transition: width 200ms ease, right 200ms ease, left 200ms ease;
+  padding: 12px 52px 12px 12px; /* extra right padding to make room for close button */
+  transition: width 200ms ease;
+  box-sizing: border-box;
 }
 
+/* Header exists in JSX but we don't need it visually; keep layout neutral */
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background: linear-gradient(90deg,#7c3aed,#6d28d9);
-  color: #fff;
-}
-
-.title {
+  display: block;
+  height: 0;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  padding: 0;
+  visibility: hidden; /* keep DOM presence but hide header area */
 }
 
+/* Close button (made visible and positioned inside the bar) */
 .closeButton {
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 22px;
-  cursor: pointer;
-  padding: 6px;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  border: none;
+  color: #374151;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 8px;
+  visibility: visible; /* ensure visible even though .header is hidden */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
 
-.currentSong {
-  padding: 12px 16px;
-  background-color: #fbfdff;
-  border-bottom: 1px solid #f1f5f9;
+/* hover/focus affordance */
+.closeButton:hover,
+.closeButton:focus {
+  background: rgba(0,0,0,0.04);
+  outline: none;
 }
 
-.nowPlaying {
-  margin: 0 0 6px 0;
-  font-size: 12px;
-  color: #556;
-  font-weight: 500;
-}
-
-.songTitle {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #111827;
-  word-break: break-word;
-}
-
+/* Search section and single-bar layout */
 .searchSection {
-  padding: 12px 16px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 
 .searchBox {
   display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8px;
+  align-items: center;
 }
 
+/* Input field */
 .searchInput {
   flex: 1;
   padding: 10px 12px;
@@ -83,17 +71,16 @@
   border-radius: 8px;
   font-size: 14px;
   outline: none;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .searchInput:focus {
   border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.08);
 }
 
-.searchInput:disabled {
-  background-color: #f8fafc;
-  cursor: not-allowed;
-}
-
+/* Play/Search Button */
 .searchButton {
   padding: 10px 14px;
   background-color: #7c3aed;
@@ -103,285 +90,77 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
-.searchButton:disabled {
-  background-color: #b3b8bf;
+/* Stop Button */
+.stopButton {
+  padding: 10px 12px;
+  background-color: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Disabled states */
+.searchButton:disabled,
+.searchInput:disabled,
+.stopButton:disabled,
+.closeButton:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-.searchInfo {
-  padding: 10px;
-  background-color: #f1f9ff;
-  border-radius: 6px;
-  border: 1px solid #e6f0ff;
-}
-
-.infoText {
-  margin: 0;
-  font-size: 12px;
-  color: #1E3A8A;
-  text-align: center;
-}
-
-.controls {
-  padding: 12px 16px 16px 16px;
-}
-
-.playButton,
-.pauseButton {
-  padding: 12px 20px;
-  color: #fff;
-  border: none;
-  border-radius: 18px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 0;
-}
-.playButton { background-color: #10B981; }
-.pauseButton { background-color: #ef4444; }
-
-.syncInfo {
-  font-size: 12px;
-  color: #666;
-  text-align: center;
-  padding-top: 8px;
-}
-
-.syncSub {
-  font-size: 11px;
-  opacity: 0.8;
-  margin-top: 4px;
-}
-
-.placeholder {
-  text-align: center;
-  color: #666;
-  padding: 8px 0;
-}
-
-.placeholderSub {
-  font-size: 12px;
-  margin-top: 6px;
-  opacity: 0.7;
-}
-
-/* Responsive adjustments */
+/* Responsive: center and expand on smaller screens */
 @media (max-width: 768px) {
   .musicPlayer {
     left: 50%;
     right: auto;
     transform: translateX(-50%);
-    width: 90vw;
+    width: 92vw;
     bottom: 10px;
-    border-radius: 10px;
+    padding: 10px 48px 10px 10px;
   }
 
-  .header { padding: 10px 12px; }
-  .title { font-size: 14px; }
-  .searchInput { font-size: 14px; padding: 10px; }
-  .searchButton { padding: 10px 12px; font-size: 14px; }
+  .searchButton,
+  .stopButton {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .searchBox { gap: 6px; }
+
+  .closeButton {
+    right: 10px;
+    top: 10px;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 420px) {
   .musicPlayer {
     width: 96vw;
-    bottom: 6px;
+    bottom: 8px;
+    padding: 10px 44px 10px 10px;
   }
 
-  .title { font-size: 13px; }
-  .songTitle { font-size: 13px; }
-  .closeButton { width: 34px; height: 34px; }
-  .searchBox { gap: 8px; }
-  .playButton, .pauseButton { padding: 12px; font-size: 14px; }
-}
-.musicPlayer {
-  position: fixed;
-  bottom: 0;
-  right: 20px;
-  width: 400px;
-  background-color: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px 12px 0 0;
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
-  z-index: 1000;
-  max-height: 80vh;
-  overflow: hidden;
-}
+  .searchBox {
+    gap: 6px;
+  }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 20px;
-  background-color: #8B5CF6;
-  color: white;
-  border-radius: 12px 12px 0 0;
-}
+  .stopButton { padding: 10px 8px; }
 
-.title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.closeButton {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 24px;
-  cursor: pointer;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.currentSong {
-  padding: 15px 20px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.nowPlaying {
-  margin: 0 0 5px 0;
-  font-size: 12px;
-  color: #666;
-  font-weight: 500;
-}
-
-.songTitle {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-  word-break: break-word;
-}
-
-.searchSection {
-  padding: 15px 20px;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.searchBox {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.searchInput {
-  flex: 1;
-  padding: 12px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 14px;
-  outline: none;
-}
-
-.searchInput:focus {
-  border-color: #8B5CF6;
-}
-
-.searchInput:disabled {
-  background-color: #f5f5f5;
-  cursor: not-allowed;
-}
-
-.searchButton {
-  padding: 12px 20px;
-  background-color: #8B5CF6;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.searchButton:disabled {
-  background-color: #9CA3AF;
-  cursor: not-allowed;
-}
-
-.searchInfo {
-  padding: 10px;
-  background-color: #EFF6FF;
-  border-radius: 6px;
-  border: 1px solid #DBEAFE;
-}
-
-.infoText {
-  margin: 0;
-  font-size: 12px;
-  color: #1E40AF;
-  text-align: center;
-}
-
-.controls {
-  padding: 15px 20px;
-}
-
-.playButton {
-  padding: 12px 24px;
-  background-color: #10B981;
-  color: white;
-  border: none;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 10px;
-  width: 100%;
-}
-
-.pauseButton {
-  padding: 12px 24px;
-  background-color: #EF4444;
-  color: white;
-  border: none;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 10px;
-  width: 100%;
-}
-
-.syncInfo {
-  font-size: 12px;
-  color: #666;
-  text-align: center;
-}
-
-.syncSub {
-  font-size: 11px;
-  opacity: 0.7;
-  margin-top: 4px;
-}
-
-.placeholder {
-  text-align: center;
-  color: #666;
-  padding: 10px 0;
-}
-
-.placeholderSub {
-  font-size: 12px;
-  margin-top: 8px;
-  opacity: 0.7;
-}
-
-.stopButton {
-  padding: 12px 16px;
-  background-color: #EF4444;
-  color: white;
-  border: none;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
+  .closeButton {
+    right: 8px;
+    top: 8px;
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
 }

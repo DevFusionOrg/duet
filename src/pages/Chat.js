@@ -34,16 +34,14 @@ function Chat({ user, friend, onBack }) {
   const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false);
   const messagesEndRef = useRef(null);
 
-    // Fix: Add real-time online status tracking
   const [isFriendOnline, setIsFriendOnline] = useState(false);
   const [lastSeen, setLastSeen] = useState(null);
 
-  // Add this useEffect to track friend's online status
   useEffect(() => {
     if (!friend?.uid) return;
 
     const userRef = doc(db, "users", friend.uid);
-    
+
     const unsubscribe = onSnapshot(userRef, (doc) => {
       if (doc.exists()) {
         const userData = doc.data();
@@ -55,22 +53,62 @@ function Chat({ user, friend, onBack }) {
     return unsubscribe;
   }, [friend?.uid]);
 
-  // You can also add a function to get the last seen time
   const getLastSeenText = () => {
     if (isFriendOnline) return "Online";
-    
+
     if (lastSeen) {
       const lastSeenDate = lastSeen.toDate ? lastSeen.toDate() : new Date(lastSeen);
       const now = new Date();
       const diffMinutes = Math.floor((now - lastSeenDate) / (1000 * 60));
-      
+
       if (diffMinutes < 1) return "Just now";
       if (diffMinutes < 60) return `${diffMinutes}m ago`;
       if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
       return lastSeenDate.toLocaleDateString();
     }
-    
+
     return "Offline";
+  };
+
+  const getMessageDate = (timestamp) => {
+    if (!timestamp) return null;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (timestamp instanceof Date) return timestamp;
+    return new Date(timestamp);
+  };
+
+  const isSameDay = (tsA, tsB) => {
+    if (!tsA || !tsB) return false;
+    const a = getMessageDate(tsA);
+    const b = getMessageDate(tsB);
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  };
+
+  const formatDateHeader = (date) => {
+    if (!date) return "";
+    const d = getMessageDate(date);
+    const now = new Date();
+
+    const diff = Math.floor((stripTime(now) - stripTime(d)) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+
+    return d.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const stripTime = (d) => {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
   };
 
   useEffect(() => {
@@ -145,8 +183,6 @@ function Chat({ user, friend, onBack }) {
     }
     setUploadingImage(false);
   };
-
-  
 
   useEffect(() => {
     if (!chatId) return;
@@ -348,7 +384,7 @@ function Chat({ user, friend, onBack }) {
         <div className="chat-image-message">
           <img
             src={getOptimizedImageUrl(message.image.publicId, 400, 400)}
-            alt={message.text || 'Attachment'}
+            alt={message.text || "Attachment"}
             className="chat-image"
             onClick={() => window.open(message.image.url, "_blank")}
           />
@@ -398,7 +434,6 @@ function Chat({ user, friend, onBack }) {
       );
     }
 
-    // For TEXT messages - show all options
     return (
       <>
         <div
@@ -491,77 +526,89 @@ function Chat({ user, friend, onBack }) {
             <p>No messages yet. Start the conversation!</p>
           </div>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`chat-message-wrapper ${
-                message.senderId === user.uid
-                  ? "chat-sent-wrapper"
-                  : "chat-received-wrapper"
-              }`}
-              onMouseEnter={() => handleMessageHover(message)}
-              onMouseLeave={handleMessageLeave}
-            >
-              {/* Menu Arrow - Left side */}
-              {hoveredMessage?.id === message.id && (
-                <div className="chat-menu-arrow-container">
-                  <button
-                    className="chat-menu-arrow"
-                    onClick={(e) => handleArrowClick(e, message)}
-                    title="Message options"
-                  >
-                    ▼
-                  </button>
-                </div>
-              )}
+          messages.map((message, index) => {
+            const prev = index > 0 ? messages[index - 1] : null;
+            const showDateSeparator = !prev || !isSameDay(prev.timestamp, message.timestamp);
 
-              {/* Message Bubble */}
-              <div
-                className={`chat-message-bubble ${
-                  message.senderId === user.uid
-                    ? "chat-sent-message"
-                    : "chat-received-message"
-                } ${isMessageSaved(message) ? "chat-saved-message" : ""}`}
-              >
-                <div className="chat-message-content">
-                  {editingMessageId === message.id ? (
-                    <div className="chat-edit-container">
-                      <input
-                        type="text"
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        className="chat-edit-input"
-                        autoFocus
-                      />
-                      <div className="chat-edit-actions">
-                        <button
-                          onClick={() => handleSaveEdit(message.id)}
-                          className="chat-edit-save"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={handleCancelEdit}
-                          className="chat-edit-cancel"
-                        >
-                          Cancel
-                        </button>
-                      </div>
+            return (
+              <React.Fragment key={message.id}>
+                {showDateSeparator && (
+                  <div className="chat-date-separator">
+                    {formatDateHeader(message.timestamp)}
+                  </div>
+                )}
+
+                <div
+                  className={`chat-message-wrapper ${
+                    message.senderId === user.uid
+                      ? "chat-sent-wrapper"
+                      : "chat-received-wrapper"
+                  }`}
+                  onMouseEnter={() => handleMessageHover(message)}
+                  onMouseLeave={handleMessageLeave}
+                >
+                  {/* Menu Arrow - Left side */}
+                  {hoveredMessage?.id === message.id && (
+                    <div className="chat-menu-arrow-container">
+                      <button
+                        className="chat-menu-arrow"
+                        onClick={(e) => handleArrowClick(e, message)}
+                        title="Message options"
+                      >
+                        ▼
+                      </button>
                     </div>
-                  ) : (
-                    renderMessageContent(message)
+                  )}
+
+                  {/* Message Bubble */}
+                  <div
+                    className={`chat-message-bubble ${
+                      message.senderId === user.uid
+                        ? "chat-sent-message"
+                        : "chat-received-message"
+                    } ${isMessageSaved(message) ? "chat-saved-message" : ""}`}
+                  >
+                    <div className="chat-message-content">
+                      {editingMessageId === message.id ? (
+                        <div className="chat-edit-container">
+                          <input
+                            type="text"
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            className="chat-edit-input"
+                            autoFocus
+                          />
+                          <div className="chat-edit-actions">
+                            <button
+                              onClick={() => handleSaveEdit(message.id)}
+                              className="chat-edit-save"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="chat-edit-cancel"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        renderMessageContent(message)
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dropdown Menu - UPDATED: Uses renderMenuOptions function */}
+                  {showMessageMenu && selectedMessage?.id === message.id && (
+                    <div className="chat-dropdown-menu">
+                      {renderMenuOptions(message)}
+                    </div>
                   )}
                 </div>
-              </div>
-
-              {/* Dropdown Menu - UPDATED: Uses renderMenuOptions function */}
-              {showMessageMenu && selectedMessage?.id === message.id && (
-                <div className="chat-dropdown-menu">
-                  {renderMenuOptions(message)}
-                </div>
-              )}
-            </div>
-          ))
+              </React.Fragment>
+            );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>
