@@ -16,37 +16,38 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     const unsubscribe = listenToMusicState(chatId, (musicState) => {
       if (musicState && musicState.updatedBy !== user.uid) {
         if (musicState.videoId === videoId && 
-        musicState.isPlaying === isPlaying &&
-        musicState.title === currentlyPlaying) {
-        return;
+            musicState.isPlaying === isPlaying &&
+            musicState.title === currentlyPlaying) {
+          return;
         }
+        
+        console.log("Remote state change detected:", musicState);
+        
+        const currentVideoId = playerRef.current && playerRef.current.getVideoData ? 
+          playerRef.current.getVideoData().video_id : null;
+        
+        const isDifferentVideo = musicState.videoId !== currentVideoId;
         
         setVideoId(musicState.videoId || "");
         setCurrentlyPlaying(musicState.title || "");
         setIsPlaying(musicState.isPlaying || false);
         
-      const currentVideoId = playerRef.current ? 
-        playerRef.current.getVideoData()?.video_id : null;
-      const isDifferentVideo = musicState.videoId !== currentVideoId;
-      
-      setVideoId(musicState.videoId || "");
-      setCurrentlyPlaying(musicState.title || "");
-      setIsPlaying(musicState.isPlaying || false);
-      
-      if (playerRef.current) {
-        if (musicState.videoId && isDifferentVideo) {
-          console.log("Loading new video:", musicState.videoId);
-          playerRef.current.loadVideoById(musicState.videoId);
-        }
-        
-        if (musicState.isPlaying) {
-          console.log("Playing video");
-          playerRef.current.playVideo();
-        } else {
-          console.log("Pausing video");
-          playerRef.current.pauseVideo();
-        }
-      }
+        setTimeout(() => {
+          if (playerRef.current && playerRef.current.getVideoData) {
+            if (musicState.videoId && isDifferentVideo) {
+              console.log("Loading new video:", musicState.videoId);
+              playerRef.current.loadVideoById(musicState.videoId);
+            }
+            
+            if (musicState.isPlaying) {
+              console.log("Playing video");
+              playerRef.current.playVideo();
+            } else {
+              console.log("Pausing video");
+              playerRef.current.pauseVideo();
+            }
+          }
+        }, 100);
       }
     });
 
