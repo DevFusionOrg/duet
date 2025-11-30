@@ -21,8 +21,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
           return;
         }
         
-        console.log("Remote state change detected:", musicState);
-        
         const currentVideoId = playerRef.current && playerRef.current.getVideoData ? 
           playerRef.current.getVideoData().video_id : null;
         
@@ -35,22 +33,18 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
         setTimeout(() => {
           if (playerRef.current && playerRef.current.getVideoData) {
             if (musicState.videoId && isDifferentVideo) {
-              console.log("Loading new video:", musicState.videoId);
               playerRef.current.loadVideoById(musicState.videoId);
             }
             
             if (musicState.isPlaying) {
-              console.log("Playing video");
               playerRef.current.playVideo();
             } else {
-              console.log("Pausing video");
               playerRef.current.pauseVideo();
             }
           }
         }, 100);
       }
     });
-
     return unsubscribe;
   }, [chatId, isVisible, user.uid, videoId, isPlaying, currentlyPlaying]);
 
@@ -69,7 +63,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
         throw new Error("No results found");
       }
     } catch (error) {
-      console.error("Error searching song:", error);
       alert("Error searching for song. Please try again.");
     }
     setLoading(false);
@@ -95,7 +88,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       }
       return null;
     } catch (error) {
-      console.error("YouTube search failed:", error);
       return await searchYouTubeAlternative(query);
     }
   };
@@ -122,14 +114,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       }
       return null;
     } catch (error) {
-      console.error("Alternative search failed:", error);
       return null;
     }
   };
 
   const playSong = (video) => {
-    console.log("Playing song:", video);
-    
     setVideoId(video.videoId);
     setCurrentlyPlaying(video.title);
     setIsPlaying(true);
@@ -218,7 +207,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
         },
         events: {
           'onReady': (event) => {
-            console.log("YouTube player ready");
           },
           'onStateChange': (event) => {
             if (event.data === window.YT.PlayerState.PLAYING && !isPlaying) {
@@ -230,7 +218,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
             }
           },
           'onError': (event) => {
-            console.error("YouTube player error:", event);
             alert("Error playing song. Try a different version.");
           }
         }
@@ -253,7 +240,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   return (
     <div className={`musicPlayer ${pinned ? 'pinned' : 'floating'}`}>
       <div className="header">
-        <h3 className="title">🎵 Universal Music Player</h3>
         <button onClick={onClose} className="closeButton">×</button>
       </div>
 
