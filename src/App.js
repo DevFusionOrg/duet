@@ -4,8 +4,6 @@ import { createUserProfile } from "./firebase/firestore";
 import Auth from "./pages/Auth";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
-import Search from "./pages/Search";
-import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import "./App.css";
 
@@ -79,8 +77,6 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Home user={user} />} />
-        <Route path="/search" element={<Search user={user} />} />
-        <Route path="/notifications" element={<Notifications user={user} />} />
         {/* Both profile routes */}
         <Route path="/profile" element={<Profile user={user} />} />
         <Route path="/profile/:uid" element={<Profile user={user} />} />

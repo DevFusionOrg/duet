@@ -144,6 +144,13 @@ function Home({ user }) {
             {chats.length > 0 && <span className="nav-badge">{chats.length}</span>}
           </button>
           <button 
+            className={`nav-item ${activeView === 'search' ? 'active' : ''}`}
+            onClick={() => setActiveView('search')}
+          >
+            <span className="nav-icon">🔍</span>
+            <span className="nav-text">Search</span>
+          </button>          
+          <button 
             className={`nav-item ${activeView === 'notifications' ? 'active' : ''}`}
             onClick={() => setActiveView('notifications')}
             title="View notifications"
@@ -178,6 +185,7 @@ function Home({ user }) {
           <h1 className="welcome-title">
             {activeView === 'friends' && `Welcome ${getDisplayName()}! 🎵`}
             {activeView === 'chats' && 'Messages with Friends 💬'}
+            {activeView === 'search' && 'Find New Friends 🔍'}
             {activeView === 'notifications' && 'Friend Requests 🔔'}
             {activeView === 'profile' && (editingProfile ? 'Edit Profile ✏️' : 'My Profile 👤')}
           </h1>
@@ -197,6 +205,8 @@ function Home({ user }) {
               loading={loading} 
               onStartChat={handleStartChat}
             />
+          ) :activeView === 'search' ? (
+            <SearchView user={user} />
           ) : activeView === 'notifications' ? (
             <NotificationsView user={user} />
           ) : activeView === 'profile' ? (
@@ -708,6 +718,175 @@ function ProfilePopup({ friend, isOwnProfile, onClose }) {
   );
 }
 
+// Search View Component
+function SearchView({ user }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [requestLoading, setRequestLoading] = useState({});
+  const [message, setMessage] = useState("");
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!searchTerm.trim()) return;
+
+    setLoading(true);
+    setMessage("");
+    try {
+      const { searchUsers } = await import("../firebase/firestore");
+      const results = await searchUsers(searchTerm);
+      // Filter out current user from results
+      const filteredResults = results.filter(
+        (result) => result.uid !== user.uid,
+      );
+      setSearchResults(filteredResults);
+
+      if (filteredResults.length === 0) {
+        setMessage("No users found. Try a different search term.");
+      }
+    } catch (error) {
+      console.error("Error searching users:", error);
+      setMessage("Error searching users: " + error.message);
+    }
+    setLoading(false);
+  };
+
+  const handleSendRequest = async (toUserId, toUserName) => {
+    setRequestLoading((prev) => ({ ...prev, [toUserId]: true }));
+    setMessage("");
+
+    try {
+      const { sendFriendRequest } = await import("../firebase/firestore");
+      await sendFriendRequest(user.uid, toUserId);
+      setMessage(`Friend request sent to ${toUserName}!`);
+
+      // Update the UI to show request sent
+      setSearchResults((prev) =>
+        prev.map((user) =>
+          user.uid === toUserId
+            ? {
+                ...user,
+                hasSentRequest: true,
+                friendRequests: [
+                  ...(user.friendRequests || []),
+                  { from: user.uid, status: "pending" },
+                ],
+              }
+            : user,
+        ),
+      );
+    } catch (error) {
+      console.error("Error sending friend request:", error);
+      setMessage(error.message);
+    }
+    setRequestLoading((prev) => ({ ...prev, [toUserId]: false }));
+  };
+
+  const hasSentRequest = (userProfile, currentUserId) => {
+    return (
+      userProfile.friendRequests &&
+      userProfile.friendRequests.some(
+        (req) => req.from === currentUserId && req.status === "pending",
+      )
+    );
+  };
+
+  const isAlreadyFriend = (userProfile, currentUserId) => {
+    return userProfile.friends && userProfile.friends.includes(currentUserId);
+  };
+
+  return (
+    <div className="search-container">
+      <h2 className="search-title">Search Users</h2>
+
+      {message && (
+        <div className={`search-message ${message.includes("Error") ? "search-message-error" : "search-message-success"}`}>
+          {message}
+        </div>
+      )}
+
+      <form onSubmit={handleSearch} className="search-form">
+        <input
+          type="text"
+          placeholder="Search by name or username..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="search-input"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="search-button"
+        >
+          {loading ? "Searching..." : "Search"}
+        </button>
+      </form>
+
+      <div className="search-results">
+        {searchResults.map((result) => {
+          const alreadyFriends = isAlreadyFriend(result, user.uid);
+          const requestSent = hasSentRequest(result, user.uid);
+
+          return (
+            <div
+              key={result.uid}
+              className="search-result-item"
+            >
+              <img
+                src={result.photoURL || '/default-avatar.png'}
+                alt={result.displayName}
+                className="search-result-avatar"
+              />
+              <div className="search-result-info">
+                <h4>{result.displayName}</h4>
+                <p className="search-result-username">@{result.username}</p>
+                {result.bio && (
+                  <p className="search-result-bio">{result.bio}</p>
+                )}
+
+                {/* Status indicators */}
+                {alreadyFriends && (
+                  <p className="status-indicator status-friends">
+                    ✓ Already friends
+                  </p>
+                )}
+                {requestSent && (
+                  <p className="status-indicator status-pending">
+                    ⏳ Friend request sent
+                  </p>
+                )}
+              </div>
+
+              {!alreadyFriends && !requestSent ? (
+                <button
+                  onClick={() =>
+                    handleSendRequest(result.uid, result.displayName)
+                  }
+                  disabled={requestLoading[result.uid]}
+                  className="add-friend-button"
+                >
+                  {requestLoading[result.uid] ? "Sending..." : "Add Friend"}
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className="disabled-button"
+                >
+                  {alreadyFriends ? "Friends" : "Request Sent"}
+                </button>
+              )}
+            </div>
+          );
+        })}
+
+        {searchResults.length === 0 && searchTerm && !loading && !message && (
+          <p className="no-results">No users found. Try a different search term.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Notifications View Component
 function NotificationsView({ user }) {
   const [profile, setProfile] = useState(null);
@@ -719,15 +898,17 @@ function NotificationsView({ user }) {
     if (!user) return;
 
     const unsubscribe = listenToUserProfile(user.uid, (userProfile) => {
+      console.log("Notifications - Profile updated:", userProfile);
       setProfile(userProfile);
     });
 
     return unsubscribe;
   }, [user]);
 
-  const handleAccept = async (requestFromId, requesterName) => {
-    const requestKey = `${requestFromId}_accept`;
+  const handleAccept = async (requestFromId, requestIndex, requesterName) => {
+    const requestKey = `${requestFromId}_${requestIndex}`;
 
+    // Don't process if already handled
     if (processedRequests.has(requestKey)) {
       return;
     }
@@ -739,9 +920,13 @@ function NotificationsView({ user }) {
       const { acceptFriendRequest } = await import("../firebase/firestore");
       await acceptFriendRequest(user.uid, requestFromId);
 
+      // Mark this request as processed
       setProcessedRequests((prev) => new Set(prev.add(requestKey)));
       setActionMessage(`✅ Accepted friend request from ${requesterName}`);
 
+      console.log("Friend request accepted and marked as processed");
+
+      // Clear message after 3 seconds
       setTimeout(() => setActionMessage(""), 3000);
     } catch (error) {
       console.error("Error accepting friend request:", error);
@@ -751,9 +936,10 @@ function NotificationsView({ user }) {
     }
   };
 
-  const handleReject = async (requestFromId, requesterName) => {
-    const requestKey = `${requestFromId}_reject`;
+  const handleReject = async (requestFromId, requestIndex, requesterName) => {
+    const requestKey = `${requestFromId}_${requestIndex}`;
 
+    // Don't process if already handled
     if (processedRequests.has(requestKey)) {
       return;
     }
@@ -765,9 +951,13 @@ function NotificationsView({ user }) {
       const { rejectFriendRequest } = await import("../firebase/firestore");
       await rejectFriendRequest(user.uid, requestFromId);
 
+      // Mark this request as processed
       setProcessedRequests((prev) => new Set(prev.add(requestKey)));
-      setActionMessage(`✅ Rejected friend request from ${requesterName}`);
+      setActionMessage(`❌ Rejected friend request from ${requesterName}`);
 
+      console.log("Friend request rejected and marked as processed");
+
+      // Clear message after 3 seconds
       setTimeout(() => setActionMessage(""), 3000);
     } catch (error) {
       console.error("Error rejecting friend request:", error);
@@ -779,70 +969,147 @@ function NotificationsView({ user }) {
 
   if (!profile) {
     return (
-      <div className="loading-state">
-        <div className="loading-spinner"></div>
-        <p>Loading notifications...</p>
-      </div>
+      <div className="notifications-loading">Loading notifications...</div>
     );
   }
 
-  const pendingRequests =
-    profile.friendRequests?.filter((req) => req.status === "pending") || [];
+  const friendRequests = profile.friendRequests || [];
+
+  // Filter out processed requests
+  const activeFriendRequests = friendRequests.filter((request, index) => {
+    const requestKey = `${request.from}_${index}`;
+    return !processedRequests.has(requestKey);
+  });
 
   return (
     <div className="notifications-container">
 
       {actionMessage && (
-        <div className="action-message">
+        <div className={`action-message ${actionMessage.includes("✅") ? "action-message-success" : "action-message-error"}`}>
           {actionMessage}
         </div>
       )}
 
-      {pendingRequests.length === 0 ? (
+      {activeFriendRequests.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📭</div>
           <h3>No Pending Requests</h3>
-          <p>You're all caught up!</p>
+          <p>You're all caught up! New friend requests will appear here.</p>
         </div>
       ) : (
         <div className="friend-requests-list">
-          {pendingRequests.map((request) => (
-            <div key={request.id} className="friend-request-item">
-              <div className="request-user-info">
-                <img
-                  src={request.photoURL || '/default-avatar.png'}
-                  alt={request.displayName}
-                  className="request-avatar"
-                />
-                <div className="request-details">
-                  <h4>{request.displayName}</h4>
-                  <p className="request-username">@{request.username}</p>
-                </div>
-              </div>
-              <div className="request-actions">
-                <button
-                  onClick={() =>
-                    handleAccept(request.id, request.displayName)
-                  }
-                  disabled={loading[`${request.id}_accept`]}
-                  className="accept-btn"
-                >
-                  {loading[`${request.id}_accept`] ? "..." : "✓ Accept"}
-                </button>
-                <button
-                  onClick={() =>
-                    handleReject(request.id, request.displayName)
-                  }
-                  disabled={loading[`${request.id}_reject`]}
-                  className="reject-btn"
-                >
-                  {loading[`${request.id}_reject`] ? "..." : "✕ Reject"}
-                </button>
-              </div>
-            </div>
+          <h3 className="notifications-section-title">
+            Friend Requests
+            <span className="notifications-badge">
+              {activeFriendRequests.length}
+            </span>
+          </h3>
+          {activeFriendRequests.map((request, index) => (
+            <FriendRequestItem
+              key={`${request.from}_${index}`}
+              request={request}
+              index={index}
+              onAccept={handleAccept}
+              onReject={handleReject}
+              loading={loading[`${request.from}_${index}`] || false}
+              isProcessed={processedRequests.has(`${request.from}_${index}`)}
+            />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Enhanced FriendRequestItem component
+function FriendRequestItem({
+  request,
+  index,
+  onAccept,
+  onReject,
+  loading,
+  isProcessed,
+}) {
+  const [requesterProfile, setRequesterProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRequesterProfile = async () => {
+      try {
+        const { getUserProfile } = await import("../firebase/firestore");
+        const profile = await getUserProfile(request.from);
+        setRequesterProfile(profile);
+      } catch (error) {
+        console.error("Error fetching requester profile:", error);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    fetchRequesterProfile();
+  }, [request.from]);
+
+  if (isProcessed) {
+    return null; // Don't render processed requests
+  }
+
+  if (profileLoading) {
+    return (
+      <div className="notifications-request-loading">
+        Loading user information...
+      </div>
+    );
+  }
+
+  const requesterName = requesterProfile?.displayName || "Unknown User";
+
+  return (
+    <div className={`friend-request-item ${loading ? "friend-request-item-loading" : ""}`}>
+      <div className="request-user-info">
+        {requesterProfile ? (
+          <>
+            <img
+              src={requesterProfile.photoURL || '/default-avatar.png'}
+              alt={requesterProfile.displayName}
+              className="request-avatar"
+            />
+            <div className="request-details">
+              <h4>{requesterProfile.displayName}</h4>
+              <p className="request-username">@{requesterProfile.username}</p>
+              {requesterProfile.bio && (
+                <p className="request-bio">
+                  {requesterProfile.bio}
+                </p>
+              )}
+              <p className="request-time">
+                {request.timestamp?.toDate?.()?.toLocaleString() || "Recently"}
+              </p>
+            </div>
+          </>
+        ) : (
+          <div className="request-details">
+            <p className="request-name">User not found</p>
+            <p className="request-time">
+              User ID: {request.from}
+            </p>
+          </div>
+        )}
+      </div>
+      <div className="request-actions">
+        <button
+          onClick={() => onAccept(request.from, index, requesterName)}
+          disabled={loading}
+          className="accept-btn"
+        >
+          {loading ? "..." : "✓ Accept"}
+        </button>
+        <button
+          onClick={() => onReject(request.from, index, requesterName)}
+          disabled={loading}
+          className="reject-btn"
+        >
+          {loading ? "..." : "✕ Reject"}
+        </button>
+      </div>
     </div>
   );
 }
