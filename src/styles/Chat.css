@@ -35,7 +35,8 @@
   align-items: center;
   gap: 12px;
   flex: 1;
-  justify-content: center;
+  justify-content: left;
+  padding-left: 20px;
 }
 
 .chat-user-avatar {
@@ -63,14 +64,12 @@
 
 .chat-music-button {
   padding: 8px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  color: rgb(0, 0, 0);
   border: none;
   border-radius: 20px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: opacity 0.2s ease;
 }
 
 .chat-music-button:hover:not(:disabled) {
@@ -523,7 +522,6 @@
 }
 
 .chat-image-upload-button {
-  padding: 12px;
   background: none;
   border: none;
   font-size: 18px;
