@@ -170,6 +170,7 @@
 }
 
 .chat-saved-message {
+  color:#000000;
   background: linear-gradient(135deg, #fff9e6 0%, #fff5f0 100%) !important;
   border: 1px solid #ffe0b2 !important;
 }
@@ -197,7 +198,7 @@
 }
 
 .chat-sent-message .chat-message-status {
-  color: rgba(255, 255, 255, 0.8);
+  color: #999;
 }
 
 .chat-received-message .chat-message-status {
