@@ -10,39 +10,49 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   const [loading, setLoading] = useState(false);
   const playerRef = useRef(null);
 
-  // Listen to real-time music state from Firestore - SIMPLE VERSION
   useEffect(() => {
     if (!chatId || !isVisible) return;
 
     const unsubscribe = listenToMusicState(chatId, (musicState) => {
       if (musicState && musicState.updatedBy !== user.uid) {
-        console.log("Remote state change from:", musicState.updatedBy);
+        if (musicState.videoId === videoId && 
+        musicState.isPlaying === isPlaying &&
+        musicState.title === currentlyPlaying) {
+        return;
+        }
         
-        // Always update UI from remote changes
         setVideoId(musicState.videoId || "");
         setCurrentlyPlaying(musicState.title || "");
         setIsPlaying(musicState.isPlaying || false);
         
-        // Control YouTube player for remote changes
-        if (playerRef.current) {
-          if (musicState.videoId) {
-            playerRef.current.loadVideoById(musicState.videoId);
-            if (musicState.isPlaying) {
-              playerRef.current.playVideo();
-            } else {
-              playerRef.current.pauseVideo();
-            }
-          } else {
-            playerRef.current.stopVideo();
-          }
+      const currentVideoId = playerRef.current ? 
+        playerRef.current.getVideoData()?.video_id : null;
+      const isDifferentVideo = musicState.videoId !== currentVideoId;
+      
+      setVideoId(musicState.videoId || "");
+      setCurrentlyPlaying(musicState.title || "");
+      setIsPlaying(musicState.isPlaying || false);
+      
+      if (playerRef.current) {
+        if (musicState.videoId && isDifferentVideo) {
+          console.log("Loading new video:", musicState.videoId);
+          playerRef.current.loadVideoById(musicState.videoId);
         }
+        
+        if (musicState.isPlaying) {
+          console.log("Playing video");
+          playerRef.current.playVideo();
+        } else {
+          console.log("Pausing video");
+          playerRef.current.pauseVideo();
+        }
+      }
       }
     });
 
     return unsubscribe;
-  }, [chatId, isVisible, user.uid]);
+  }, [chatId, isVisible, user.uid, videoId, isPlaying, currentlyPlaying]);
 
-  // Search and play ANY song using YouTube
   const searchAndPlaySong = async () => {
     if (!songName.trim()) {
       alert("Please enter a song name");
@@ -64,7 +74,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     setLoading(false);
   };
 
-  // Search YouTube for any song (keep your existing function)
   const searchYouTube = async (query) => {
     try {
       const API_KEY = process.env.REACT_APP_YOUTUBE_API_KEY; 
@@ -90,7 +99,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     }
   };
 
-  // Alternative YouTube search method (keep your existing function)
   const searchYouTubeAlternative = async (query) => {
     try {
       const response = await fetch(
@@ -121,13 +129,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   const playSong = (video) => {
     console.log("Playing song:", video);
     
-    // Update local state
     setVideoId(video.videoId);
     setCurrentlyPlaying(video.title);
     setIsPlaying(true);
     setSongName("");
 
-    // Update Firestore
     updateMusicState(chatId, {
       videoId: video.videoId,
       title: video.title,
@@ -136,7 +142,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       timestamp: new Date()
     });
 
-    // Load and play video
     if (playerRef.current) {
       playerRef.current.loadVideoById(video.videoId);
       playerRef.current.playVideo();
@@ -185,7 +190,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     }
   };
 
-  // Load YouTube IFrame API - SIMPLE VERSION
   useEffect(() => {
     if (!isVisible) return;
 
@@ -216,7 +220,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
             console.log("YouTube player ready");
           },
           'onStateChange': (event) => {
-            // Auto-sync player state changes
             if (event.data === window.YT.PlayerState.PLAYING && !isPlaying) {
               setIsPlaying(true);
             } else if (event.data === window.YT.PlayerState.PAUSED && isPlaying) {

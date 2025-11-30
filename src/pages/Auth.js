@@ -36,17 +36,13 @@ function Auth() {
 
     try {
       if (isLogin) {
-        // Sign in existing user
         await signInWithEmailAndPassword(auth, email, password);
       } else {
-        // Create new user
         const userCredential = await createUserWithEmailAndPassword(
           auth,
           email,
           password,
         );
-
-        // Update profile with display name
         if (name) {
           await updateProfile(userCredential.user, {
             displayName: name,

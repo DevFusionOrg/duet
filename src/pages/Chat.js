@@ -32,8 +32,6 @@ function Chat({ user, friend, onBack }) {
   const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Load Cloudinary script dynamically
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const loadCloudinaryScript = () => {
       if (window.cloudinary) {
@@ -257,7 +255,6 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -304,7 +301,6 @@ function Chat({ user, friend, onBack }) {
     return message.isEdited === true;
   };
 
-  // Update message rendering to handle images
   const renderMessageContent = (message) => {
     if (message.type === "image" && message.image) {
       return (
@@ -338,9 +334,7 @@ function Chat({ user, friend, onBack }) {
     );
   };
 
-  // NEW FUNCTION: Render different menu options based on message type
   const renderMenuOptions = (message) => {
-    // For IMAGE messages - show only star/unstar
     if (message.type === "image") {
       return (
         <>
