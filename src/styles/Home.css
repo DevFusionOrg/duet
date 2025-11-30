@@ -1509,3 +1509,44 @@
     width: 100%;
   }
 }
+/* Avatar containers need relative positioning */
+.friend-avatar-section, 
+.chat-avatar-section {
+  position: relative;
+  display: inline-block;
+}
+
+.online-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  border: 2px solid white;
+}
+
+.online-indicator.online {
+  background-color: #00ffaa;
+}
+
+.online-indicator.offline {
+  background-color: #ff0000;
+}
+
+.user-status.online {
+  color: #00ffaa;
+}
+
+.user-status.offline {
+  color: #ff0000;
+}
+
+.status.online {
+  color: #00ffaa;
+  font-weight: 500;
+}
+
+.status.offline {
+  color: #ff0000;
+}

@@ -819,3 +819,41 @@
   padding: 8px 16px !important;
   font-size: 13px !important;
 }
+
+/* Online status in chat header */
+.chat-avatar-with-status {
+  position: relative;
+  display: inline-block;
+}
+
+.chat-online-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  border: 2px solid white;
+}
+
+.chat-online-indicator.online {
+  background-color: #10b981;
+}
+
+.chat-online-indicator.offline {
+  background-color: #6b7280;
+}
+
+.user-status {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin: 0;
+}
+
+.user-status.online {
+  color: #10b981;
+}
+
+.user-status.offline {
+  color: #6b7280;
+}
