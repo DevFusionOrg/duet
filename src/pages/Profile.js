@@ -8,7 +8,8 @@ import {
 import { updateDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { listenToUserProfile, getUserProfile } from "../firebase/firestore";
-import "../styles/Profile.css"; // Import the CSS file
+import { openUploadWidget } from "services/cloudinary";
+import "../styles/Profile.css";
 
 export default function Profile({ user }) {
   const [profile, setProfile] = useState(null);
@@ -26,6 +27,8 @@ export default function Profile({ user }) {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
   // Fallback method to load profile
   const loadProfileFallback = useCallback(async () => {
     try {
@@ -82,6 +85,87 @@ export default function Profile({ user }) {
 
     return unsubscribe;
   }, [user, loadProfileFallback]);
+
+  // Upload profile picture using Cloudinary
+  const handleProfilePictureUpload = async () => {
+    if (!user) return;
+
+    setUploadingImage(true);
+    setMessage("");
+
+    try {
+      const result = await openUploadWidget();
+      
+      if (result) {
+        // Update Firebase Auth profile
+        await updateProfile(user, {
+          photoURL: result.secure_url
+        });
+
+        // Update Firestore user document
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+          photoURL: result.secure_url,
+          cloudinaryPublicId: result.public_id // Store Cloudinary public ID for future management
+        });
+
+        setMessage("Profile picture updated successfully!");
+        
+        // Update local state
+        setProfile(prev => ({
+          ...prev,
+          photoURL: result.secure_url
+        }));
+      }
+    } catch (error) {
+      console.error("Error uploading profile picture:", error);
+      if (error.message === "Upload cancelled") {
+        setMessage("Profile picture upload cancelled");
+      } else {
+        setMessage("Error uploading profile picture: " + error.message);
+      }
+    }
+    
+    setUploadingImage(false);
+  };
+
+  // Remove profile picture (revert to Google or default)
+  const handleRemoveProfilePicture = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    setMessage("");
+
+    try {
+      // Revert to Google photo URL or null
+      const originalPhotoURL = user.providerData?.[0]?.photoURL || null;
+
+      // Update Firebase Auth
+      await updateProfile(user, {
+        photoURL: originalPhotoURL
+      });
+
+      // Update Firestore
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        photoURL: originalPhotoURL,
+        cloudinaryPublicId: null
+      });
+
+      setMessage("Profile picture removed successfully!");
+      
+      // Update local state
+      setProfile(prev => ({
+        ...prev,
+        photoURL: originalPhotoURL
+      }));
+    } catch (error) {
+      console.error("Error removing profile picture:", error);
+      setMessage("Error removing profile picture: " + error.message);
+    }
+    
+    setLoading(false);
+  };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
@@ -162,17 +246,22 @@ export default function Profile({ user }) {
     setLoading(false);
   };
 
-  // Calculate profile completion percentage
-  const calculateProfileCompletion = () => {
-    if (!profile) return 0;
-    let completed = 0;
-    const total = 3; // displayName, username, bio
+  // Get current profile picture URL (prioritize Cloudinary, then Google, then default)
+  const getProfilePictureUrl = () => {
+    if (profile?.photoURL) {
+      return profile.photoURL;
+    }
+    if (user?.photoURL) {
+      return user.photoURL;
+    }
+    return "/default-avatar.png";
+  };
 
-    if (profile.displayName && profile.displayName.trim()) completed++;
-    if (profile.username && profile.username.trim()) completed++;
-    if (profile.bio && profile.bio.trim()) completed++;
-
-    return Math.round((completed / total) * 100);
+  // Check if current picture is from Cloudinary
+  const isCloudinaryPicture = () => {
+    return profile?.cloudinaryPublicId || 
+           (profile?.photoURL && profile.photoURL.includes('cloudinary') && 
+            !profile.photoURL.includes('googleusercontent'));
   };
 
   // If profile is still loading after 3 seconds, show fallback
@@ -193,7 +282,7 @@ export default function Profile({ user }) {
     );
   }
 
-  const profileCompletion = calculateProfileCompletion();
+  const profilePictureUrl = getProfilePictureUrl();
 
   return (
     <div className="profile-container">
@@ -215,30 +304,42 @@ export default function Profile({ user }) {
         </button>
       </div>
 
-      {/* Profile Completion */}
-      {profileCompletion < 100 && !editing && (
-        <div className="profile-completion">
-          <h3 className="profile-completion-title">Complete Your Profile</h3>
-          <div className="profile-completion-bar">
-            <div
-              className="profile-completion-progress"
-              style={{ width: `${profileCompletion}%` }}
-            ></div>
-          </div>
-          <p className="profile-completion-text">
-            {profileCompletion}% Complete
-          </p>
-        </div>
-      )}
-
       {/* Profile Picture Section */}
       <div className="profile-picture-section">
         <img
-          src={user.photoURL || "/default-avatar.png"}
+          src={profilePictureUrl}
           alt="Profile"
           className="profile-picture"
         />
-        <p className="profile-picture-note">Profile picture from Google</p>
+        <p className="profile-picture-note">
+          {isCloudinaryPicture() 
+            ? "Custom profile picture" 
+            : user?.photoURL 
+              ? "Profile picture from Google" 
+              : "Default profile picture"
+          }
+        </p>
+        
+        {/* Profile Picture Actions */}
+        <div className="profile-picture-actions">
+          <button
+            onClick={handleProfilePictureUpload}
+            disabled={uploadingImage}
+            className="profile-picture-upload-button"
+          >
+            {uploadingImage ? "Uploading..." : "Change Picture"}
+          </button>
+          
+          {(isCloudinaryPicture() || user?.photoURL) && (
+            <button
+              onClick={handleRemoveProfilePicture}
+              disabled={loading}
+              className="profile-picture-remove-button"
+            >
+              Remove Picture
+            </button>
+          )}
+        </div>
       </div>
 
       {message && (

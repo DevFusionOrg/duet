@@ -71,6 +71,27 @@ export const getUserProfile = async (userId) => {
   }
 };
 
+export const updateUserProfilePicture = async (userId, photoURL, cloudinaryPublicId = null) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    
+    const updateData = {
+      photoURL: photoURL,
+      updatedAt: new Date()
+    };
+    
+    if (cloudinaryPublicId) {
+      updateData.cloudinaryPublicId = cloudinaryPublicId;
+    }
+    
+    await updateDoc(userRef, updateData);
+    console.log("Profile picture updated in Firestore");
+  } catch (error) {
+    console.error("Error updating profile picture in Firestore:", error);
+    throw error;
+  }
+};
+
 // Search users by username or display name
 export const searchUsers = async (searchTerm) => {
   if (!searchTerm) return [];
