@@ -10,53 +10,37 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   const [loading, setLoading] = useState(false);
   const playerRef = useRef(null);
 
-  // Listen to real-time music state from Firestore - FIXED
+  // Listen to real-time music state from Firestore - SIMPLE VERSION
   useEffect(() => {
     if (!chatId || !isVisible) return;
 
     const unsubscribe = listenToMusicState(chatId, (musicState) => {
-      if (musicState) {
-        console.log("Music state update:", musicState);
+      if (musicState && musicState.updatedBy !== user.uid) {
+        console.log("Remote state change from:", musicState.updatedBy);
         
-        // Only update if the change came from another user
-        if (musicState.updatedBy !== user.uid) {
-          console.log("Remote state change detected from:", musicState.updatedBy);
-          
-          if (musicState.videoId !== videoId) {
-            setVideoId(musicState.videoId);
-            setCurrentlyPlaying(musicState.title || "Unknown Song");
-            if (playerRef.current && musicState.videoId) {
-              playerRef.current.loadVideoById(musicState.videoId);
-            }
-          }
-          
-          // Sync play/pause state from other users
-          setIsPlaying(musicState.isPlaying || false);
-          
-          // Sync the actual YouTube player with remote state
-          if (playerRef.current && musicState.videoId) {
+        // Always update UI from remote changes
+        setVideoId(musicState.videoId || "");
+        setCurrentlyPlaying(musicState.title || "");
+        setIsPlaying(musicState.isPlaying || false);
+        
+        // Control YouTube player for remote changes
+        if (playerRef.current) {
+          if (musicState.videoId) {
+            playerRef.current.loadVideoById(musicState.videoId);
             if (musicState.isPlaying) {
               playerRef.current.playVideo();
             } else {
               playerRef.current.pauseVideo();
             }
-          }
-          
-          // Handle stop command from other users
-          if (!musicState.videoId && videoId) {
-            setVideoId("");
-            setCurrentlyPlaying("");
-            setIsPlaying(false);
-            if (playerRef.current) {
-              playerRef.current.stopVideo();
-            }
+          } else {
+            playerRef.current.stopVideo();
           }
         }
       }
     });
 
     return unsubscribe;
-  }, [chatId, isVisible, user.uid, videoId]);
+  }, [chatId, isVisible, user.uid]);
 
   // Search and play ANY song using YouTube
   const searchAndPlaySong = async () => {
@@ -68,13 +52,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     setLoading(true);
     try {
       const videoData = await searchYouTube(songName);
-      
       if (videoData) {
         playSong(videoData);
       } else {
         throw new Error("No results found");
       }
-
     } catch (error) {
       console.error("Error searching song:", error);
       alert("Error searching for song. Please try again.");
@@ -82,21 +64,17 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     setLoading(false);
   };
 
-  // Search YouTube for any song
+  // Search YouTube for any song (keep your existing function)
   const searchYouTube = async (query) => {
     try {
-      const API_KEY = process.env.REACT_APP_YOUTUBE_API_KEY ; 
-      
+      const API_KEY = process.env.REACT_APP_YOUTUBE_API_KEY; 
       const response = await fetch(
         `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query + " official audio")}&key=${API_KEY}`
       );
 
-      if (!response.ok) {
-        throw new Error(`YouTube API error: ${response.status}`);
-      }
-
-      const data = await response.json();
+      if (!response.ok) throw new Error(`YouTube API error: ${response.status}`);
       
+      const data = await response.json();
       if (data.items && data.items.length > 0) {
         const video = data.items[0];
         return {
@@ -105,7 +83,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
           thumbnail: video.snippet.thumbnails.default.url
         };
       }
-      
       return null;
     } catch (error) {
       console.error("YouTube search failed:", error);
@@ -113,7 +90,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     }
   };
 
-  // Alternative YouTube search method
+  // Alternative YouTube search method (keep your existing function)
   const searchYouTubeAlternative = async (query) => {
     try {
       const response = await fetch(
@@ -131,11 +108,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
         const data = await response.json();
         if (data.items && data.items.length > 0) {
           const video = data.items[0];
-          return {
-            videoId: video.id,
-            title: video.title,
-            duration: video.duration
-          };
+          return { videoId: video.id, title: video.title };
         }
       }
       return null;
@@ -148,13 +121,13 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   const playSong = (video) => {
     console.log("Playing song:", video);
     
-    // Update local state immediately
+    // Update local state
     setVideoId(video.videoId);
     setCurrentlyPlaying(video.title);
     setIsPlaying(true);
     setSongName("");
 
-    // Update Firestore with new song
+    // Update Firestore
     updateMusicState(chatId, {
       videoId: video.videoId,
       title: video.title,
@@ -163,7 +136,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       timestamp: new Date()
     });
 
-    // Load and play the video
+    // Load and play video
     if (playerRef.current) {
       playerRef.current.loadVideoById(video.videoId);
       playerRef.current.playVideo();
@@ -171,12 +144,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   };
 
   const togglePlayPause = () => {
-    const newPlayingState = !isPlaying;
+    if (!videoId) return;
     
-    // Update local state immediately for responsiveness
+    const newPlayingState = !isPlaying;
     setIsPlaying(newPlayingState);
 
-    // Update Firestore with the new state
     updateMusicState(chatId, {
       videoId,
       title: currentlyPlaying,
@@ -185,8 +157,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       timestamp: new Date()
     });
 
-    // Control YouTube player
-    if (playerRef.current && videoId) {
+    if (playerRef.current) {
       if (newPlayingState) {
         playerRef.current.playVideo();
       } else {
@@ -196,13 +167,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   };
 
   const stopMusic = () => {
-    // Update local state immediately
     setVideoId("");
     setCurrentlyPlaying("");
     setIsPlaying(false);
     setSongName("");
 
-    // Update Firestore to sync with all users
     updateMusicState(chatId, {
       videoId: "",
       title: "",
@@ -211,17 +180,15 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       timestamp: new Date()
     });
 
-    // Stop the player
     if (playerRef.current) {
       playerRef.current.stopVideo();
     }
   };
 
-  // Load YouTube IFrame API
+  // Load YouTube IFrame API - SIMPLE VERSION
   useEffect(() => {
     if (!isVisible) return;
 
-    // Load YouTube IFrame API
     if (!window.YT) {
       const tag = document.createElement('script');
       tag.src = "https://www.youtube.com/iframe_api";
@@ -249,49 +216,23 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
             console.log("YouTube player ready");
           },
           'onStateChange': (event) => {
-            // Only update Firestore for meaningful state changes
+            // Auto-sync player state changes
             if (event.data === window.YT.PlayerState.PLAYING && !isPlaying) {
               setIsPlaying(true);
-              updateMusicState(chatId, {
-                videoId,
-                title: currentlyPlaying,
-                isPlaying: true,
-                updatedBy: user.uid,
-                timestamp: new Date()
-              });
             } else if (event.data === window.YT.PlayerState.PAUSED && isPlaying) {
               setIsPlaying(false);
-              updateMusicState(chatId, {
-                videoId,
-                title: currentlyPlaying,
-                isPlaying: false,
-                updatedBy: user.uid,
-                timestamp: new Date()
-              });
             } else if (event.data === window.YT.PlayerState.ENDED) {
               setIsPlaying(false);
-              updateMusicState(chatId, {
-                videoId,
-                title: currentlyPlaying,
-                isPlaying: false,
-                updatedBy: user.uid,
-                timestamp: new Date()
-              });
             }
           },
           'onError': (event) => {
             console.error("YouTube player error:", event);
-            if (event.data === 101 || event.data === 150) {
-              alert("This video cannot be played in embedded players. Try a different song.");
-            } else {
-              alert("Error playing song. Try searching for a different version.");
-            }
+            alert("Error playing song. Try a different version.");
           }
         }
       });
     };
 
-    // If YouTube API is already loaded, create player immediately
     if (window.YT && window.YT.Player) {
       window.onYouTubeIframeAPIReady();
     }
@@ -307,13 +248,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
 
   return (
     <div className={`musicPlayer ${pinned ? 'pinned' : 'floating'}`}>
-      {/* Header */}
       <div className="header">
         <h3 className="title">🎵 Universal Music Player</h3>
         <button onClick={onClose} className="closeButton">×</button>
       </div>
 
-      {/* Current Song Display */}
       {currentlyPlaying && (
         <div className="currentSong">
           <p className="nowPlaying">Now Playing:</p>
@@ -321,12 +260,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
         </div>
       )}
 
-      {/* Search Section */}
       <div className="searchSection">
         <div className="searchBox">
           <input
             type="text"
-            placeholder="Enter ANY song name (e.g., let her go, tum hi ho, shape of you)..."
+            placeholder="Enter ANY song name..."
             value={songName}
             onChange={(e) => setSongName(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && searchAndPlaySong()}
@@ -343,40 +281,25 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
         </div>
       </div>
 
-      {/* Controls */}
       <div className="controls">
         {videoId ? (
-          <>
-            <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
-              <button 
-                onClick={togglePlayPause} 
-                className={isPlaying ? "pauseButton" : "playButton"}
-              >
-                {isPlaying ? '⏸️ Pause' : '▶️ Play'}
-              </button>
-              <button 
-                onClick={stopMusic}
-                style={{
-                  padding: '12px 16px',
-                  backgroundColor: '#EF4444',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '20px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                ⏹️ Stop
-              </button>
-            </div>
-          </>
-        ) : (
-          <div></div>
-        )}
+          <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+            <button 
+              onClick={togglePlayPause} 
+              className={isPlaying ? "pauseButton" : "playButton"}
+            >
+              {isPlaying ? '⏸️ Pause' : '▶️ Play'}
+            </button>
+            <button 
+              onClick={stopMusic}
+              className="stopButton"
+            >
+              ⏹️ Stop
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      {/* Hidden YouTube Player */}
       <div id="youtube-player"></div>
     </div>
   );

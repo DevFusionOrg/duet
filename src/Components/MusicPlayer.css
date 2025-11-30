@@ -374,3 +374,14 @@
   margin-top: 8px;
   opacity: 0.7;
 }
+
+.stopButton {
+  padding: 12px 16px;
+  background-color: #EF4444;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
