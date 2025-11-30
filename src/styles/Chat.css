@@ -1127,3 +1127,91 @@
     padding: 8px 12px;
   }
 }
+
+/* Music Player positioning when pinned */
+.musicPlayer.pinned {
+  position: relative !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Compact the Music Player when pinned */
+.musicPlayer.pinned .header {
+  padding: 8px 16px !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+.musicPlayer.pinned .title {
+  font-size: 14px !important;
+}
+
+.musicPlayer.pinned .closeButton {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 18px !important;
+}
+
+.musicPlayer.pinned .searchSection {
+  padding: 8px 16px !important;
+}
+
+.musicPlayer.pinned .searchBox {
+  margin-bottom: 8px !important;
+  gap: 8px !important;
+}
+
+.musicPlayer.pinned .searchInput {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+}
+
+.musicPlayer.pinned .searchButton {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  white-space: nowrap;
+}
+
+.musicPlayer.pinned .currentSong {
+  padding: 8px 16px !important;
+}
+
+.musicPlayer.pinned .nowPlaying {
+  font-size: 11px !important;
+  margin-bottom: 4px !important;
+}
+
+.musicPlayer.pinned .songTitle {
+  font-size: 13px !important;
+}
+
+.musicPlayer.pinned .controls {
+  padding: 8px 16px 12px 16px !important;
+}
+
+.musicPlayer.pinned .playButton,
+.musicPlayer.pinned .pauseButton {
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+}
+
+/* Ensure messages container accounts for pinned music player */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.chat-messages-container {
+  flex: 1;
+  min-height: 0; /* Important for proper scrolling */
+  overflow-y: auto;
+}
