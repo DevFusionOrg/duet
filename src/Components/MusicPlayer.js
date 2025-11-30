@@ -10,7 +10,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   const [loading, setLoading] = useState(false);
   const playerRef = useRef(null);
 
-  // Listen to real-time music state from Firestore
   useEffect(() => {
     if (!chatId || !isVisible) return;
 
@@ -18,25 +17,32 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       if (musicState) {
         console.log("Music state update:", musicState);
         
-        // Only update if the change came from another user
-        if (musicState.updatedBy !== user.uid) {
-          if (musicState.videoId && musicState.videoId !== videoId) {
-            setVideoId(musicState.videoId);
-            setCurrentlyPlaying(musicState.title || "Unknown Song");
-            if (playerRef.current) {
-              playerRef.current.loadVideoById(musicState.videoId);
-              if (musicState.isPlaying) {
-                playerRef.current.playVideo();
-              }
-            }
+        // Always update the UI state from Firestore, regardless of who made the change
+        // This ensures all users stay in sync
+        if (musicState.videoId !== videoId) {
+          setVideoId(musicState.videoId);
+          setCurrentlyPlaying(musicState.title || "Unknown Song");
+          if (playerRef.current && musicState.videoId) {
+            playerRef.current.loadVideoById(musicState.videoId);
           }
-          setIsPlaying(musicState.isPlaying || false);
+        }
+        
+        // Always sync play/pause state from Firestore
+        setIsPlaying(musicState.isPlaying || false);
+        
+        // Sync the actual YouTube player with Firestore state
+        if (playerRef.current && musicState.videoId) {
+          if (musicState.isPlaying) {
+            playerRef.current.playVideo();
+          } else {
+            playerRef.current.pauseVideo();
+          }
         }
       }
     });
 
     return unsubscribe;
-  }, [chatId, isVisible, user.uid, videoId]);
+  }, [chatId, isVisible, videoId]);
 
   // Search and play ANY song using YouTube
   const searchAndPlaySong = async () => {
@@ -154,9 +160,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
 
   const togglePlayPause = () => {
     const newPlayingState = !isPlaying;
+    
+    // Update local state immediately for responsiveness
     setIsPlaying(newPlayingState);
 
-    // Update Firestore
+    // Update Firestore with the new state
     updateMusicState(chatId, {
       videoId,
       title: currentlyPlaying,
@@ -165,8 +173,9 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       timestamp: new Date()
     });
 
-    // Control YouTube player
-    if (playerRef.current) {
+    // Control YouTube player - but let the Firestore listener handle the actual sync
+    // This prevents conflicts when multiple users try to control
+    if (playerRef.current && videoId) {
       if (newPlayingState) {
         playerRef.current.playVideo();
       } else {
@@ -176,14 +185,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   };
 
   const stopMusic = () => {
-    if (playerRef.current) {
-      playerRef.current.stopVideo();
-    }
-    setIsPlaying(false);
-    setCurrentlyPlaying("");
-    setVideoId("");
-    setSongName("");
-
+    // Update Firestore FIRST to sync with all users
     updateMusicState(chatId, {
       videoId: "",
       title: "",
@@ -191,6 +193,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       updatedBy: user.uid,
       timestamp: new Date()
     });
+
+    // Then update local state and stop the player
+    if (playerRef.current) {
+      playerRef.current.stopVideo();
+    }
   };
 
   // Load YouTube IFrame API
