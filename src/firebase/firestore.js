@@ -768,3 +768,39 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
     console.error("Error tracking Cloudinary deletion:", error);
   }
 };
+
+export const setUserOnlineStatus = async (userId, isOnline) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      isOnline: isOnline,
+      lastSeen: new Date()
+    });
+  } catch (error) {
+    console.error("Error updating online status:", error);
+  }
+};
+
+export const listenToUserOnlineStatus = (userId, callback) => {
+  const userRef = doc(db, "users", userId);
+  return onSnapshot(userRef, (doc) => {
+    if (doc.exists()) {
+      callback(doc.data().isOnline);
+    }
+  });
+};
+
+export const listenToFriendsOnlineStatus = (friendIds, callback) => {
+  if (friendIds.length === 0) return () => {};
+  
+  const friendsRef = collection(db, "users");
+  const q = query(friendsRef, where("__name__", "in", friendIds));
+  
+  return onSnapshot(q, (snapshot) => {
+    const onlineStatus = {};
+    snapshot.forEach(doc => {
+      onlineStatus[doc.id] = doc.data().isOnline || false;
+    });
+    callback(onlineStatus);
+  });
+};

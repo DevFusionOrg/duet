@@ -10,6 +10,8 @@ import {
   editMessage,
   getUserFriends,
 } from "../firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase/firebase";
 import { openUploadWidget, getOptimizedImageUrl } from "../services/cloudinary";
 import "../styles/Chat.css";
 
@@ -31,6 +33,45 @@ function Chat({ user, friend, onBack }) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false);
   const messagesEndRef = useRef(null);
+
+    // Fix: Add real-time online status tracking
+  const [isFriendOnline, setIsFriendOnline] = useState(false);
+  const [lastSeen, setLastSeen] = useState(null);
+
+  // Add this useEffect to track friend's online status
+  useEffect(() => {
+    if (!friend?.uid) return;
+
+    const userRef = doc(db, "users", friend.uid);
+    
+    const unsubscribe = onSnapshot(userRef, (doc) => {
+      if (doc.exists()) {
+        const userData = doc.data();
+        setIsFriendOnline(userData.isOnline || false);
+        setLastSeen(userData.lastSeen || null);
+      }
+    });
+
+    return unsubscribe;
+  }, [friend?.uid]);
+
+  // You can also add a function to get the last seen time
+  const getLastSeenText = () => {
+    if (isFriendOnline) return "Online";
+    
+    if (lastSeen) {
+      const lastSeenDate = lastSeen.toDate ? lastSeen.toDate() : new Date(lastSeen);
+      const now = new Date();
+      const diffMinutes = Math.floor((now - lastSeenDate) / (1000 * 60));
+      
+      if (diffMinutes < 1) return "Just now";
+      if (diffMinutes < 60) return `${diffMinutes}m ago`;
+      if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+      return lastSeenDate.toLocaleDateString();
+    }
+    
+    return "Offline";
+  };
 
   useEffect(() => {
     const loadCloudinaryScript = () => {
@@ -414,14 +455,19 @@ function Chat({ user, friend, onBack }) {
           ← Back
         </button>
         <div className="chat-user-info">
-          <img
-            src={friend.photoURL}
-            alt={friend.displayName}
-            className="chat-user-avatar"
-          />
+          <div className="chat-avatar-with-status">
+            <img
+              src={friend.photoURL}
+              alt={friend.displayName}
+              className="chat-user-avatar"
+            />
+            <div className={`chat-online-indicator ${isFriendOnline ? 'online' : 'offline'}`}></div>
+          </div>
           <div>
             <h3 className="chat-user-name">{friend.displayName}</h3>
-            <p className="chat-user-status">Online</p>
+            <p className={`user-status ${isFriendOnline ? 'online' : 'offline'}`}>
+              {isFriendOnline ? 'Online' : getLastSeenText()}
+            </p>
           </div>
         </div>
         <button

@@ -5,7 +5,8 @@ import { auth } from "../firebase/firebase";
 import { getUserFriends, listenToUserChats, listenToUserProfile } from "../firebase/firestore";
 import { openUploadWidget } from "../services/cloudinary";
 import { updateProfile } from "firebase/auth";
-import { updateDoc, doc } from "firebase/firestore";
+import { updateDoc, doc} from "firebase/firestore";
+import { setUserOnlineStatus, listenToUserOnlineStatus, listenToFriendsOnlineStatus } from "../firebase/firestore";
 import { db } from "../firebase/firebase";
 import Chat from "./Chat";
 import '../styles/Home.css';
@@ -22,6 +23,53 @@ function Home({ user }) {
   const [userProfile, setUserProfile] = useState(null);
 
   const [editingProfile, setEditingProfile] = useState(false);
+  const [isUserOnline, setIsUserOnline] = useState(true);
+  const [friendsOnlineStatus, setFriendsOnlineStatus] = useState({});
+
+  useEffect(() => {
+    if (!user) return;
+
+    const setOnline = async () => {
+      await setUserOnlineStatus(user.uid, true);
+    };
+
+    setOnline();
+
+    const handleBeforeUnload = async () => {
+      await setUserOnlineStatus(user.uid, false);
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      const cleanup = async () => {
+        await setUserOnlineStatus(user.uid, false);
+      };
+      cleanup();
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = listenToUserOnlineStatus(user.uid, (online) => {
+      setIsUserOnline(online);
+    });
+
+    return unsubscribe;
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || friends.length === 0) return;
+
+    const friendIds = friends.map(friend => friend.uid);
+    const unsubscribe = listenToFriendsOnlineStatus(friendIds, (status) => {
+      setFriendsOnlineStatus(status);
+    });
+
+    return unsubscribe;
+  }, [user, friends]);
 
   useEffect(() => {
     if (!user) return;
@@ -30,6 +78,13 @@ function Home({ user }) {
       try {
         const friendsList = await getUserFriends(user.uid);
         setFriends(friendsList);
+        
+        const initialStatus = {};
+        friendsList.forEach(friend => {
+          initialStatus[friend.uid] = friend.isOnline || false;
+        });
+        setFriendsOnlineStatus(initialStatus);
+        
         setLoading(false);
       } catch (error) {
         console.error("Error loading friends:", error);
@@ -116,7 +171,7 @@ function Home({ user }) {
             />
             <div className="user-info">
               <h3 className="user-name">{getDisplayName()}</h3>
-              <p className="user-status">Online</p>
+              <p className={`user-status ${isUserOnline ? 'online' : 'offline'}`}> {isUserOnline ? 'Online' : 'Offline'} </p>
             </div>
           </div>
         </div>
@@ -193,12 +248,14 @@ function Home({ user }) {
               loading={loading} 
               onStartChat={handleStartChat}
               onFriendCardClick={handleFriendCardClick}
+              friendsOnlineStatus={friendsOnlineStatus}
             />
           ) : activeView === 'chats' ? (
             <ChatsView 
               chats={chats} 
               loading={loading} 
               onStartChat={handleStartChat}
+              friendsOnlineStatus={friendsOnlineStatus}
             />
           ) :activeView === 'search' ? (
             <SearchView user={user} />
@@ -222,6 +279,7 @@ function Home({ user }) {
           friend={selectedProfile}
           isOwnProfile={false}
           onClose={handleCloseProfilePopup}
+          friendsOnlineStatus={friendsOnlineStatus}
         />
       )}
     </div>
@@ -230,7 +288,7 @@ function Home({ user }) {
 
 export default Home;
 
-function FriendsView({ friends, loading, onStartChat, onFriendCardClick }) {
+function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friendsOnlineStatus }) {
   if (loading) {
     return (
       <div className="loading-state">
@@ -264,7 +322,7 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick }) {
               alt={friend.displayName}
               className="friend-avatar"
             />
-            <div className="online-indicator"></div>
+            <div className={`online-indicator ${friendsOnlineStatus[friend.uid] ? 'online' : 'offline'}`}></div>
           </div>
           
           <div className="friend-info">
@@ -288,7 +346,7 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick }) {
   );
 }
 
-function ChatsView({ chats, loading, onStartChat }) {
+function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
   if (loading) {
     return (
       <div className="loading-state">
@@ -322,7 +380,7 @@ function ChatsView({ chats, loading, onStartChat }) {
               alt={chat.otherParticipant.displayName}
               className="chat-avatar"
             />
-            <div className="online-indicator"></div>
+            <div className={`online-indicator ${friendsOnlineStatus[chat.otherParticipant.uid] ? 'online' : 'offline'}`}></div>
           </div>
           
           <div className="chat-info">
@@ -645,7 +703,7 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
   );
 }
 
-function ProfilePopup({ friend, isOwnProfile, onClose }) {
+function ProfilePopup({ friend, isOwnProfile, onClose, friendsOnlineStatus }) {
   return (
     <div className="profile-popup-overlay" onClick={onClose}>
       <div className="profile-popup" onClick={(e) => e.stopPropagation()}>
@@ -675,6 +733,13 @@ function ProfilePopup({ friend, isOwnProfile, onClose }) {
               <label>Username:</label>
               <span>@{friend?.username}</span>
             </div>
+
+            <div className="info-field">
+              <label>Status:</label>
+              <span className={`status ${friendsOnlineStatus[friend?.uid] ? 'online' : 'offline'}`}>
+                {friendsOnlineStatus[friend?.uid] ? 'Online' : 'Offline'}
+              </span>
+            </div>            
             
             {friend?.bio && (
               <div className="info-field">
