@@ -4,7 +4,6 @@
 }
 
 .side-pane {
-  width: 280px;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
   border-right: 1px solid rgba(255, 255, 255, 0.2);
@@ -153,8 +152,9 @@
 }
 
 .content-area {
+  margin-top: 20px;
   flex: 1;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 
 .welcome-section,
@@ -170,6 +170,7 @@
 }
 
 .welcome-title {
+  text-align: center;
   font-size: 2.2rem;
   font-weight: 700;
   color: #333;
@@ -383,7 +384,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 5px;
 }
 
 .chat-name {

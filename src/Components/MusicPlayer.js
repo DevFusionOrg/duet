@@ -254,7 +254,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
         <div className="searchBox">
           <input
             type="text"
-            placeholder="Enter ANY song name..."
+            placeholder="Type song name"
             value={songName}
             onChange={(e) => setSongName(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && searchAndPlaySong()}
@@ -266,7 +266,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
             className="searchButton"
             disabled={loading}
           >
-            {loading ? '🔍 Searching...' : '🎵 Play Any Song'}
+            {loading ? '🔍 Searching...' : 'Play'}
           </button>
         </div>
       </div>
@@ -278,7 +278,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
               onClick={togglePlayPause} 
               className={isPlaying ? "pauseButton" : "playButton"}
             >
-              {isPlaying ? '⏸️ Pause' : '▶️ Play'}
+              {isPlaying ? 'Pause' : 'Resume'}
             </button>
             <button 
               onClick={stopMusic}
