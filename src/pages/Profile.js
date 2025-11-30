@@ -33,13 +33,6 @@ export default function Profile({ user }) {
   const [changingPassword, setChangingPassword] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Debug logs
-  console.log("=== PROFILE DEBUG ===");
-  console.log("URL uid:", uid);
-  console.log("User uid:", user?.uid);
-  console.log("isOwnProfile:", isOwnProfile);
-  console.log("=== END DEBUG ===");
-
   const loadProfileFallback = useCallback(async () => {
     try {
       const profileUid = uid || user?.uid;

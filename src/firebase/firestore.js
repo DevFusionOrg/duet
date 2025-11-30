@@ -17,7 +17,6 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
-// Create or update user profile in Firestore
 export const createUserProfile = async (user) => {
   if (!user) return;
 
@@ -26,20 +25,18 @@ export const createUserProfile = async (user) => {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      // New user - create profile
       await setDoc(userRef, {
         uid: user.uid,
         displayName: user.displayName,
         email: user.email,
         photoURL: user.photoURL,
-        username: user.email.split("@")[0], // Default username
+        username: user.email.split("@")[0],
         bio: "",
         friends: [],
         friendRequests: [],
         createdAt: new Date(),
       });
     } else {
-      // Existing user - update basic info if needed
       await updateDoc(userRef, {
         displayName: user.displayName,
         photoURL: user.photoURL,
@@ -51,7 +48,6 @@ export const createUserProfile = async (user) => {
   }
 };
 
-// Get user profile with offline handling
 export const getUserProfile = async (userId) => {
   try {
     const userRef = doc(db, "users", userId);
@@ -92,7 +88,6 @@ export const updateUserProfilePicture = async (userId, photoURL, cloudinaryPubli
   }
 };
 
-// Search users by username or display name
 export const searchUsers = async (searchTerm) => {
   if (!searchTerm) return [];
 
@@ -133,7 +128,6 @@ export const searchUsers = async (searchTerm) => {
   }
 };
 
-// Send friend request with better error handling
 export const sendFriendRequest = async (fromUserId, toUserId) => {
   try {
     console.log("Sending friend request from:", fromUserId, "to:", toUserId);
@@ -187,7 +181,6 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
   }
 };
 
-// Accept friend request
 export const acceptFriendRequest = async (userId, requestFromId) => {
   try {
     const userRef = doc(db, "users", userId);
@@ -235,7 +228,6 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
   }
 };
 
-// Reject friend request
 export const rejectFriendRequest = async (userId, requestFromId) => {
   try {
     const userRef = doc(db, "users", userId);
@@ -273,7 +265,6 @@ export const rejectFriendRequest = async (userId, requestFromId) => {
   }
 };
 
-// Get user's friends
 export const getUserFriends = async (userId) => {
   try {
     const user = await getUserProfile(userId);
@@ -289,9 +280,6 @@ export const getUserFriends = async (userId) => {
   }
 };
 
-// Chat and Message Functions
-
-// Create or get existing chat between two users
 export const getOrCreateChat = async (user1Id, user2Id) => {
   try {
     const chatId = [user1Id, user2Id].sort().join("_");
@@ -316,7 +304,6 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
   }
 };
 
-// Send a message with auto-deletion and edit capabilities
 export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -337,7 +324,6 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       canEditUntil: new Date(Date.now() + 15 * 60 * 1000),
     };
 
-    // Add image data if available - FIXED: parameter name
     if (imageData) {
       messageData.image = {
         publicId: imageData.public_id,
@@ -366,7 +352,6 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   }
 };
 
-// Get all chats for a user
 export const getUserChats = async (userId) => {
   try {
     const chatsRef = collection(db, "chats");
@@ -401,7 +386,6 @@ export const getUserChats = async (userId) => {
   }
 };
 
-// Get messages with auto-deletion check
 export const getChatMessages = async (chatId) => {
   try {
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -436,7 +420,6 @@ export const getChatMessages = async (chatId) => {
   }
 };
 
-// Real-time listener with auto-deletion check
 export const listenToChatMessages = (chatId, callback) => {
   const messagesRef = collection(db, "chats", chatId, "messages");
   const q = query(messagesRef, orderBy("timestamp", "asc"));
@@ -470,7 +453,6 @@ export const listenToChatMessages = (chatId, callback) => {
   });
 };
 
-// Real-time listener for user chats
 export const listenToUserChats = (userId, callback) => {
   const chatsRef = collection(db, "chats");
   const q = query(chatsRef, where("participants", "array-contains", userId));
@@ -499,7 +481,6 @@ export const listenToUserChats = (userId, callback) => {
   });
 };
 
-// Mark messages as read
 export const markMessagesAsRead = async (chatId, userId) => {
   try {
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -523,7 +504,6 @@ export const markMessagesAsRead = async (chatId, userId) => {
   }
 };
 
-// Get unread message count for a chat
 export const getUnreadCount = async (chatId, userId) => {
   try {
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -541,7 +521,6 @@ export const getUnreadCount = async (chatId, userId) => {
   }
 };
 
-// Music Sync Functions
 export const updateMusicState = async (chatId, musicState) => {
   try {
     const chatRef = doc(db, "chats", chatId);
@@ -635,7 +614,6 @@ export const listenToMusicQueue = (chatId, callback) => {
   });
 };
 
-// ===== AUTO-DELETION AND EDITING FUNCTIONS =====
 export const saveMessage = async (chatId, messageId, userId) => {
   try {
     const messageRef = doc(db, "chats", chatId, "messages", messageId);
@@ -773,7 +751,6 @@ export const listenToUserProfile = (userId, callback) => {
   );
 };
 
-// Enhanced function to track Cloudinary deletions
 export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
   try {
     const deletionLogRef = doc(db, "deletionLogs", `${chatId}_${messageId}`);

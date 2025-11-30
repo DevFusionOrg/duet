@@ -21,7 +21,6 @@ function Home({ user }) {
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
 
-  // Add profile editing state
   const [editingProfile, setEditingProfile] = useState(false);
 
   useEffect(() => {
@@ -41,7 +40,6 @@ function Home({ user }) {
     loadFriends();
   }, [user]);
 
-  // Listen to user profile for real-time updates
   useEffect(() => {
     if (!user) return;
 
@@ -71,7 +69,6 @@ function Home({ user }) {
   };
 
   const handleFriendCardClick = (friend, e) => {
-    // Only open profile if chat button wasn't clicked
     if (!e.target.closest('.chat-button')) {
       setSelectedProfile(friend);
       setShowProfilePopup(true);
@@ -92,12 +89,10 @@ function Home({ user }) {
     }
   };
 
-  // Get display name (prioritize profile data, then auth data)
   const getDisplayName = () => {
     return userProfile?.displayName || user?.displayName || "User";
   };
 
-  // If chat is open, show chat interface
   if (selectedFriend) {
     return (
       <Chat 
@@ -162,7 +157,7 @@ function Home({ user }) {
             className={`nav-item ${activeView === 'profile' ? 'active' : ''}`}
             onClick={() => {
               setActiveView('profile');
-              setEditingProfile(false); // Reset to view mode when switching to profile tab
+              setEditingProfile(false);
             }}
             title="View profile"
           >
@@ -235,7 +230,6 @@ function Home({ user }) {
 
 export default Home;
 
-// Friends View Component
 function FriendsView({ friends, loading, onStartChat, onFriendCardClick }) {
   if (loading) {
     return (
@@ -294,7 +288,6 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick }) {
   );
 }
 
-// Chats View Component
 function ChatsView({ chats, loading, onStartChat }) {
   if (loading) {
     return (
@@ -355,7 +348,6 @@ function ChatsView({ chats, loading, onStartChat }) {
   );
 }
 
-// Profile View Component (Updated with Edit Mode)
 function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
   const [formData, setFormData] = useState({
     displayName: "",
@@ -364,9 +356,8 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false); // Add this
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Initialize form data when profile loads or when entering edit mode
   useEffect(() => {
     if (userProfile) {
       setFormData({
@@ -377,7 +368,6 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
     }
   }, [userProfile, editing]);
 
-  // Upload profile picture using Cloudinary
   const handleProfilePictureUpload = async () => {
     if (!user) return;
 
@@ -388,12 +378,10 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
       const result = await openUploadWidget();
       
       if (result) {
-        // Update Firebase Auth profile
         await updateProfile(user, {
           photoURL: result.secure_url
         });
 
-        // Update Firestore user document
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, {
           photoURL: result.secure_url,
@@ -414,7 +402,6 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
     setUploadingImage(false);
   };
 
-  // Remove profile picture (revert to Google or default)
   const handleRemoveProfilePicture = async () => {
     if (!user) return;
 
@@ -422,15 +409,11 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
     setMessage("");
 
     try {
-      // Revert to Google photo URL or null
       const originalPhotoURL = user.providerData?.[0]?.photoURL || null;
-
-      // Update Firebase Auth
       await updateProfile(user, {
         photoURL: originalPhotoURL
       });
 
-      // Update Firestore
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         photoURL: originalPhotoURL,
@@ -446,7 +429,6 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
     setLoading(false);
   };
 
-  // Check if current picture is from Cloudinary
   const isCloudinaryPicture = () => {
     return userProfile?.cloudinaryPublicId || 
            (userProfile?.photoURL && userProfile.photoURL.includes('cloudinary') && 
@@ -461,12 +443,9 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
     setMessage("");
 
     try {
-      // Update Firebase Auth display name
       if (formData.displayName !== user.displayName) {
         await updateProfile(user, { displayName: formData.displayName });
       }
-
-      // Update Firestore user document
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         displayName: formData.displayName,
@@ -476,7 +455,7 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
 
       setMessage("Profile updated successfully!");
       setTimeout(() => {
-        onEditToggle(); // Switch back to view mode
+        onEditToggle();
         setMessage("");
       }, 2000);
     } catch (error) {
@@ -666,7 +645,6 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
   );
 }
 
-// Profile Popup Component (for friends)
 function ProfilePopup({ friend, isOwnProfile, onClose }) {
   return (
     <div className="profile-popup-overlay" onClick={onClose}>
@@ -718,7 +696,6 @@ function ProfilePopup({ friend, isOwnProfile, onClose }) {
   );
 }
 
-// Search View Component
 function SearchView({ user }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -735,7 +712,6 @@ function SearchView({ user }) {
     try {
       const { searchUsers } = await import("../firebase/firestore");
       const results = await searchUsers(searchTerm);
-      // Filter out current user from results
       const filteredResults = results.filter(
         (result) => result.uid !== user.uid,
       );
@@ -760,7 +736,6 @@ function SearchView({ user }) {
       await sendFriendRequest(user.uid, toUserId);
       setMessage(`Friend request sent to ${toUserName}!`);
 
-      // Update the UI to show request sent
       setSearchResults((prev) =>
         prev.map((user) =>
           user.uid === toUserId
@@ -887,7 +862,6 @@ function SearchView({ user }) {
   );
 }
 
-// Notifications View Component
 function NotificationsView({ user }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState({});
@@ -908,7 +882,6 @@ function NotificationsView({ user }) {
   const handleAccept = async (requestFromId, requestIndex, requesterName) => {
     const requestKey = `${requestFromId}_${requestIndex}`;
 
-    // Don't process if already handled
     if (processedRequests.has(requestKey)) {
       return;
     }
@@ -920,13 +893,11 @@ function NotificationsView({ user }) {
       const { acceptFriendRequest } = await import("../firebase/firestore");
       await acceptFriendRequest(user.uid, requestFromId);
 
-      // Mark this request as processed
       setProcessedRequests((prev) => new Set(prev.add(requestKey)));
       setActionMessage(`✅ Accepted friend request from ${requesterName}`);
 
       console.log("Friend request accepted and marked as processed");
 
-      // Clear message after 3 seconds
       setTimeout(() => setActionMessage(""), 3000);
     } catch (error) {
       console.error("Error accepting friend request:", error);
@@ -939,7 +910,6 @@ function NotificationsView({ user }) {
   const handleReject = async (requestFromId, requestIndex, requesterName) => {
     const requestKey = `${requestFromId}_${requestIndex}`;
 
-    // Don't process if already handled
     if (processedRequests.has(requestKey)) {
       return;
     }
@@ -951,13 +921,11 @@ function NotificationsView({ user }) {
       const { rejectFriendRequest } = await import("../firebase/firestore");
       await rejectFriendRequest(user.uid, requestFromId);
 
-      // Mark this request as processed
       setProcessedRequests((prev) => new Set(prev.add(requestKey)));
       setActionMessage(`❌ Rejected friend request from ${requesterName}`);
 
       console.log("Friend request rejected and marked as processed");
 
-      // Clear message after 3 seconds
       setTimeout(() => setActionMessage(""), 3000);
     } catch (error) {
       console.error("Error rejecting friend request:", error);
@@ -974,8 +942,6 @@ function NotificationsView({ user }) {
   }
 
   const friendRequests = profile.friendRequests || [];
-
-  // Filter out processed requests
   const activeFriendRequests = friendRequests.filter((request, index) => {
     const requestKey = `${request.from}_${index}`;
     return !processedRequests.has(requestKey);
@@ -1021,7 +987,6 @@ function NotificationsView({ user }) {
   );
 }
 
-// Enhanced FriendRequestItem component
 function FriendRequestItem({
   request,
   index,
@@ -1049,7 +1014,7 @@ function FriendRequestItem({
   }, [request.from]);
 
   if (isProcessed) {
-    return null; // Don't render processed requests
+    return null;
   }
 
   if (profileLoading) {

@@ -2,7 +2,6 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 
-// Your Firebase config from Firebase Console
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_API_KEY,
   authDomain: "vibechat-f87fe.firebaseapp.com",
@@ -18,7 +17,6 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
 
-// Enable offline persistence
 enableIndexedDbPersistence(db).catch((err) => {
   if (err.code === "failed-precondition") {
     console.log(
