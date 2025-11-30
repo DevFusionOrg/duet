@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase/firebase";
 import { getUserFriends, listenToUserChats, listenToUserProfile } from "../firebase/firestore";
+import { openUploadWidget } from "../services/cloudinary";
+import { updateProfile } from "firebase/auth";
+import { updateDoc, doc } from "firebase/firestore";
+import { db } from "../firebase/firebase";
 import Chat from "./Chat";
 import '../styles/Home.css';
 
@@ -15,6 +19,10 @@ function Home({ user }) {
   const [activeView, setActiveView] = useState('friends');
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+
+  // Add profile editing state
+  const [editingProfile, setEditingProfile] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -33,15 +41,12 @@ function Home({ user }) {
     loadFriends();
   }, [user]);
 
-  // Listen to notification count from user profile
+  // Listen to user profile for real-time updates
   useEffect(() => {
     if (!user) return;
 
     const unsubscribe = listenToUserProfile(user.uid, (profile) => {
-      // Profile listener to keep connection alive for notifications
-      if (profile && profile.friendRequests) {
-        // Pending count tracked in profile for UI badge if needed
-      }
+      setUserProfile(profile);
     });
 
     return unsubscribe;
@@ -87,6 +92,11 @@ function Home({ user }) {
     }
   };
 
+  // Get display name (prioritize profile data, then auth data)
+  const getDisplayName = () => {
+    return userProfile?.displayName || user?.displayName || "User";
+  };
+
   // If chat is open, show chat interface
   if (selectedFriend) {
     return (
@@ -106,11 +116,11 @@ function Home({ user }) {
           <div className="user-profile-section">
             <img 
               src={user?.photoURL} 
-              alt={user?.displayName}
+              alt={getDisplayName()}
               className="user-avatar"
             />
             <div className="user-info">
-              <h3 className="user-name">{user?.displayName}</h3>
+              <h3 className="user-name">{getDisplayName()}</h3>
               <p className="user-status">Online</p>
             </div>
           </div>
@@ -142,8 +152,11 @@ function Home({ user }) {
             <span className="nav-text">Notifications</span>
           </button>
           <button 
-            className={`nav-item ${showProfilePopup && !selectedProfile ? 'active' : ''}`}
-            onClick={() => setShowProfilePopup(true)}
+            className={`nav-item ${activeView === 'profile' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveView('profile');
+              setEditingProfile(false); // Reset to view mode when switching to profile tab
+            }}
             title="View profile"
           >
             <span className="nav-icon">👤</span>
@@ -163,9 +176,10 @@ function Home({ user }) {
       <div className="main-content">
         <div className="welcome-section">
           <h1 className="welcome-title">
-            {activeView === 'friends' && `Welcome ${user?.displayName}! 🎵`}
+            {activeView === 'friends' && `Welcome ${getDisplayName()}! 🎵`}
             {activeView === 'chats' && 'Messages with Friends 💬'}
             {activeView === 'notifications' && 'Friend Requests 🔔'}
+            {activeView === 'profile' && (editingProfile ? 'Edit Profile ✏️' : 'My Profile 👤')}
           </h1>
         </div>
 
@@ -185,15 +199,23 @@ function Home({ user }) {
             />
           ) : activeView === 'notifications' ? (
             <NotificationsView user={user} />
+          ) : activeView === 'profile' ? (
+            <ProfileView 
+              user={user} 
+              userProfile={userProfile} 
+              editing={editingProfile}
+              onEditToggle={() => setEditingProfile(!editingProfile)}
+              onBack={() => setEditingProfile(false)}
+            />
           ) : null}
         </div>
       </div>
 
-      {/* Profile Popup */}
+      {/* Profile Popup for Friends */}
       {showProfilePopup && (
         <ProfilePopup 
-          friend={selectedProfile || user}
-          isOwnProfile={!selectedProfile}
+          friend={selectedProfile}
+          isOwnProfile={false}
           onClose={handleCloseProfilePopup}
         />
       )}
@@ -323,13 +345,324 @@ function ChatsView({ chats, loading, onStartChat }) {
   );
 }
 
-// Profile Popup Component
+// Profile View Component (Updated with Edit Mode)
+function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
+  const [formData, setFormData] = useState({
+    displayName: "",
+    username: "",
+    bio: "",
+  });
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false); // Add this
+
+  // Initialize form data when profile loads or when entering edit mode
+  useEffect(() => {
+    if (userProfile) {
+      setFormData({
+        displayName: userProfile.displayName || "",
+        username: userProfile.username || "",
+        bio: userProfile.bio || "",
+      });
+    }
+  }, [userProfile, editing]);
+
+  // Upload profile picture using Cloudinary
+  const handleProfilePictureUpload = async () => {
+    if (!user) return;
+
+    setUploadingImage(true);
+    setMessage("");
+
+    try {
+      const result = await openUploadWidget();
+      
+      if (result) {
+        // Update Firebase Auth profile
+        await updateProfile(user, {
+          photoURL: result.secure_url
+        });
+
+        // Update Firestore user document
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+          photoURL: result.secure_url,
+          cloudinaryPublicId: result.public_id
+        });
+
+        setMessage("Profile picture updated successfully!");
+      }
+    } catch (error) {
+      console.error("Error uploading profile picture:", error);
+      if (error.message === "Upload cancelled") {
+        setMessage("Profile picture upload cancelled");
+      } else {
+        setMessage("Error uploading profile picture: " + error.message);
+      }
+    }
+    
+    setUploadingImage(false);
+  };
+
+  // Remove profile picture (revert to Google or default)
+  const handleRemoveProfilePicture = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    setMessage("");
+
+    try {
+      // Revert to Google photo URL or null
+      const originalPhotoURL = user.providerData?.[0]?.photoURL || null;
+
+      // Update Firebase Auth
+      await updateProfile(user, {
+        photoURL: originalPhotoURL
+      });
+
+      // Update Firestore
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        photoURL: originalPhotoURL,
+        cloudinaryPublicId: null
+      });
+
+      setMessage("Profile picture removed successfully!");
+    } catch (error) {
+      console.error("Error removing profile picture:", error);
+      setMessage("Error removing profile picture: " + error.message);
+    }
+    
+    setLoading(false);
+  };
+
+  // Check if current picture is from Cloudinary
+  const isCloudinaryPicture = () => {
+    return userProfile?.cloudinaryPublicId || 
+           (userProfile?.photoURL && userProfile.photoURL.includes('cloudinary') && 
+            !userProfile.photoURL.includes('googleusercontent'));
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+
+    setLoading(true);
+    setMessage("");
+
+    try {
+      // Update Firebase Auth display name
+      if (formData.displayName !== user.displayName) {
+        await updateProfile(user, { displayName: formData.displayName });
+      }
+
+      // Update Firestore user document
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        displayName: formData.displayName,
+        username: formData.username,
+        bio: formData.bio,
+      });
+
+      setMessage("Profile updated successfully!");
+      setTimeout(() => {
+        onEditToggle(); // Switch back to view mode
+        setMessage("");
+      }, 2000);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      setMessage("Error updating profile: " + error.message);
+    }
+    setLoading(false);
+  };
+
+  if (!userProfile) {
+    return (
+      <div className="loading-state">
+        <div className="loading-spinner"></div>
+        <p>Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div className="profile-tab-container">
+        <div className="profile-edit-header">
+          <button onClick={onBack} className="back-button">
+            ← Back
+          </button>
+          <h2>Edit Profile</h2>
+        </div>
+
+        <div className="profile-tab-content">
+          {message && (
+            <div className={`profile-message ${message.includes("Error") ? "profile-message-error" : "profile-message-success"}`}>
+              {message}
+            </div>
+          )}
+
+          {/* Profile Picture Section in Edit Mode */}
+          <div className="profile-picture-edit-section">
+            <div className="profile-picture-preview">
+              <img
+                src={userProfile.photoURL || user?.photoURL || "/default-avatar.png"}
+                alt="Profile"
+                className="profile-picture-edit"
+              />
+            </div>
+            <p className="profile-picture-note">
+              {isCloudinaryPicture() 
+                ? "Custom profile picture" 
+                : user?.photoURL 
+                  ? "Profile picture from Google" 
+                  : "Default profile picture"
+              }
+            </p>
+            
+            <div className="profile-picture-actions">
+              <button
+                onClick={handleProfilePictureUpload}
+                disabled={uploadingImage}
+                className="profile-picture-upload-button"
+              >
+                {uploadingImage ? "Uploading..." : "Change Picture"}
+              </button>
+              
+              {(isCloudinaryPicture() || user?.photoURL) && (
+                <button
+                  onClick={handleRemoveProfilePicture}
+                  disabled={loading}
+                  className="profile-picture-remove-button"
+                >
+                  Remove Picture
+                </button>
+              )}
+            </div>
+          </div>
+
+          <form onSubmit={handleUpdate} className="profile-edit-form">
+            <div className="profile-form-group">
+              <label className="profile-label">Display Name:</label>
+              <input
+                type="text"
+                value={formData.displayName}
+                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                required
+                className="profile-input"
+              />
+            </div>
+
+            <div className="profile-form-group">
+              <label className="profile-label">Username:</label>
+              <input
+                type="text"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                required
+                className="profile-input"
+              />
+            </div>
+
+            <div className="profile-form-group">
+              <label className="profile-label">Bio:</label>
+              <textarea
+                value={formData.bio}
+                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                rows="4"
+                className="profile-input profile-textarea"
+                placeholder="Tell others about yourself..."
+              />
+            </div>
+
+            <div className="profile-edit-actions">
+              <button
+                type="submit"
+                disabled={loading}
+                className="save-profile-button"
+              >
+                {loading ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                type="button"
+                onClick={onBack}
+                className="cancel-profile-button"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="profile-tab-container">
+      <div className="profile-tab-content">
+        <div className="profile-header-section">
+          <div className="profile-picture-large-container">
+            <img 
+              src={userProfile.photoURL || user?.photoURL} 
+              alt={userProfile.displayName}
+              className="profile-picture-large"
+            />
+          </div>
+          
+          <div className="profile-basic-info">
+            <h2 className="profile-display-name">{userProfile.displayName}</h2>
+            <p className="profile-username">@{userProfile.username}</p>
+            <p className="profile-email">{user?.email}</p>
+          </div>
+        </div>
+
+        <div className="profile-details">
+          <div className="profile-section">
+            <h3 className="profile-section-title">About</h3>
+            <div className="profile-bio">
+              {userProfile.bio ? (
+                <p>{userProfile.bio}</p>
+              ) : (
+                <p className="no-bio">No bio yet. Tell others about yourself!</p>
+              )}
+            </div>
+          </div>
+
+          <div className="profile-section">
+            <h3 className="profile-section-title">Stats</h3>
+            <div className="profile-stats-grid">
+              <div className="profile-stat-item">
+                <span className="stat-number">{userProfile.friends ? userProfile.friends.length : 0}</span>
+                <span className="stat-label">Friends</span>
+              </div>
+              <div className="profile-stat-item">
+                <span className="stat-number">{userProfile.friendRequests ? userProfile.friendRequests.length : 0}</span>
+                <span className="stat-label">Requests</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="profile-actions">
+            <button 
+              onClick={onEditToggle}
+              className="edit-profile-button"
+            >
+              Edit Profile
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Profile Popup Component (for friends)
 function ProfilePopup({ friend, isOwnProfile, onClose }) {
   return (
     <div className="profile-popup-overlay" onClick={onClose}>
       <div className="profile-popup" onClick={(e) => e.stopPropagation()}>
         <div className="popup-header">
-          <h2>{isOwnProfile ? 'My Profile' : 'Profile'}</h2>
+          <h2>Profile</h2>
           <button className="close-button" onClick={onClose}>
             ×
           </button>
@@ -354,13 +687,6 @@ function ProfilePopup({ friend, isOwnProfile, onClose }) {
               <label>Username:</label>
               <span>@{friend?.username}</span>
             </div>
-            
-            {friend?.email && (
-              <div className="info-field">
-                <label>Email:</label>
-                <span>{friend?.email}</span>
-              </div>
-            )}
             
             {friend?.bio && (
               <div className="info-field">
