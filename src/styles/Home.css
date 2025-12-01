@@ -147,8 +147,9 @@
   flex-direction: column;
   padding: 20px;
   margin-left: 280px;
-  width: calc(100% - 280px);
+  width: 100%;
   min-height: 100vh;
+  box-sizing: border-box;
 }
 
 .content-area {
@@ -1028,7 +1029,6 @@
 
 .search-form {
   display: flex;
-  gap: 12px;
   margin-bottom: 30px;
   justify-content: center;
   align-items: center;
@@ -1287,7 +1287,6 @@
 
   .search-container { padding: 20px; }
   .search-form {
-    flex-direction: column;
     gap: 15px;
   }
   .search-input { width: 100%; }
