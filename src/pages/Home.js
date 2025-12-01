@@ -6,7 +6,7 @@ import { getUserFriends, listenToUserChats, listenToUserProfile } from "../fireb
 import { openUploadWidget } from "../services/cloudinary";
 import { updateProfile } from "firebase/auth";
 import { updateDoc, doc} from "firebase/firestore";
-import { setUserOnlineStatus, listenToUserOnlineStatus, listenToFriendsOnlineStatus } from "../firebase/firestore";
+import { setUserOnlineStatus, listenToUserOnlineStatus, listenToFriendsOnlineStatus, listenToUnreadMessagesCount } from "../firebase/firestore";
 import { db } from "../firebase/firebase";
 import Chat from "./Chat";
 import '../styles/Home.css';
@@ -25,6 +25,7 @@ function Home({ user }) {
   const [editingProfile, setEditingProfile] = useState(false);
   const [isUserOnline, setIsUserOnline] = useState(true);
   const [friendsOnlineStatus, setFriendsOnlineStatus] = useState({});
+  const [unreadFriendsCount, setUnreadFriendsCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -115,6 +116,34 @@ function Home({ user }) {
     return unsubscribe;
   }, [user]);
 
+  useEffect(() => {
+    const calculateUnreadFriends = () => {
+      const friendsWithUnread = new Set();
+    
+      chats.forEach(chat => {
+        if (chat.unreadCount > 0) {
+          const friendId = chat.otherParticipant?.uid;
+          if (friendId) {
+            friendsWithUnread.add(friendId);
+          }
+        }
+      });
+      setUnreadFriendsCount(friendsWithUnread.size);
+     };
+     calculateUnreadFriends();
+  }, [chats]);
+
+  useEffect(() => {
+    if (!user) return;
+  // Use dedicated real-time listener for unread counts
+    const unsubscribe = listenToUnreadMessagesCount(user.uid, (count) => {
+      setUnreadFriendsCount(count);
+      console.log(`Real-time unread friends count: ${count}`);
+    });
+    
+    return unsubscribe;
+  }, [user]);
+
   const handleStartChat = (friend) => {
     setSelectedFriend(friend);
   };
@@ -183,7 +212,6 @@ function Home({ user }) {
           >
             <svg aria-label="Home" class="x1lliihq x1n2onr6 x5n08af" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><title>Home</title><path d="m21.762 8.786-7-6.68a3.994 3.994 0 0 0-5.524 0l-7 6.681A4.017 4.017 0 0 0 1 11.68V19c0 2.206 1.794 4 4 4h3.005a1 1 0 0 0 1-1v-7.003a2.997 2.997 0 0 1 5.994 0V22a1 1 0 0 0 1 1H19c2.206 0 4-1.794 4-4v-7.32a4.02 4.02 0 0 0-1.238-2.894Z"></path></svg>
             <span className="nav-text">HOME</span>
-            {friends.length > 0 && <span className="nav-badge">{friends.length}</span>}
           </button>
           <button 
             className={`nav-item ${activeView === 'chats' ? 'active' : ''}`}
@@ -191,7 +219,7 @@ function Home({ user }) {
           >
             <svg aria-label="Messages" class="x1lliihq x1n2onr6 x5n08af" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><title>Messages</title><path d="M13.973 20.046 21.77 6.928C22.8 5.195 21.55 3 19.535 3H4.466C2.138 3 .984 5.825 2.646 7.456l4.842 4.752 1.723 7.121c.548 2.266 3.571 2.721 4.762.717Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"></path><line fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x1="7.488" x2="15.515" y1="12.208" y2="7.641"></line></svg>
             <span className="nav-text">CHAT</span>
-            {chats.length > 0 && <span className="nav-badge">{chats.length}</span>}
+            {unreadFriendsCount > 0 && <span className="nav-badge">{unreadFriendsCount}</span>}
           </button>
           <button 
             className={`nav-item ${activeView === 'search' ? 'active' : ''}`}

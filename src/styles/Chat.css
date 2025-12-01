@@ -149,8 +149,8 @@
 }
 
 .chat-sent-message {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: #ffffff;
+  color: #333;
   border-bottom-right-radius: 2px;
 }
 
@@ -191,11 +191,11 @@
 }
 
 .chat-sent-message .chat-message-status {
-  color: #e3e3e3;
+  color: #000000 !important;
 }
 
 .chat-received-message .chat-message-status {
-  color: #999;
+  color: #000000 ;
 }
 
 .chat-message-time {
@@ -229,6 +229,26 @@
   left: auto;
   right: 0;
   bottom: -10px;
+}
+
+/* Read receipt indicator styles */
+.chat-read-indicator {
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.chat-read-indicator.not-seen {
+  opacity: 0;
+}
+
+.chat-message-status .chat-read-indicator {
+  margin-left: 4px;
+}
+
+.chat-sent-message .chat-read-indicator.seen {
+  color: #000000 !important;
 }
 
 .menu-item {

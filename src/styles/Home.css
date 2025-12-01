@@ -416,7 +416,7 @@
 .unread-badge {
   position: absolute;
   top: 15px;
-  right: 15px;
+  right: 1px;
   background: #ff4757;
   color: white;
   border-radius: 50%;
