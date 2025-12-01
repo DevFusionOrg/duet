@@ -514,11 +514,6 @@ function Chat({ user, friend, onBack }) {
         </button>
       </div>
 
-      {/* Simple centered warning banner */}
-      <div className="chat-auto-deletion-info">
-        Messages disappears after 24 hours, Star to save important ones!
-      </div>
-
       {/* Messages Area */}
       <div className="chat-messages-container">
         {messages.length === 0 ? (

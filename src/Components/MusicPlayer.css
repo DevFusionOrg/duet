@@ -1,166 +1,283 @@
 .musicPlayer {
   position: fixed;
-  right: 20px;
-  bottom: 12px;
-  width: 420px;
-  max-width: calc(100vw - 32px);
+  top: 56px;
+  right: 0;
+  left: 0;
+  width: 100%;
   background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(20,20,40,0.08);
-  z-index: 1000;
-  padding: 12px 52px 12px 12px; /* extra right padding to make room for close button */
-  transition: width 200ms ease;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  z-index: 999;
+  padding: 8px 8px 8px 8px;
   box-sizing: border-box;
+  transition: all 200ms ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-/* Header exists in JSX but we don't need it visually; keep layout neutral */
+.controls{
+  align-items: center;
+}
+
+.currentSong {
+  font-size: 13px;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  margin: 0 12px;
+  flex-shrink: 0;
+  display: none;
+}
+
 .header {
   display: block;
-  height: 0;
-  margin: 0;
-  padding: 0;
-  visibility: hidden; /* keep DOM presence but hide header area */
 }
 
-/* Close button (made visible and positioned inside the bar) */
 .closeButton {
-  position: absolute;
-  right: 14px;
-  top: 12px;
-  width: 34px;
-  height: 34px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
   color: #374151;
-  font-size: 20px;
+  font-size: 16px;
   cursor: pointer;
-  border-radius: 8px;
-  visibility: visible; /* ensure visible even though .header is hidden */
-  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  border-radius: 4px;
+  transition: background-color 150ms ease;
+  flex-shrink: 0;
 }
 
-/* hover/focus affordance */
 .closeButton:hover,
 .closeButton:focus {
-  background: rgba(0,0,0,0.04);
+  background: rgba(0,0,0,0.05);
   outline: none;
 }
 
-/* Search section and single-bar layout */
 .searchSection {
   padding: 0;
   border: none;
   background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .searchBox {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex: 1;
+  max-width: 600px;
 }
 
-/* Input field */
 .searchInput {
   flex: 1;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: 1.5px solid #e6e6e6;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 14px;
   outline: none;
   min-width: 0;
   box-sizing: border-box;
+  height: 36px;
+  transition: all 150ms ease;
 }
 
 .searchInput:focus {
   border-color: #7c3aed;
-  box-shadow: 0 0 0 3px rgba(124,58,237,0.08);
+  box-shadow: 0 0 0 2px rgba(124,58,237,0.08);
 }
 
-/* Play/Search Button */
 .searchButton {
-  padding: 10px 14px;
+  padding: 8px 16px;
   background-color: #7c3aed;
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
+  height: 36px;
+  min-width: 80px;
+  transition: all 150ms ease;
+  flex-shrink: 0;
 }
 
-/* Stop Button */
+.searchButton:hover:not(:disabled) {
+  background-color: #6d28d9;
+}
+
 .stopButton {
-  padding: 10px 12px;
   background-color: #ef4444;
-  color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 5px;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
+  height: 36px;
+  transition: all 150ms ease;
+  flex-shrink: 0;
 }
 
-/* Disabled states */
+.stopButton:hover:not(:disabled) {
+  background-color: #dc2626;
+}
+
 .searchButton:disabled,
 .searchInput:disabled,
 .stopButton:disabled,
 .closeButton:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Responsive: center and expand on smaller screens */
-@media (max-width: 768px) {
-  .musicPlayer {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    width: 92vw;
-    bottom: 10px;
-    padding: 10px 48px 10px 10px;
-  }
-
-  .searchButton,
-  .stopButton {
-    padding: 10px;
-    font-size: 13px;
-  }
-
-  .searchBox { gap: 6px; }
-
-  .closeButton {
-    right: 10px;
-    top: 10px;
-    width: 32px;
-    height: 32px;
-    font-size: 18px;
-  }
+.nowPlaying {
+  display: none;
 }
 
-@media (max-width: 420px) {
-  .musicPlayer {
-    width: 96vw;
-    bottom: 8px;
-    padding: 10px 44px 10px 10px;
-  }
+.songTitle {
+  display: none;
+}
 
+.playerControls {
+  display: none;
+}
+
+.statusIndicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.statusIndicator.stopped {
+  background: #6b7280;
+}
+
+.statusIndicator.playing {
+  background: #10b981;
+  animation: pulse 1.5s infinite;
+}
+
+.pauseButton{
+  background-color: red;
+  border: none;
+  border-radius: 5px;
+}
+
+.playButton{
+  background-color: #10b981;
+  border:none;
+  border-radius: 5px;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.searchContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+.chat-messages-container {
+  padding-top: 116px;
+}
+
+@media (max-width: 768px) {
+  .musicPlayer {
+    gap: 8px;
+  }
+  
+  .searchSection {
+    gap: 8px;
+  }
+  
   .searchBox {
     gap: 6px;
   }
-
-  .stopButton { padding: 10px 8px; }
-
+  
+  .searchInput {
+    padding: 6px 10px;
+    font-size: 13px;
+    height: 32px;
+  }
+  
+  .searchButton {
+    padding: 6px 12px;
+    font-size: 13px;
+    min-width: 70px;
+    height: 32px;
+  }
+  
   .closeButton {
-    right: 8px;
-    top: 8px;
-    width: 30px;
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .musicPlayer {
+    padding: 6px;
+    gap: 6px;
+  }
+  
+  .searchBox {
+    gap: 4px;
+  }
+  
+  .searchInput {
+    padding: 6px 8px;
+    font-size: 12px;
     height: 30px;
-    font-size: 16px;
+  }
+  
+  .searchButton {
+    padding: 6px 8px;
+    font-size: 12px;
+    min-width: 60px;
+    height: 30px;
+  }
+  
+  .closeButton {
+    width: 20px;
+    height: 20px;
+    font-size: 13px;
+  }
+  
+  .chat-messages-container {
+    padding-top: 110px;
+  }
+}
+
+.musicPlayer.pinned {
+  display: flex;
+}
+
+.musicPlayer.hidden {
+  display: none;
+}
+
+@media (max-width: 360px) {
+  .searchButton {
+    min-width: 50px;
+    padding: 6px;
+    font-size: 11px;
+  }
+  
+  .searchInput {
+    font-size: 11px;
   }
 }

@@ -337,8 +337,7 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
             onClick={() => onStartChat(friend)}
             className="chat-button"
           >
-            <span className="chat-icon">💬</span>
-            Chat
+            <svg aria-label="Messages" class="x1lliihq x1n2onr6 x5n08af" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><title>Messages</title><path d="M13.973 20.046 21.77 6.928C22.8 5.195 21.55 3 19.535 3H4.466C2.138 3 .984 5.825 2.646 7.456l4.842 4.752 1.723 7.121c.548 2.266 3.571 2.721 4.762.717Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"></path><line fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x1="7.488" x2="15.515" y1="12.208" y2="7.641"></line></svg>
           </button>
         </div>
       ))}
@@ -837,7 +836,6 @@ function SearchView({ user }) {
 
   return (
     <div className="search-container">
-      <h2 className="search-title">Search Users</h2>
 
       {message && (
         <div className={`search-message ${message.includes("Error") ? "search-message-error" : "search-message-success"}`}>
@@ -848,7 +846,7 @@ function SearchView({ user }) {
       <form onSubmit={handleSearch} className="search-form">
         <input
           type="text"
-          placeholder="Search by name or username..."
+          placeholder="Search here..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="search-input"
@@ -858,7 +856,7 @@ function SearchView({ user }) {
           disabled={loading}
           className="search-button"
         >
-          {loading ? "Searching..." : "Search"}
+          <svg aria-label="Search" class="x1lliihq x1n2onr6 x5n08af" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><title>Search</title><path d="M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><line fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x1="16.511" x2="22" y1="16.511" y2="22"></line></svg>
         </button>
       </form>
 

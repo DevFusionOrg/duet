@@ -266,25 +266,25 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
             className="searchButton"
             disabled={loading}
           >
-            {loading ? '🔍 Searching...' : 'Play'}
+            {loading ? '🔍' : 'Play'}
           </button>
         </div>
       </div>
 
       <div className="controls">
         {videoId ? (
-          <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
+          <div style={{display: 'flex', gap: '10px'}}>
             <button 
               onClick={togglePlayPause} 
               className={isPlaying ? "pauseButton" : "playButton"}
             >
-              {isPlaying ? 'Pause' : 'Resume'}
+              {isPlaying ? '⏸️' : '▶️'}
             </button>
             <button 
               onClick={stopMusic}
               className="stopButton"
             >
-              ⏹️ Stop
+              ⏹️
             </button>
           </div>
         ) : null}
