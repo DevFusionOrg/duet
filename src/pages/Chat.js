@@ -5,6 +5,7 @@ import {
   sendMessage,
   listenToChatMessages,
   markMessagesAsRead,
+  markMessageAsSeen,
   saveMessage,
   unsaveMessage,
   editMessage,
@@ -191,11 +192,26 @@ function Chat({ user, friend, onBack }) {
       setMessages(chatMessages);
       scrollToBottom();
       markMessagesAsRead(chatId, user.uid);
+      chatMessages.forEach(message => {
+        if (message.senderId === friend.uid && !message.seenBy?.includes(user.uid)) {
+        // This message from friend should show as seen by me
+        // You might want to implement a different function for this
+      }
+      });
     });
 
     return unsubscribe;
   }, [chatId, user.uid]);
 
+  const isMessageSeenByRecipient = (message) => {
+    if (message.senderId !== user.uid) return false; // Only my sent messages
+    if (!message.read) return false; // Not read yet
+    if (!message.readBy) return false; // No one marked as read it
+  
+    // Check if the recipient (friend) read it
+    return message.readBy === friend.uid;
+  };
+  
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -379,6 +395,8 @@ function Chat({ user, friend, onBack }) {
   };
 
   const renderMessageContent = (message) => {
+    const isSeenByRecipient = message.senderId === user.uid && message.read === true;
+    
     if (message.type === "image" && message.image) {
       return (
         <div className="chat-image-message">
@@ -389,6 +407,24 @@ function Chat({ user, friend, onBack }) {
             onClick={() => window.open(message.image.url, "_blank")}
           />
           {message.text && <p className="chat-image-caption">{message.text}</p>}
+          {/* Add tick indicator for images */}
+          <div className="chat-message-status">
+            <span className="chat-message-time">
+              {formatTime(message.timestamp)}
+            </span>
+            {isMessageEdited(message) && (
+              <span className="chat-edited-indicator">Edited</span>
+            )}
+            {isMessageSaved(message) && (
+              <span className="chat-saved-indicator">⭐</span>
+            )}
+            {/* Single tick indicator */}
+            {message.senderId === user.uid && (
+              <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
+                {isSeenByRecipient ? '✓' : ''}
+              </span>
+            )}
+          </div>
         </div>
       );
     }
@@ -406,6 +442,12 @@ function Chat({ user, friend, onBack }) {
           {isMessageSaved(message) && (
             <span className="chat-saved-indicator">⭐</span>
           )}
+          {/* Single tick indicator */}
+          {message.senderId === user.uid && (
+            <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
+              {isSeenByRecipient ? '✓' : ''}
+            </span>
+          )} 
         </div>
       </>
     );

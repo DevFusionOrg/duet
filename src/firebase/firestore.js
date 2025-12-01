@@ -304,6 +304,23 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
   }
 };
 
+// Add this function to mark when a message is seen by recipient
+export const markMessageAsSeen = async (chatId, messageId, seenByUserId) => {
+  try {
+    const messageRef = doc(db, "chats", chatId, "messages", messageId);
+    
+    await updateDoc(messageRef, {
+      read: true,
+      readBy: seenByUserId,
+      readAt: new Date()
+    });
+    
+    console.log("Message marked as seen by:", seenByUserId);
+  } catch (error) {
+    console.error("Error marking message as seen:", error);
+  }
+};
+
 export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -316,6 +333,9 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       text: text || "",
       timestamp: new Date(),
       read: false,
+      readBy: null, // Who read it
+      readAt: null, // When it was read
+      seenBy: [], // Array of users who have seen it
       deletionTime: deletionTime,
       isSaved: false,
       isEdited: false,
@@ -481,6 +501,7 @@ export const listenToUserChats = (userId, callback) => {
   });
 };
 
+// FIXED: Missing closing brace in markMessagesAsRead
 export const markMessagesAsRead = async (chatId, userId) => {
   try {
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -494,14 +515,37 @@ export const markMessagesAsRead = async (chatId, userId) => {
     const batch = writeBatch(db);
 
     querySnapshot.docs.forEach((doc) => {
-      batch.update(doc.ref, { read: true });
+      batch.update(doc.ref, { 
+        read: true,
+        readAt: new Date()  // Add timestamp for better tracking
+      });
     });
 
     await batch.commit();
-    console.log("Messages marked as read");
+    console.log(`Messages marked as read in chat ${chatId} by ${userId}`);
+    return querySnapshot.size;
   } catch (error) {
     console.error("Error marking messages as read:", error);
+    return 0;
   }
+};
+
+// FIXED: Simplified version without complex queries
+export const listenToUnreadMessagesCount = (userId, callback) => {
+  return listenToUserChats(userId, (chats) => {
+    const friendsWithUnread = new Set();
+    
+    chats.forEach(chat => {
+      if (chat.unreadCount > 0) {
+        const friendId = chat.otherParticipant?.uid;
+        if (friendId) {
+          friendsWithUnread.add(friendId);
+        }
+      }
+    });
+    
+    callback(friendsWithUnread.size);
+  });
 };
 
 export const getUnreadCount = async (chatId, userId) => {
