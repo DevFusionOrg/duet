@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_API_KEY,
@@ -16,6 +17,38 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
+export const messaging = getMessaging(app);
+
+export const requestNotificationPermission = async () => {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      console.log("Notification permission granted.");
+      
+      const token = await getToken(messaging, {
+        vapidKey: "YOUR_VAPID_KEY",
+      });
+      
+      if (token) {
+        console.log("FCM Token:", token);
+        return token;
+      } else {
+        console.log('No registration token available.');
+      }
+    } else {
+      console.log("Unable to get permission to notify.");
+    }
+  } catch (error) {
+    console.error("Error getting notification permission:", error);
+  }
+};
+
+export const onMessageListener = () =>
+  new Promise((resolve) => {
+    onMessage(messaging, (payload) => {
+      resolve(payload);
+    });
+  });
 
 enableIndexedDbPersistence(db).catch((err) => {
   if (err.code === "failed-precondition") {

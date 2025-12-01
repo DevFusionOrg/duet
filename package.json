@@ -13,7 +13,7 @@
     "buffer": "^6.0.3",
     "cloudinary": "^2.8.0",
     "crypto-browserify": "^3.12.1",
-    "firebase": "^12.5.0",
+    "firebase": "^12.6.0",
     "https-browserify": "^1.0.0",
     "multer": "^2.0.2",
     "path-browserify": "^1.0.1",

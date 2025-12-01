@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { auth } from "./firebase/firebase";
-import { createUserProfile } from "./firebase/firestore";
+import { createUserProfile, setUserOnlineStatus } from "./firebase/firestore";
 import Auth from "./pages/Auth";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
@@ -16,9 +16,10 @@ function App() {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       try {
         if (currentUser) {
-          // Create/update user profile in Firestore
           await createUserProfile(currentUser);
           setAuthError(null);
+          
+          await setUserOnlineStatus(currentUser.uid, true);
         }
 
         setUser(currentUser);
@@ -32,6 +33,38 @@ function App() {
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const updateOnlineStatus = async (isOnline) => {
+      try {
+        await setUserOnlineStatus(user.uid, isOnline);
+      } catch (error) {
+        console.error("Error updating online status:", error);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        updateOnlineStatus(false);
+      } else {
+        updateOnlineStatus(true);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      
+      if (user) {
+        setUserOnlineStatus(user.uid, false).catch(error => {
+          console.error("Error setting offline status on cleanup:", error);
+        });
+      }
+    };
+  }, [user]);
 
   if (loading) {
     return (
@@ -50,7 +83,6 @@ function App() {
     );
   }
 
-  // Show auth error if any
   if (authError) {
     return (
       <div className="app-error">
@@ -67,12 +99,20 @@ function App() {
     );
   }
 
-  // If not loading and no user, show the new Auth component
   if (!user) {
     return <Auth />;
   }
 
-  // User is authenticated, show the main app
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      .then((registration) => {
+        console.log('Service Worker registered with scope:', registration.scope);
+      })
+      .catch((error) => {
+        console.error('Service Worker registration failed:', error);
+      });
+  }
+
   return (
     <Router>
       <Routes>

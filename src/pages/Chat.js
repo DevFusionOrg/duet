@@ -10,11 +10,14 @@ import {
   unsaveMessage,
   editMessage,
   getUserFriends,
+  saveUserNotificationToken,
 } from "../firebase/firestore";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { openUploadWidget, getOptimizedImageUrl } from "../services/cloudinary";
 import "../styles/Chat.css";
+import { notificationService } from "../services/notifications";
+import { requestNotificationPermission, onMessageListener } from "../firebase/firebase";
 
 function Chat({ user, friend, onBack }) {
   const [messages, setMessages] = useState([]);
@@ -34,9 +37,116 @@ function Chat({ user, friend, onBack }) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false);
   const messagesEndRef = useRef(null);
-
+  const [notificationToken, setNotificationToken] = useState(null);
+  const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
   const [isFriendOnline, setIsFriendOnline] = useState(false);
   const [lastSeen, setLastSeen] = useState(null);
+
+  useEffect(() => {
+  const initializeNotifications = async () => {
+    const hasPermission = await notificationService.requestPermission();
+    setHasNotificationPermission(hasPermission);
+    
+    if (hasPermission) {
+      const token = await requestNotificationPermission();
+      setNotificationToken(token);
+      
+      if (token && user) {
+        await saveUserNotificationToken(user.uid, token);
+      }
+    }
+  };
+
+  initializeNotifications();
+}, [user]);
+
+useEffect(() => {
+  const setupForegroundMessages = async () => {
+    const payload = await onMessageListener();
+    if (payload) {
+      const { title, body, data } = payload.notification || payload;
+      
+      notificationService.showNotification(title || 'New Message', {
+        body,
+        data,
+        icon: data?.senderPhoto || '/default-avatar.png'
+      });
+    }
+  };
+
+  setupForegroundMessages();
+}, []);
+
+useEffect(() => {
+  if (!chatId) return;
+
+  const unsubscribe = listenToChatMessages(chatId, (chatMessages) => {
+    const previousMessageCount = messages.length;
+    setMessages(chatMessages);
+    scrollToBottom();
+    markMessagesAsRead(chatId, user.uid);
+    
+    if (chatMessages.length > previousMessageCount && previousMessageCount > 0) {
+      const newMessages = chatMessages.slice(previousMessageCount);
+      const newMessageFromFriend = newMessages.find(msg => 
+        msg.senderId === friend.uid && 
+        !msg.seenBy?.includes(user.uid)
+      );
+      
+      if (newMessageFromFriend) {
+        showNewMessageNotification(newMessageFromFriend);
+      }
+    }
+  });
+
+  return unsubscribe;
+}, [chatId, user.uid, messages.length]);
+
+const showNewMessageNotification = (message) => {
+  const isViewingThisChat = true;
+
+  if (!isViewingThisChat && hasNotificationPermission) {
+    const notificationTitle = friend.displayName;
+    const notificationBody = message.type === 'image' ? '📷 Sent a photo' : message.text;
+    
+    notificationService.showNotificationIfHidden(notificationTitle, {
+      body: notificationBody.length > 100 ? notificationBody.substring(0, 100) + '...' : notificationBody,
+      icon: friend.photoURL,
+      badge: '/badge.png',
+      data: {
+        chatId,
+        senderId: friend.uid,
+        messageId: message.id,
+        type: 'new-message'
+      },
+      vibrate: [200, 100, 200],
+      tag: `chat-${chatId}`,
+      renotify: true,
+      requireInteraction: false,
+      silent: false
+    });
+    playNotificationSound();
+  }
+};
+
+const playNotificationSound = () => {
+  const audio = new Audio('/notification.mp3');
+  audio.volume = 0.3;
+  audio.play().catch(e => console.log('Audio play failed:', e));
+};
+
+useEffect(() => {
+  const handleNotificationClick = (event) => {
+    const { chatId, senderId } = event.detail;
+    console.log('Notification clicked for chat:', chatId);
+  };
+
+  window.addEventListener('notification-click', handleNotificationClick);
+  
+  return () => {
+    window.removeEventListener('notification-click', handleNotificationClick);
+  };
+}, []);
 
   useEffect(() => {
     if (!friend?.uid) return;
@@ -194,8 +304,6 @@ function Chat({ user, friend, onBack }) {
       markMessagesAsRead(chatId, user.uid);
       chatMessages.forEach(message => {
         if (message.senderId === friend.uid && !message.seenBy?.includes(user.uid)) {
-        // This message from friend should show as seen by me
-        // You might want to implement a different function for this
       }
       });
     });
@@ -213,7 +321,9 @@ function Chat({ user, friend, onBack }) {
   };
   
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 300);
   };
 
   const handleSendMessage = async (e) => {

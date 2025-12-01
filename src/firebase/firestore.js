@@ -15,14 +15,88 @@ import {
   onSnapshot,
   orderBy,
   writeBatch,
+  serverTimestamp,
 } from "firebase/firestore";
 
-export const createUserProfile = async (user) => {
+export const sendPushNotification = async (senderId, receiverId, message, chatId) => {
+  try {
+    const receiverDoc = await getDoc(doc(db, "users", receiverId));
+    const receiverTokens = receiverDoc.data()?.notificationTokens || [];
+    
+    if (receiverTokens.length === 0) return;
+    
+    const response = await fetch('/api/send-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tokens: receiverTokens,
+        title: "New Message",
+        body: message.type === 'image' ? '📷 Photo' : message.text.substring(0, 100),
+        data: {
+          chatId,
+          senderId,
+          messageId: message.id,
+          type: 'new-message'
+        }
+      })
+    });
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error sending push notification:", error);
+  }
+};
+
+export const checkUsernameTaken = async (username, excludeUserId = null) => {
+  try {
+    const usernameRef = doc(db, "usernames", username);
+    const usernameSnap = await getDoc(usernameRef);
+    
+    if (usernameSnap.exists()) {
+      const usernameData = usernameSnap.data();
+      if (excludeUserId && usernameData.uid === excludeUserId) {
+        return false;
+      }
+      return true;
+    }
+    
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("username", "==", username));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      if (excludeUserId) {
+        const isSameUser = querySnapshot.docs.some(doc => doc.id === excludeUserId);
+        if (isSameUser) {
+          return false;
+        }
+      }
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error("Error checking username:", error);
+    throw error;
+  }
+};
+
+export const createUserProfile = async (user, username = null) => {
   if (!user) return;
 
   try {
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
+
+    let finalUsername = username || user.email.split("@")[0];
+    
+    if (!userSnap.exists()) {
+      const usernameTaken = await checkUsernameTaken(finalUsername, user.uid);
+      
+      if (usernameTaken) {
+        finalUsername = `${finalUsername}${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+    }
 
     if (!userSnap.exists()) {
       await setDoc(userRef, {
@@ -30,10 +104,16 @@ export const createUserProfile = async (user) => {
         displayName: user.displayName,
         email: user.email,
         photoURL: user.photoURL,
-        username: user.email.split("@")[0],
+        username: finalUsername,
         bio: "",
         friends: [],
         friendRequests: [],
+        blockedUsers: [],
+        createdAt: new Date(),
+      });
+      
+      await setDoc(doc(db, "usernames", finalUsername), {
+        uid: user.uid,
         createdAt: new Date(),
       });
     } else {
@@ -45,6 +125,129 @@ export const createUserProfile = async (user) => {
   } catch (error) {
     console.error("Error creating user profile:", error);
     throw error;
+  }
+};
+
+export const updateUsername = async (userId, newUsername) => {
+  try {
+    if (!newUsername || newUsername.length < 3 || newUsername.length > 30) {
+      throw new Error("Username must be between 3 and 30 characters");
+    }
+    
+    if (!/^[a-zA-Z0-9_.-]+$/.test(newUsername)) {
+      throw new Error("Username can only contain letters, numbers, dots, underscores, and hyphens");
+    }
+    
+    const usernameTaken = await checkUsernameTaken(newUsername, userId);
+    
+    if (usernameTaken) {
+      throw new Error("Username is already taken");
+    }
+    
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      throw new Error("User not found");
+    }
+    
+    const userData = userSnap.data();
+    const oldUsername = userData.username;
+    
+    const batch = writeBatch(db);
+    
+    batch.update(userRef, {
+      username: newUsername,
+      updatedAt: serverTimestamp(),
+    });
+    
+    if (oldUsername) {
+      const oldUsernameRef = doc(db, "usernames", oldUsername);
+      batch.delete(oldUsernameRef);
+    }
+
+    const newUsernameRef = doc(db, "usernames", newUsername);
+    batch.set(newUsernameRef, {
+      uid: userId,
+      updatedAt: serverTimestamp(),
+    });
+    
+    await batch.commit();
+    
+    await updateUsernameInChats(userId, oldUsername, newUsername);
+    
+    return { success: true, username: newUsername };
+  } catch (error) {
+    console.error("Error updating username:", error);
+    throw error;
+  }
+};
+
+export const getUsernameSuggestions = async (baseUsername) => {
+  try {
+    const suggestions = [];
+    const maxAttempts = 5;
+    
+    for (let i = 0; i < maxAttempts; i++) {
+      let suggestion;
+      
+      if (i === 0) {
+        suggestion = baseUsername;
+      } else if (i === 1) {
+        suggestion = `${baseUsername}${Math.floor(100 + Math.random() * 900)}`;
+      } else if (i === 2) {
+        suggestion = `${baseUsername}${Math.floor(1000 + Math.random() * 9000)}`;
+      } else if (i === 3) {
+        suggestion = `${baseUsername}_${Math.floor(10 + Math.random() * 90)}`;
+      } else {
+        suggestion = `${baseUsername}${Math.floor(1 + Math.random() * 9)}${String.fromCharCode(97 + Math.floor(Math.random() * 26))}`;
+      }
+      
+      const isTaken = await checkUsernameTaken(suggestion);
+      
+      if (!isTaken) {
+        suggestions.push(suggestion);
+      }
+      
+      if (suggestions.length >= 3) {
+        break;
+      }
+    }
+    
+    return suggestions;
+  } catch (error) {
+    console.error("Error getting username suggestions:", error);
+    return [];
+  }
+};
+
+export const updateUsernameInChats = async (userId, oldUsername, newUsername) => {
+  try {
+    const chatsRef = collection(db, "chats");
+    const q = query(chatsRef, where("participants", "array-contains", userId));
+    const querySnapshot = await getDocs(q);
+    
+    const batch = writeBatch(db);
+    
+    querySnapshot.docs.forEach((doc) => {
+      const chatData = doc.data();
+      
+      if (chatData.participantUsernames && chatData.participantUsernames[oldUsername]) {
+        const updatedUsernames = { ...chatData.participantUsernames };
+        updatedUsernames[newUsername] = updatedUsernames[oldUsername];
+        delete updatedUsernames[oldUsername];
+        
+        batch.update(doc.ref, {
+          participantUsernames: updatedUsernames,
+        });
+      }
+    });
+    
+    if (querySnapshot.docs.length > 0) {
+      await batch.commit();
+    }
+  } catch (error) {
+    console.error("Error updating username in chats:", error);
   }
 };
 
@@ -88,10 +291,16 @@ export const updateUserProfilePicture = async (userId, photoURL, cloudinaryPubli
   }
 };
 
-export const searchUsers = async (searchTerm) => {
+export const searchUsers = async (searchTerm, excludeUserId = null, checkBlocked = false) => {
   if (!searchTerm) return [];
 
   try {
+    let blockedUsers = [];
+    if (checkBlocked && excludeUserId) {
+      const userProfile = await getUserProfile(excludeUserId);
+      blockedUsers = userProfile?.blockedUsers || [];
+    }
+
     const usersRef = collection(db, "users");
 
     const displayNameQuery = query(
@@ -113,19 +322,56 @@ export const searchUsers = async (searchTerm) => {
 
     const users = new Map();
 
-    displayNameSnapshot.forEach((doc) => {
+    const addUser = (doc) => {
+      if (excludeUserId && doc.id === excludeUserId) return;
+      
+      if (checkBlocked && blockedUsers.includes(doc.id)) return;
+      
       users.set(doc.id, { id: doc.id, ...doc.data() });
-    });
+    };
 
-    usernameSnapshot.forEach((doc) => {
-      users.set(doc.id, { id: doc.id, ...doc.data() });
-    });
+    displayNameSnapshot.forEach(addUser);
+    usernameSnapshot.forEach(addUser);
 
     return Array.from(users.values());
   } catch (error) {
     console.error("Error searching users:", error);
     return [];
   }
+};
+
+export const validateUsername = (username) => {
+  const errors = [];
+  
+  if (!username || username.trim().length === 0) {
+    errors.push("Username is required");
+  }
+  
+  if (username.length < 3) {
+    errors.push("Username must be at least 3 characters long");
+  }
+  
+  if (username.length > 30) {
+    errors.push("Username must be less than 30 characters");
+  }
+  
+  if (!/^[a-zA-Z0-9_.-]+$/.test(username)) {
+    errors.push("Username can only contain letters, numbers, dots, underscores, and hyphens");
+  }
+  
+  if (/\s/.test(username)) {
+    errors.push("Username cannot contain spaces");
+  }
+  
+  const reservedUsernames = ['admin', 'administrator', 'support', 'help', 'system', 'root'];
+  if (reservedUsernames.includes(username.toLowerCase())) {
+    errors.push("This username is reserved");
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
 };
 
 export const sendFriendRequest = async (fromUserId, toUserId) => {
@@ -288,9 +534,18 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
     const chatSnap = await getDoc(chatRef);
 
     if (!chatSnap.exists()) {
+      const [user1Data, user2Data] = await Promise.all([
+        getUserProfile(user1Id),
+        getUserProfile(user2Id),
+      ]);
+
       await setDoc(chatRef, {
         id: chatId,
         participants: [user1Id, user2Id],
+        participantUsernames: {
+          [user1Data.username]: user1Id,
+          [user2Data.username]: user2Id,
+        },
         createdAt: new Date(),
         lastMessage: null,
         lastMessageAt: new Date(),
@@ -304,7 +559,6 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
   }
 };
 
-// Add this function to mark when a message is seen by recipient
 export const markMessageAsSeen = async (chatId, messageId, seenByUserId) => {
   try {
     const messageRef = doc(db, "chats", chatId, "messages", messageId);
@@ -318,6 +572,18 @@ export const markMessageAsSeen = async (chatId, messageId, seenByUserId) => {
     console.log("Message marked as seen by:", seenByUserId);
   } catch (error) {
     console.error("Error marking message as seen:", error);
+  }
+};
+
+export const saveUserNotificationToken = async (userId, token) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      notificationTokens: arrayUnion(token),
+      updatedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error("Error saving notification token:", error);
   }
 };
 
@@ -343,6 +609,9 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       originalText: text || "",
       canEditUntil: new Date(Date.now() + 15 * 60 * 1000),
     };
+
+    const receiverId = chatId.replace(senderId, '').replace('_', '');
+    await sendPushNotification(senderId, receiverId, messageData, chatId);
 
     if (imageData) {
       messageData.image = {
@@ -691,13 +960,17 @@ export const unsaveMessage = async (chatId, messageId) => {
 export const editMessage = async (chatId, messageId, newText, userId) => {
   try {
     const messageRef = doc(db, "chats", chatId, "messages", messageId);
+    const chatRef = doc(db, "chats", chatId);
+    
     const messageSnap = await getDoc(messageRef);
+    const chatSnap = await getDoc(chatRef);
 
     if (!messageSnap.exists()) {
       throw new Error("Message not found");
     }
 
     const messageData = messageSnap.data();
+    const chatData = chatSnap.data();
 
     if (messageData.senderId !== userId) {
       throw new Error("You can only edit your own messages");
@@ -724,6 +997,13 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
       editHistory: editHistory,
       lastEditedAt: new Date(),
     });
+    
+    if (chatData.lastMessageId === messageId) {
+      await updateDoc(chatRef, {
+        lastMessage: newText,
+        lastMessageAt: new Date(),
+      });
+    }
 
     console.log("Message edited successfully");
   } catch (error) {
@@ -847,4 +1127,126 @@ export const listenToFriendsOnlineStatus = (friendIds, callback) => {
     });
     callback(onlineStatus);
   });
+};
+
+export const deleteChat = async (chatId, userId) => {
+  try {
+    const chatRef = doc(db, "chats", chatId);
+    const chatSnap = await getDoc(chatRef);
+    
+    if (!chatSnap.exists() || !chatSnap.data().participants.includes(userId)) {
+      throw new Error("Chat not found or unauthorized");
+    }
+    
+    // Delete all messages first
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    const messagesSnap = await getDocs(messagesRef);
+    
+    const batch = writeBatch(db);
+    messagesSnap.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    
+    // Delete the chat document
+    batch.delete(chatRef);
+    await batch.commit();
+    
+    return { success: true };
+    
+  } catch (error) {
+    console.error("Error deleting chat:", error);
+    throw error;
+  }
+};
+
+export const blockUser = async (userId, userToBlockId) => {
+  try {
+    if (userId === userToBlockId) {
+      throw new Error("You cannot block yourself");
+    }
+    
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      throw new Error("User not found");
+    }
+    
+    const userData = userSnap.data();
+    
+    if (userData.blockedUsers && userData.blockedUsers.includes(userToBlockId)) {
+      throw new Error("User is already blocked");
+    }
+    
+    // Remove from friends if they are friends
+    const updates = {
+      blockedUsers: arrayUnion(userToBlockId),
+    };
+    
+    if (userData.friends && userData.friends.includes(userToBlockId)) {
+      updates.friends = arrayRemove(userToBlockId);
+    }
+    
+    await updateDoc(userRef, updates);
+    
+    // Also remove from friend requests if any
+    if (userData.friendRequests) {
+      const requestToRemove = userData.friendRequests.find(
+        req => req.from === userToBlockId
+      );
+      if (requestToRemove) {
+        await updateDoc(userRef, {
+          friendRequests: arrayRemove(requestToRemove)
+        });
+      }
+    }
+    
+    return { success: true };
+    
+  } catch (error) {
+    console.error("Error blocking user:", error);
+    throw error;
+  }
+};
+
+export const unblockUser = async (userId, userToUnblockId) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      throw new Error("User not found");
+    }
+    
+    const userData = userSnap.data();
+    
+    if (!userData.blockedUsers || !userData.blockedUsers.includes(userToUnblockId)) {
+      throw new Error("User is not blocked");
+    }
+    
+    await updateDoc(userRef, {
+      blockedUsers: arrayRemove(userToUnblockId)
+    });
+    
+    return { success: true };
+    
+  } catch (error) {
+    console.error("Error unblocking user:", error);
+    throw error;
+  }
+};
+
+export const getBlockedUsers = async (userId) => {
+  try {
+    const user = await getUserProfile(userId);
+    if (!user || !user.blockedUsers) return [];
+    
+    const blockedUsersPromises = user.blockedUsers.map((blockedId) =>
+      getUserProfile(blockedId)
+    );
+    return Promise.all(blockedUsersPromises);
+  } catch (error) {
+    console.error("Error getting blocked users:", error);
+    return [];
+  }
 };
