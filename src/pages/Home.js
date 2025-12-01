@@ -6,7 +6,7 @@ import { getUserFriends, listenToUserChats, listenToUserProfile } from "../fireb
 import { openUploadWidget } from "../services/cloudinary";
 import { updateProfile } from "firebase/auth";
 import { updateDoc, doc} from "firebase/firestore";
-import { setUserOnlineStatus, listenToUserOnlineStatus, listenToFriendsOnlineStatus, listenToUnreadMessagesCount } from "../firebase/firestore";
+import { listenToFriendsOnlineStatus, listenToUnreadMessagesCount } from "../firebase/firestore";
 import { db } from "../firebase/firebase";
 import Chat from "./Chat";
 import '../styles/Home.css';
@@ -23,43 +23,13 @@ function Home({ user }) {
   const [userProfile, setUserProfile] = useState(null);
 
   const [editingProfile, setEditingProfile] = useState(false);
-  const [isUserOnline, setIsUserOnline] = useState(true);
   const [friendsOnlineStatus, setFriendsOnlineStatus] = useState({});
   const [unreadFriendsCount, setUnreadFriendsCount] = useState(0);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const setOnline = async () => {
-      await setUserOnlineStatus(user.uid, true);
-    };
-
-    setOnline();
-
-    const handleBeforeUnload = async () => {
-      await setUserOnlineStatus(user.uid, false);
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      const cleanup = async () => {
-        await setUserOnlineStatus(user.uid, false);
-      };
-      cleanup();
-    };
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const unsubscribe = listenToUserOnlineStatus(user.uid, (online) => {
-      setIsUserOnline(online);
-    });
-
-    return unsubscribe;
-  }, [user]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const handleFriendRequestUpdate = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   useEffect(() => {
     if (!user || friends.length === 0) return;
@@ -200,7 +170,7 @@ function Home({ user }) {
             />
             <div className="user-info">
               <h3 className="user-name">{getDisplayName()}</h3>
-              <p className={`user-status ${isUserOnline ? 'online' : 'offline'}`}> {isUserOnline ? 'Online' : 'Offline'} </p>
+              <p className="user-status online">Online</p>
             </div>
           </div>
         </div>
@@ -285,10 +255,14 @@ function Home({ user }) {
               onStartChat={handleStartChat}
               friendsOnlineStatus={friendsOnlineStatus}
             />
-          ) :activeView === 'search' ? (
+          ) : activeView === 'search' ? (
             <SearchView user={user} />
           ) : activeView === 'notifications' ? (
-            <NotificationsView user={user} />
+            <>
+              <NotificationsView user={user} onFriendRequestUpdate={handleFriendRequestUpdate} />
+              {/* Friends list component that should also refresh */}
+              <friendsList refreshKey={refreshTrigger} />
+            </>
           ) : activeView === 'profile' ? (
             <ProfileView 
               user={user} 
@@ -953,7 +927,7 @@ function SearchView({ user }) {
   );
 }
 
-function NotificationsView({ user }) {
+function NotificationsView({ user, onFriendRequestUpdate }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState({});
   const [processedRequests, setProcessedRequests] = useState(new Set());
@@ -989,6 +963,10 @@ function NotificationsView({ user }) {
 
       console.log("Friend request accepted and marked as processed");
 
+      if (onFriendRequestUpdate) {
+        onFriendRequestUpdate();
+      }
+
       setTimeout(() => setActionMessage(""), 3000);
     } catch (error) {
       console.error("Error accepting friend request:", error);
@@ -1016,6 +994,10 @@ function NotificationsView({ user }) {
       setActionMessage(`❌ Rejected friend request from ${requesterName}`);
 
       console.log("Friend request rejected and marked as processed");
+
+      if (onFriendRequestUpdate) {
+        onFriendRequestUpdate();
+      }
 
       setTimeout(() => setActionMessage(""), 3000);
     } catch (error) {
