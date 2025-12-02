@@ -229,15 +229,6 @@ function Home({ user }) {
 
       {/* Main Content */}
       <div className="main-content">
-        <div className="welcome-section">
-          <h1 className="welcome-title">
-            {activeView === 'friends' && `DUET`}
-            {activeView === 'chats' && 'Chat'}
-            {activeView === 'search' && 'Search'}
-            {activeView === 'notifications' && 'Alerts'}
-            {activeView === 'profile' && (editingProfile ? 'Edit Profile ✏️' : 'My Profile')}
-          </h1>
-        </div>
 
         <div className="content-area">
           {activeView === 'friends' ? (
@@ -838,6 +829,7 @@ function SearchView({ user }) {
 
   return (
     <div className="search-container">
+      <h1 className="SearchHeading">Search</h1>
 
       {message && (
         <div className={`search-message ${message.includes("Error") ? "search-message-error" : "search-message-success"}`}>
@@ -1033,7 +1025,7 @@ function NotificationsView({ user, onFriendRequestUpdate }) {
         <div className="empty-state">
           <div className="empty-icon">📭</div>
           <h3>No Pending Requests</h3>
-          <p>You're all caught up! New friend requests will appear here.</p>
+          <p>You're all caught up!</p>
         </div>
       ) : (
         <div className="friend-requests-list">

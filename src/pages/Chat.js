@@ -5,12 +5,16 @@ import {
   sendMessage,
   listenToChatMessages,
   markMessagesAsRead,
-  markMessageAsSeen,
   saveMessage,
   unsaveMessage,
   editMessage,
   getUserFriends,
   saveUserNotificationToken,
+  blockUser,
+  unblockUser,
+  getBlockedUsers,
+  deleteChat,
+  replyToMessage,
 } from "../firebase/firestore";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebase";
@@ -22,7 +26,7 @@ import { requestNotificationPermission, onMessageListener } from "../firebase/fi
 function Chat({ user, friend, onBack }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading,] = useState(false);
   const [chatId, setChatId] = useState(null);
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -41,6 +45,13 @@ function Chat({ user, friend, onBack }) {
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
   const [isFriendOnline, setIsFriendOnline] = useState(false);
   const [lastSeen, setLastSeen] = useState(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const inputRef = useRef(null);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
   const initializeNotifications = async () => {
@@ -310,15 +321,6 @@ useEffect(() => {
 
     return unsubscribe;
   }, [chatId, user.uid]);
-
-  const isMessageSeenByRecipient = (message) => {
-    if (message.senderId !== user.uid) return false; // Only my sent messages
-    if (!message.read) return false; // Not read yet
-    if (!message.readBy) return false; // No one marked as read it
-  
-    // Check if the recipient (friend) read it
-    return message.readBy === friend.uid;
-  };
   
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -327,18 +329,55 @@ useEffect(() => {
   };
 
   const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !chatId) return;
-
-    setLoading(true);
-    try {
-      await sendMessage(chatId, user.uid, newMessage.trim());
-      setNewMessage("");
-    } catch (error) {
-      console.error("Error sending message:", error);
-      alert("Error sending message: " + error.message);
+    e.preventDefault(); // Prevent form submission refresh
+    
+    // Get the text from inputRef (since you're using controlled component)
+    const text = inputRef.current?.value?.trim();
+    
+    // For debugging
+    console.log('Sending message:', { 
+      text, 
+      selectedImage, 
+      replyingTo: !!replyingTo,
+      chatId 
+    });
+    
+    if (!text && !selectedImage) {
+      console.log('No content to send');
+      return;
     }
-    setLoading(false);
+
+    try {
+      if (replyingTo) {
+        console.log('Sending reply:', { replyText, originalMessageId: replyingTo.id });
+        await replyToMessage(chatId, replyingTo.id, text, user.uid, selectedImage);
+        
+        // Clear reply state
+        setReplyingTo(null);
+        if (inputRef.current) {
+          inputRef.current.value = '';
+          setReplyText(''); // Also clear the replyText state
+        }
+      } else {
+        console.log('Sending normal message:', text);
+        await sendMessage(chatId, user.uid, text, selectedImage);
+        
+        // Clear input
+        if (inputRef.current) {
+          inputRef.current.value = '';
+          setNewMessage(''); // Also clear the newMessage state
+        }
+      }
+      
+      // Clear image if any
+      setSelectedImage(null);
+      
+      // Scroll to bottom
+      scrollToBottom();
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Error sending message: ' + error.message);
+    }
   };
 
   const handleSaveMessage = async (messageId) => {
@@ -507,58 +546,81 @@ useEffect(() => {
   const renderMessageContent = (message) => {
     const isSeenByRecipient = message.senderId === user.uid && message.read === true;
     
+    // Common status component
+    const renderMessageStatus = () => (
+      <div className="chat-message-status">
+        <span className="chat-message-time">
+          {formatTime(message.timestamp)}
+        </span>
+        {isMessageEdited(message) && (
+          <span className="chat-edited-indicator">Edited</span>
+        )}
+        {isMessageSaved(message) && (
+          <span className="chat-saved-indicator">⭐</span>
+        )}
+        {/* Single tick indicator */}
+        {message.senderId === user.uid && (
+          <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
+            {isSeenByRecipient ? '✓' : ''}
+          </span>
+        )}
+      </div>
+    );
+
+    // Reply indicator component
+    const renderReplyIndicator = () => (
+      message.isReply && message.originalMessageText && (
+        <div className="reply-indicator">
+          <span className="reply-icon">Replied to</span>
+          <div className="quoted-message">
+            {message.originalMessageType === 'image' ? '📷 Image' : message.originalMessageText}
+          </div>
+        </div>
+      )
+    );
+
     if (message.type === "image" && message.image) {
       return (
         <div className="chat-image-message">
+          {/* Reply indicator for image messages */}
+          {renderReplyIndicator()}
+          
           <img
             src={getOptimizedImageUrl(message.image.publicId, 400, 400)}
             alt={message.text || "Attachment"}
             className="chat-image"
             onClick={() => window.open(message.image.url, "_blank")}
           />
+          
+          {/* Image caption */}
           {message.text && <p className="chat-image-caption">{message.text}</p>}
-          {/* Add tick indicator for images */}
-          <div className="chat-message-status">
-            <span className="chat-message-time">
-              {formatTime(message.timestamp)}
-            </span>
-            {isMessageEdited(message) && (
-              <span className="chat-edited-indicator">Edited</span>
-            )}
-            {isMessageSaved(message) && (
-              <span className="chat-saved-indicator">⭐</span>
-            )}
-            {/* Single tick indicator */}
-            {message.senderId === user.uid && (
-              <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
-                {isSeenByRecipient ? '✓' : ''}
-              </span>
-            )}
-          </div>
+          
+          {/* Message status */}
+          {renderMessageStatus()}
         </div>
       );
     }
 
+    // Text message or mixed content
     return (
       <>
-        <p className="chat-message-text">{message.text}</p>
-        <div className="chat-message-status">
-          <span className="chat-message-time">
-            {formatTime(message.timestamp)}
-          </span>
-          {isMessageEdited(message) && (
-            <span className="chat-edited-indicator">Edited</span>
-          )}
-          {isMessageSaved(message) && (
-            <span className="chat-saved-indicator">⭐</span>
-          )}
-          {/* Single tick indicator */}
-          {message.senderId === user.uid && (
-            <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
-              {isSeenByRecipient ? '✓' : ''}
-            </span>
-          )} 
-        </div>
+        {/* Reply indicator */}
+        {renderReplyIndicator()}
+        
+        {/* Message text */}
+        {message.text && <p className="chat-message-text">{message.text}</p>}
+        
+        {/* Image attachment (for text messages with images) */}
+        {message.image && (
+          <img 
+            src={message.image.url} 
+            alt="Message attachment" 
+            className="message-image" 
+          />
+        )}
+        
+        {/* Message status */}
+        {renderMessageStatus()}
       </>
     );
   };
@@ -621,6 +683,101 @@ useEffect(() => {
     );
   };
 
+  useEffect(() => {
+    const checkBlockStatus = async () => {
+      if (!user?.uid || !friend?.uid) return;
+      
+      try {
+        const blockedList = await getBlockedUsers(user.uid);
+        setBlockedUsers(blockedList);
+        
+        const isUserBlocked = blockedList.some(blockedUser => 
+          blockedUser.uid === friend.uid
+        );
+        setIsBlocked(isUserBlocked);
+      } catch (error) {
+        console.error("Error checking block status:", error);
+      }
+    };
+
+    checkBlockStatus();
+  }, [user?.uid, friend?.uid]);
+
+  const handleBlockUser = async () => {
+    if (!user?.uid || !friend?.uid) return;
+    
+    try {
+      if (isBlocked) {
+        await unblockUser(user.uid, friend.uid);
+        setIsBlocked(false);
+        setBlockedUsers(prev => prev.filter(u => u.uid !== friend.uid));
+        alert(`${friend.displayName} has been unblocked.`);
+      } else {
+        const confirmBlock = window.confirm(
+          `Block ${friend.displayName}? You won't be able to message each other.`
+        );
+        
+        if (confirmBlock) {
+          await blockUser(user.uid, friend.uid);
+          setIsBlocked(true);
+          setBlockedUsers(prev => [...prev, friend]);
+          alert(`${friend.displayName} has been blocked.`);
+        }
+      }
+      setShowUserMenu(false);
+    } catch (error) {
+      console.error("Error blocking/unblocking user:", error);
+      alert("Error: " + error.message);
+    }
+  };
+
+  const handleDeleteChat = async () => {
+    if (!chatId || !user?.uid) return;
+    
+    const confirmDelete = window.confirm(
+      "Delete this chat? This will remove all messages and cannot be undone."
+    );
+    
+    if (!confirmDelete) return;
+    
+    try {
+      await deleteChat(chatId, user.uid);
+      alert("Chat deleted successfully.");
+      onBack(); // Go back to friends list
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+      alert("Error: " + error.message);
+    }
+    setShowUserMenu(false);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        showUserMenu &&
+        !e.target.closest(".chat-user-menu-button") &&
+        !e.target.closest(".chat-user-dropdown-menu")
+      ) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener("click", handleClickOutside);
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [showUserMenu]);
+
+  const handleStartReply = (message) => {
+    setReplyingTo(message);
+    inputRef.current?.focus();
+  };
+
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+    setReplyText('');
+  };
+
   if (!friend) {
     return (
       <div className="chat-container">
@@ -635,7 +792,7 @@ useEffect(() => {
   }
 
   return (
-    <div className="chat-container">
+    <div className={`chat-container ${isBlocked ? 'blocked' : ''}`}>
       {/* Chat Header */}
       <div className="chat-header">
         <button onClick={onBack} className="chat-back-button">
@@ -657,6 +814,35 @@ useEffect(() => {
             </p>
           </div>
         </div>
+
+        {/* User Menu Button*/}
+        <div className="chat-header-actions">
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="chat-user-menu-button"
+            title="More options"
+          >
+            <svg aria-label="More options" className="x1lliihq x1n2onr6 x9bdzbf" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><title>More options</title><circle cx="12" cy="12" r="1.5"></circle><circle cx="6" cy="12" r="1.5"></circle><circle cx="18" cy="12" r="1.5"></circle></svg>
+          </button>
+          
+          {showUserMenu && (
+            <div className="chat-user-dropdown-menu">
+              <button
+                onClick={handleBlockUser}
+                className="chat-menu-item block-button"
+              >
+                {isBlocked ? "Unblock User" : "Block User"}
+              </button>
+              <button
+                onClick={handleDeleteChat}
+                className="chat-menu-item delete-button"
+              >
+                Delete Chat
+              </button>
+            </div>
+          )}
+        </div>
+
         <button
           onClick={() => setShowMusicPlayer(true)}
           className="chat-music-button"
@@ -715,6 +901,7 @@ useEffect(() => {
                         : "chat-received-message"
                     } ${isMessageSaved(message) ? "chat-saved-message" : ""}`}
                   >
+
                     <div className="chat-message-content">
                       {editingMessageId === message.id ? (
                         <div className="chat-edit-container">
@@ -744,6 +931,17 @@ useEffect(() => {
                         renderMessageContent(message)
                       )}
                     </div>
+
+                    {/* REPLY BUTTON - Add this inside the message bubble */}
+                    {message.senderId !== user?.uid && hoveredMessage?.id === message.id && (
+                      <button 
+                        className="reply-button"
+                        onClick={() => handleStartReply(message)}
+                        title="Reply to this message"
+                      >
+                        <span aria-describedby="_r_2a_" class="html-span xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x18d9i69 x1c1uobl x1hl2dhg x16tdsg8 x1vvkbs x4k7w5x x1h91t0o x1h9r5lt x1jfb8zj xv2umb2 x1beo9mf xaigb6o x12ejxvf x3igimt xarpa2k xedcshv x1lytzrv x1t2pt76 x7ja8zs x1qrby5j"><div aria-disabled="false" role="button" tabindex="0"><div class="x1i10hfl x972fbf x10w94by x1qhh985 x14e42zd x9f619 x3ct3a4 xdj266r x14z9mp xat24cr x1lziwak x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x6s0dn4 xjbqb8w x1ejq31n x18oe1m7 x1sy0etr xstzfhl x1ypdohk x78zum5 xl56j7k x1y1aw1k xf159sx xwib8y2 xmzvs34 x1epzrsm x1jplu5e x14snt5h x4gyw5p x1o7uuvo x1c9tyrk xeusxvb x1pahc9y x1ertn4p xxk0z11 x1hc1fzr xvy4d1p x15vn3sj" role="button" tabindex="0"><div class="x6s0dn4 x78zum5 xdt5ytf xl56j7k"><svg aria-label="Reply to message from igtestingsub" class="x1lliihq x1n2onr6 x5n08af" fill="currentColor" height="16" role="img" viewBox="0 0 24 24" width="16"><title>Reply to message from igtestingsub</title><path d="M14 8.999H4.413l5.294-5.292a1 1 0 1 0-1.414-1.414l-7 6.998c-.014.014-.019.033-.032.048A.933.933 0 0 0 1 9.998V10c0 .027.013.05.015.076a.907.907 0 0 0 .282.634l6.996 6.998a1 1 0 0 0 1.414-1.414L4.415 11H14a7.008 7.008 0 0 1 7 7v3.006a1 1 0 0 0 2 0V18a9.01 9.01 0 0 0-9-9Z"></path></svg></div></div></div></span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Dropdown Menu - UPDATED: Uses renderMenuOptions function */}
@@ -819,6 +1017,19 @@ useEffect(() => {
         </div>
       )}
 
+      {/* REPLY PREVIEW - Add this right after the chat header */}
+      {replyingTo && (
+        <div className="reply-preview">
+          <div className="reply-info">
+            <span>Replying to {replyingTo.senderId === user?.uid ? 'yourself' : 'message'}</span>
+            <button onClick={handleCancelReply} className="reply-cancel-button">✕</button>
+          </div>
+          <div className="original-message-preview">
+            {replyingTo.type === 'image' ? '📷 Image' : (replyingTo.text || '').substring(0, 50)}
+          </div>
+        </div>
+      )}
+
       {/* Message Input */}
       <form onSubmit={handleSendMessage} className="chat-input-container">
         <button
@@ -832,17 +1043,24 @@ useEffect(() => {
         </button>
 
         <input
+          ref={inputRef}
           type="text"
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type here..."
+          value={replyingTo ? replyText : newMessage}
+          onChange={(e) => {
+            if (replyingTo) {
+              setReplyText(e.target.value);
+            } else {
+              setNewMessage(e.target.value);
+            }
+          }}
+          placeholder={replyingTo ? "Type your reply..." : "Type here..."}
           className="chat-message-input"
           disabled={loading}
         />
 
         <button
           type="submit"
-          disabled={loading || (!newMessage.trim() && !uploadingImage)}
+          disabled={loading || (!newMessage.trim() && !replyText.trim() && !selectedImage)}
           className="chat-send-button"
         >
           <svg aria-label="Send" class="x1lliihq x1n2onr6 x9bdzbf" fill="currentColor" height="18" role="img" viewBox="0 0 24 24" width="18"><title>Send</title><path d="M22.513 3.576C21.826 2.552 20.617 2 19.384 2H4.621c-1.474 0-2.878.818-3.46 2.173-.6 1.398-.297 2.935.784 3.997l3.359 3.295a1 1 0 0 0 1.195.156l8.522-4.849a1 1 0 1 1 .988 1.738l-8.526 4.851a1 1 0 0 0-.477 1.104l1.218 5.038c.343 1.418 1.487 2.534 2.927 2.766.208.034.412.051.616.051 1.26 0 2.401-.644 3.066-1.763l7.796-13.118a3.572 3.572 0 0 0-.116-3.863Z"></path></svg>
