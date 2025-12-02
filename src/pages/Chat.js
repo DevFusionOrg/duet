@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
+import CallScreen from '../Components/Call/CallScreen';
+import IncomingCallModal from '../Components/Call/IncomingCallModal';
+import WebRTCService from '../services/webrtc';
+import CallService from '../services/callService';
 import MusicPlayer from "../Components/MusicPlayer";
 import {
   getOrCreateChat,
@@ -22,6 +26,8 @@ import { openUploadWidget, getOptimizedImageUrl } from "../services/cloudinary";
 import "../styles/Chat.css";
 import { notificationService } from "../services/notifications";
 import { requestNotificationPermission, onMessageListener } from "../firebase/firebase";
+import { ref, onValue, remove } from "firebase/database";
+import { database } from "../firebase/firebase";
 
 function Chat({ user, friend, onBack }) {
   const [messages, setMessages] = useState([]);
@@ -29,6 +35,11 @@ function Chat({ user, friend, onBack }) {
   const [loading,] = useState(false);
   const [chatId, setChatId] = useState(null);
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
+  const [callState, setCallState] = useState('idle'); // 'idle' | 'ringing' | 'connecting' | 'active' | 'ended'
+  const [isInCall, setIsInCall] = useState(false);
+  const [incomingCall, setIncomingCall] = useState(null);
+  const [callDuration, setCallDuration] = useState(0);
+  const [callStartTime, setCallStartTime] = useState(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editText, setEditText] = useState("");
   const [selectedMessage, setSelectedMessage] = useState(null);
@@ -52,113 +63,89 @@ function Chat({ user, friend, onBack }) {
   const [replyText, setReplyText] = useState('');
   const inputRef = useRef(null);
   const [selectedImage, setSelectedImage] = useState(null);
-
-  useEffect(() => {
-  const initializeNotifications = async () => {
-    const hasPermission = await notificationService.requestPermission();
-    setHasNotificationPermission(hasPermission);
-    
-    if (hasPermission) {
-      const token = await requestNotificationPermission();
-      setNotificationToken(token);
-      
-      if (token && user) {
-        await saveUserNotificationToken(user.uid, token);
-      }
-    }
-  };
-
-  initializeNotifications();
-}, [user]);
-
-useEffect(() => {
-  const setupForegroundMessages = async () => {
-    const payload = await onMessageListener();
-    if (payload) {
-      const { title, body, data } = payload.notification || payload;
-      
-      notificationService.showNotification(title || 'New Message', {
-        body,
-        data,
-        icon: data?.senderPhoto || '/default-avatar.png'
-      });
-    }
-  };
-
-  setupForegroundMessages();
-}, []);
-
-useEffect(() => {
-  if (!chatId) return;
-
-  const unsubscribe = listenToChatMessages(chatId, (chatMessages) => {
-    const previousMessageCount = messages.length;
-    setMessages(chatMessages);
-    scrollToBottom();
-    markMessagesAsRead(chatId, user.uid);
-    
-    if (chatMessages.length > previousMessageCount && previousMessageCount > 0) {
-      const newMessages = chatMessages.slice(previousMessageCount);
-      const newMessageFromFriend = newMessages.find(msg => 
-        msg.senderId === friend.uid && 
-        !msg.seenBy?.includes(user.uid)
-      );
-      
-      if (newMessageFromFriend) {
-        showNewMessageNotification(newMessageFromFriend);
-      }
-    }
-  });
-
-  return unsubscribe;
-}, [chatId, user.uid, messages.length]);
-
-const showNewMessageNotification = (message) => {
-  const isViewingThisChat = true;
-
-  if (!isViewingThisChat && hasNotificationPermission) {
-    const notificationTitle = friend.displayName;
-    const notificationBody = message.type === 'image' ? '📷 Sent a photo' : message.text;
-    
-    notificationService.showNotificationIfHidden(notificationTitle, {
-      body: notificationBody.length > 100 ? notificationBody.substring(0, 100) + '...' : notificationBody,
-      icon: friend.photoURL,
-      badge: '/badge.png',
-      data: {
-        chatId,
-        senderId: friend.uid,
-        messageId: message.id,
-        type: 'new-message'
-      },
-      vibrate: [200, 100, 200],
-      tag: `chat-${chatId}`,
-      renotify: true,
-      requireInteraction: false,
-      silent: false
-    });
-    playNotificationSound();
-  }
-};
-
-const playNotificationSound = () => {
-  const audio = new Audio('/notification.mp3');
-  audio.volume = 0.3;
-  audio.play().catch(e => console.log('Audio play failed:', e));
-};
-
-useEffect(() => {
-  const handleNotificationClick = (event) => {
-    const { chatId, senderId } = event.detail;
-    console.log('Notification clicked for chat:', chatId);
-  };
-
-  window.addEventListener('notification-click', handleNotificationClick);
   
-  return () => {
-    window.removeEventListener('notification-click', handleNotificationClick);
-  };
-}, []);
+  // Refs for call management
+  const callTimeoutRef = useRef(null);
+  const ringtoneAudioRef = useRef(null);
+  const incomingCallRef = useRef(null);
+  const callIdRef = useRef(null); // Store the current call ID
 
+  // Initialize notifications
+  useEffect(() => {
+    const initializeNotifications = async () => {
+      const hasPermission = await notificationService.requestPermission();
+      setHasNotificationPermission(hasPermission);
+      
+      if (hasPermission) {
+        const token = await requestNotificationPermission();
+        setNotificationToken(token);
+        
+        if (token && user) {
+          await saveUserNotificationToken(user.uid, token);
+        }
+      }
+    };
+
+    initializeNotifications();
+  }, [user]);
+
+  // Setup foreground message listener
+  useEffect(() => {
+    const setupForegroundMessages = async () => {
+      const payload = await onMessageListener();
+      if (payload) {
+        const { title, body, data } = payload.notification || payload;
+        
+        notificationService.showNotification(title || 'New Message', {
+          body,
+          data,
+          icon: data?.senderPhoto || '/default-avatar.png'
+        });
+      }
+    };
+
+    setupForegroundMessages();
+  }, []);
+
+  // Listen for incoming calls
+  useEffect(() => {
+    if (!user || !friend) return;
+
+    const unsubscribe = CallService.listenForIncomingCalls(user.uid, (calls) => {
+      console.log('Incoming calls received:', calls);
+      
+      // Filter out calls that are already ended
+      const activeCalls = calls.filter(call => call.status !== 'ended' && call.status !== 'missed');
+      
+      if (activeCalls.length > 0 && !incomingCall) {
+        const newIncomingCall = activeCalls[0];
+        console.log('Setting incoming call:', newIncomingCall);
+        
+        setIncomingCall(newIncomingCall);
+        incomingCallRef.current = newIncomingCall;
+        callIdRef.current = newIncomingCall.callId;
+        
+        // Play ringtone for incoming call
+        playRingtone();
+        
+        // Set timeout for auto-decline after 1 minute
+        if (callTimeoutRef.current) {
+          clearTimeout(callTimeoutRef.current);
+        }
+        
+        callTimeoutRef.current = setTimeout(() => {
+          console.log('Auto-declining call after 1 minute:', newIncomingCall.callId);
+          handleAutoDeclineCall(newIncomingCall.callId);
+        }, 60000); // 1 minute
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user, friend, incomingCall]);
+
+  // Listen for friend's online status
   useEffect(() => {
     if (!friend?.uid) return;
 
@@ -172,67 +159,55 @@ useEffect(() => {
       }
     });
 
-    return unsubscribe;
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [friend?.uid]);
 
-  const getLastSeenText = () => {
-    if (isFriendOnline) return "Online";
-
-    if (lastSeen) {
-      const lastSeenDate = lastSeen.toDate ? lastSeen.toDate() : new Date(lastSeen);
-      const now = new Date();
-      const diffMinutes = Math.floor((now - lastSeenDate) / (1000 * 60));
-
-      if (diffMinutes < 1) return "Just now";
-      if (diffMinutes < 60) return `${diffMinutes}m ago`;
-      if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-      return lastSeenDate.toLocaleDateString();
+  // Call duration timer
+  useEffect(() => {
+    let interval;
+    if (isInCall && callState === 'active' && callStartTime) {
+      interval = setInterval(() => {
+        const duration = Math.floor((Date.now() - callStartTime) / 1000);
+        setCallDuration(duration);
+      }, 1000);
     }
 
-    return "Offline";
-  };
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isInCall, callState, callStartTime]);
 
-  const getMessageDate = (timestamp) => {
-    if (!timestamp) return null;
-    if (timestamp.toDate) return timestamp.toDate();
-    if (timestamp instanceof Date) return timestamp;
-    return new Date(timestamp);
-  };
+  // Listen for chat messages
+  useEffect(() => {
+    if (!chatId) return;
 
-  const isSameDay = (tsA, tsB) => {
-    if (!tsA || !tsB) return false;
-    const a = getMessageDate(tsA);
-    const b = getMessageDate(tsB);
-    return (
-      a.getFullYear() === b.getFullYear() &&
-      a.getMonth() === b.getMonth() &&
-      a.getDate() === b.getDate()
-    );
-  };
-
-  const formatDateHeader = (date) => {
-    if (!date) return "";
-    const d = getMessageDate(date);
-    const now = new Date();
-
-    const diff = Math.floor((stripTime(now) - stripTime(d)) / (1000 * 60 * 60 * 24));
-    if (diff === 0) return "Today";
-    if (diff === 1) return "Yesterday";
-
-    return d.toLocaleDateString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
+    const unsubscribe = listenToChatMessages(chatId, (chatMessages) => {
+      const previousMessageCount = messages.length;
+      setMessages(chatMessages);
+      scrollToBottom();
+      markMessagesAsRead(chatId, user.uid);
+      
+      if (chatMessages.length > previousMessageCount && previousMessageCount > 0) {
+        const newMessages = chatMessages.slice(previousMessageCount);
+        const newMessageFromFriend = newMessages.find(msg => 
+          msg.senderId === friend.uid && 
+          !msg.seenBy?.includes(user.uid)
+        );
+        
+        if (newMessageFromFriend) {
+          showNewMessageNotification(newMessageFromFriend);
+        }
+      }
     });
-  };
 
-  const stripTime = (d) => {
-    const x = new Date(d);
-    x.setHours(0, 0, 0, 0);
-    return x;
-  };
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [chatId, user.uid, messages.length]);
 
+  // Load Cloudinary script
   useEffect(() => {
     const loadCloudinaryScript = () => {
       if (window.cloudinary) {
@@ -261,6 +236,7 @@ useEffect(() => {
     loadCloudinaryScript();
   }, []);
 
+  // Initialize chat and friends
   useEffect(() => {
     if (!user || !friend) return;
 
@@ -284,6 +260,605 @@ useEffect(() => {
     setup();
   }, [user, friend]);
 
+  // Check block status
+  useEffect(() => {
+    const checkBlockStatus = async () => {
+      if (!user?.uid || !friend?.uid) return;
+      
+      try {
+        const blockedList = await getBlockedUsers(user.uid);
+        setBlockedUsers(blockedList);
+        
+        const isUserBlocked = blockedList.some(blockedUser => 
+          blockedUser.uid === friend.uid
+        );
+        setIsBlocked(isUserBlocked);
+      } catch (error) {
+        console.error("Error checking block status:", error);
+      }
+    };
+
+    checkBlockStatus();
+  }, [user?.uid, friend?.uid]);
+
+  // Handle click outside message menu
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        showMessageMenu &&
+        !e.target.closest(".chat-dropdown-menu") &&
+        !e.target.closest(".chat-menu-arrow")
+      ) {
+        setShowMessageMenu(false);
+      }
+    };
+
+    document.addEventListener("click", handleClickOutside);
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [showMessageMenu]);
+
+  // Handle click outside user menu
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        showUserMenu &&
+        !e.target.closest(".chat-user-menu-button") &&
+        !e.target.closest(".chat-user-dropdown-menu")
+      ) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener("click", handleClickOutside);
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [showUserMenu]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup timeouts and audio
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+      }
+      stopRingtone();
+      if (isInCall) {
+        handleEndCall();
+      }
+    };
+  }, []);
+
+  // Play ringtone function
+  const playRingtone = () => {
+    try {
+      stopRingtone(); // Stop any existing ringtone
+      
+      ringtoneAudioRef.current = new Audio('/ringtone.mp3');
+      ringtoneAudioRef.current.loop = true;
+      ringtoneAudioRef.current.volume = 0.7;
+      
+      // Play with error handling
+      ringtoneAudioRef.current.play().catch(error => {
+        console.warn('Ringtone play failed:', error);
+      });
+    } catch (error) {
+      console.error('Error playing ringtone:', error);
+    }
+  };
+
+  // Stop ringtone function
+  const stopRingtone = () => {
+    if (ringtoneAudioRef.current) {
+      try {
+        ringtoneAudioRef.current.pause();
+        ringtoneAudioRef.current.currentTime = 0;
+      } catch (error) {
+        console.error('Error stopping ringtone:', error);
+      }
+      ringtoneAudioRef.current = null;
+    }
+  };
+
+  // Auto decline call after 1 minute - FIXED VERSION
+  const handleAutoDeclineCall = async (callId) => {
+    if (!callId || !user) {
+      console.log('No call ID or user for auto decline');
+      return;
+    }
+
+    try {
+      console.log('Auto declining call:', callId);
+      
+      // Update call status to missed
+      await CallService.endCall(callId, user.uid, 0, 'missed');
+      
+      // Send missed call notification
+      if (incomingCallRef.current) {
+        CallService.sendCallNotification(chatId, user.uid, incomingCallRef.current.callerId, 'missed');
+      }
+      
+      // Show notification
+      if (incomingCallRef.current) {
+        notificationService.showNotification('Missed Call', {
+          body: `Missed call from ${incomingCallRef.current.callerName}`,
+          icon: friend?.photoURL || '/default-avatar.png'
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error auto declining call:', error);
+    } finally {
+      // Cleanup
+      setIncomingCall(null);
+      incomingCallRef.current = null;
+      callIdRef.current = null;
+      stopRingtone();
+      
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
+    }
+  };
+
+  // Call functions
+  const initiateAudioCall = async () => {
+    if (!user || !friend || !chatId) {
+      console.error('Cannot initiate call: Missing user, friend, or chatId');
+      return;
+    }
+
+    if (isBlocked) {
+      alert("You cannot call a blocked user");
+      return;
+    }
+
+    try {
+      // Set call state to ringing
+      setCallState('ringing');
+      setIsInCall(true);
+      
+      // Create call in database
+      const callData = await CallService.createCall(
+        user.uid,
+        user.displayName,
+        friend.uid,
+        friend.displayName
+      );
+
+      // Store call ID
+      callIdRef.current = callData.callId;
+
+      // Set timeout for auto-end after 1 minute
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+      }
+      
+      callTimeoutRef.current = setTimeout(() => {
+        handleCallTimeout(callData.callId);
+      }, 60000); // 1 minute
+
+      // Initialize WebRTC
+      const stream = await WebRTCService.initializeCall(
+        callData.callId,
+        true, // isInitiator
+        user.uid,
+        friend.uid
+      );
+
+      // Setup callbacks
+      WebRTCService.setOnRemoteStream((remoteStream) => {
+        // Handle remote audio stream
+        const audioElement = document.querySelector('.remote-audio');
+        if (audioElement) {
+          audioElement.srcObject = remoteStream;
+        }
+      });
+
+      WebRTCService.setOnConnect(() => {
+        console.log('WebRTC connected');
+        setCallState('active');
+        setCallStartTime(Date.now());
+        
+        // Clear timeout since call was accepted
+        if (callTimeoutRef.current) {
+          clearTimeout(callTimeoutRef.current);
+          callTimeoutRef.current = null;
+        }
+        
+        // Send call started notification
+        CallService.sendCallNotification(chatId, user.uid, friend.uid, 'started');
+      });
+
+      WebRTCService.setOnError((error) => {
+        console.error('WebRTC error:', error);
+        handleCallError(error);
+      });
+
+      WebRTCService.setOnClose(() => {
+        console.log('WebRTC connection closed');
+        handleEndCall();
+      });
+
+      // Create peer connection
+      WebRTCService.createPeer(stream);
+
+      // Listen for call acceptance
+      listenForCallAcceptance(callData.callId);
+      
+    } catch (error) {
+      console.error('Error initiating call:', error);
+      handleCallError(error);
+    }
+  };
+
+  // Listen for call acceptance
+  const listenForCallAcceptance = (callId) => {
+    const callRef = ref(database, `activeCalls/${callId}`);
+    
+    onValue(callRef, (snapshot) => {
+      const callData = snapshot.val();
+      if (callData) {
+        console.log('Call status update:', callData.status);
+        
+        if (callData.status === 'accepted') {
+          setCallState('connecting');
+          console.log('Call accepted by receiver');
+          
+          // Clear timeout since call was accepted
+          if (callTimeoutRef.current) {
+            clearTimeout(callTimeoutRef.current);
+            callTimeoutRef.current = null;
+          }
+        } else if (callData.status === 'declined') {
+          console.log('Call was declined by receiver');
+          setCallState('ended');
+          setIsInCall(false);
+          alert('Call declined');
+          WebRTCService.endCall();
+          
+          // Clear timeout
+          if (callTimeoutRef.current) {
+            clearTimeout(callTimeoutRef.current);
+            callTimeoutRef.current = null;
+          }
+        } else if (callData.status === 'ended' || callData.status === 'missed') {
+          handleEndCall();
+        }
+      }
+    });
+  };
+
+  // Handle call timeout (1 minute) - FIXED VERSION
+  const handleCallTimeout = async (callId) => {
+    if (!callId || !user) return;
+
+    try {
+      console.log('Call timeout for call ID:', callId);
+      
+      // End call in database as missed
+      await CallService.endCall(callId, user.uid, 0, 'missed');
+      
+      // Send missed call notification
+      if (chatId && friend) {
+        CallService.sendCallNotification(chatId, user.uid, friend.uid, 'missed');
+      }
+      
+      // Show notification
+      notificationService.showNotification('Call Ended', {
+        body: 'Call timed out after 1 minute',
+        icon: friend?.photoURL || '/default-avatar.png'
+      });
+      
+    } catch (error) {
+      console.error('Error handling call timeout:', error);
+    } finally {
+      // Cleanup
+      setCallState('ended');
+      setIsInCall(false);
+      WebRTCService.endCall();
+      callIdRef.current = null;
+    }
+  };
+
+  // Handle accept call - FIXED VERSION
+  const handleAcceptCall = async () => {
+    if (!incomingCall) {
+      console.log('No incoming call to accept');
+      return;
+    }
+
+    try {
+      console.log('Accepting call:', incomingCall.callId);
+      
+      // Stop ringtone
+      stopRingtone();
+      
+      // Clear timeout
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
+
+      // Set call state to connecting
+      setCallState('connecting');
+      
+      // Accept call in database
+      await CallService.acceptCall(incomingCall.callId, user.uid);
+
+      // Store call ID
+      callIdRef.current = incomingCall.callId;
+
+      // Initialize WebRTC as receiver
+      const stream = await WebRTCService.initializeCall(
+        incomingCall.callId,
+        false, // not initiator
+        user.uid,
+        incomingCall.callerId
+      );
+
+      // Setup callbacks
+      WebRTCService.setOnRemoteStream((remoteStream) => {
+        const audioElement = document.querySelector('.remote-audio');
+        if (audioElement) {
+          audioElement.srcObject = remoteStream;
+        }
+      });
+
+      WebRTCService.setOnConnect(() => {
+        console.log('Call connected');
+        setCallState('active');
+        setCallStartTime(Date.now());
+        CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'started');
+      });
+
+      WebRTCService.setOnError((error) => {
+        console.error('WebRTC error:', error);
+        handleCallError(error);
+      });
+
+      WebRTCService.setOnClose(() => {
+        console.log('WebRTC connection closed');
+        handleEndCall();
+      });
+
+      // Create peer connection
+      WebRTCService.createPeer(stream);
+
+      setIncomingCall(null);
+      incomingCallRef.current = null;
+      setIsInCall(true);
+      
+    } catch (error) {
+      console.error('Error accepting call:', error);
+      handleCallError(error);
+    }
+  };
+
+  // Handle decline call - FIXED VERSION
+  const handleDeclineCall = async () => {
+    if (!incomingCall) {
+      console.log('No incoming call to decline');
+      return;
+    }
+
+    try {
+      console.log('Declining call:', incomingCall.callId);
+      
+      // Stop ringtone
+      stopRingtone();
+      
+      // Clear timeout
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
+
+      await CallService.declineCall(incomingCall.callId, user.uid);
+      
+      // Send missed call notification
+      CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'missed');
+      
+    } catch (error) {
+      console.error('Error declining call:', error);
+    } finally {
+      // Cleanup states
+      setIncomingCall(null);
+      incomingCallRef.current = null;
+      callIdRef.current = null;
+    }
+  };
+
+  // Handle call error
+  const handleCallError = (error) => {
+    console.error('Call error:', error);
+    setCallState('ended');
+    setIsInCall(false);
+    
+    // Show user-friendly error message
+    let errorMessage = 'Call failed. Please try again.';
+    if (error.message.includes('permission') || error.name === 'NotAllowedError') {
+      errorMessage = 'Microphone permission denied. Please allow microphone access.';
+    } else if (error.message.includes('NotFoundError') || error.name === 'NotFoundError') {
+      errorMessage = 'No microphone found. Please check your audio device.';
+    }
+    
+    alert(errorMessage);
+    handleEndCall();
+  };
+
+  // Handle end call - FIXED VERSION
+  const handleEndCall = async () => {
+    console.log('handleEndCall called');
+    
+    try {
+      const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+      
+      // Stop ringtone if playing
+      stopRingtone();
+      
+      // Clear timeout
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
+
+      // End WebRTC connection
+      WebRTCService.endCall();
+      
+      // Get the current call ID to end
+      const callIdToEnd = callIdRef.current || 
+                         (incomingCall?.callId) || 
+                         (friend ? `${user.uid}_${friend.uid}_*` : null);
+      
+      console.log('Ending call with ID:', callIdToEnd);
+      
+      // End call in database only if we have a call ID
+      if (callIdToEnd && user) {
+        await CallService.endCall(callIdToEnd, user.uid, duration);
+      }
+
+      // Send call ended notification if call was active
+      if (callState === 'active' && chatId && friend) {
+        CallService.sendCallNotification(chatId, user.uid, friend.uid, 'ended', duration);
+      }
+
+    } catch (error) {
+      console.error('Error ending call:', error);
+    } finally {
+      // Always reset states
+      setCallState('idle');
+      setIsInCall(false);
+      setIncomingCall(null);
+      incomingCallRef.current = null;
+      callIdRef.current = null;
+      setCallDuration(0);
+      setCallStartTime(null);
+    }
+  };
+
+  // Toggle mute
+  const handleToggleMute = () => {
+    return WebRTCService.toggleMute();
+  };
+
+  // Toggle speaker
+  const handleToggleSpeaker = () => {
+    const audioElement = document.querySelector('.remote-audio');
+    if (audioElement) {
+      if (audioElement.muted) {
+        audioElement.muted = false;
+        return true; // Speaker is now ON
+      } else {
+        audioElement.muted = true;
+        return false; // Speaker is now OFF
+      }
+    }
+    return false;
+  };
+
+  // Show notification for new message
+  const showNewMessageNotification = (message) => {
+    const isViewingThisChat = true;
+
+    if (!isViewingThisChat && hasNotificationPermission) {
+      const notificationTitle = friend.displayName;
+      const notificationBody = message.type === 'image' ? '📷 Sent a photo' : message.text;
+      
+      notificationService.showNotificationIfHidden(notificationTitle, {
+        body: notificationBody.length > 100 ? notificationBody.substring(0, 100) + '...' : notificationBody,
+        icon: friend.photoURL,
+        badge: '/badge.png',
+        data: {
+          chatId,
+          senderId: friend.uid,
+          messageId: message.id,
+          type: 'new-message'
+        },
+        vibrate: [200, 100, 200],
+        tag: `chat-${chatId}`,
+        renotify: true,
+        requireInteraction: false,
+        silent: false
+      });
+      playNotificationSound();
+    }
+  };
+
+  // Play notification sound
+  const playNotificationSound = () => {
+    const audio = new Audio('/notification.mp3');
+    audio.volume = 0.3;
+    audio.play().catch(e => console.log('Audio play failed:', e));
+  };
+
+  // Get last seen text
+  const getLastSeenText = () => {
+    if (isFriendOnline) return "Online";
+
+    if (lastSeen) {
+      const lastSeenDate = lastSeen.toDate ? lastSeen.toDate() : new Date(lastSeen);
+      const now = new Date();
+      const diffMinutes = Math.floor((now - lastSeenDate) / (1000 * 60));
+
+      if (diffMinutes < 1) return "Just now";
+      if (diffMinutes < 60) return `${diffMinutes}m ago`;
+      if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+      return lastSeenDate.toLocaleDateString();
+    }
+
+    return "Offline";
+  };
+
+  // Get message date
+  const getMessageDate = (timestamp) => {
+    if (!timestamp) return null;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (timestamp instanceof Date) return timestamp;
+    return new Date(timestamp);
+  };
+
+  // Check if same day
+  const isSameDay = (tsA, tsB) => {
+    if (!tsA || !tsB) return false;
+    const a = getMessageDate(tsA);
+    const b = getMessageDate(tsB);
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  };
+
+  // Format date header
+  const formatDateHeader = (date) => {
+    if (!date) return "";
+    const d = getMessageDate(date);
+    const now = new Date();
+
+    const diff = Math.floor((stripTime(now) - stripTime(d)) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+
+    return d.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  // Strip time from date
+  const stripTime = (d) => {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+  };
+
+  // Handle image upload
   const handleImageUploadClick = async () => {
     if (!cloudinaryLoaded) {
       alert("Image upload is still loading. Please try again in a moment.");
@@ -306,28 +881,14 @@ useEffect(() => {
     setUploadingImage(false);
   };
 
-  useEffect(() => {
-    if (!chatId) return;
-
-    const unsubscribe = listenToChatMessages(chatId, (chatMessages) => {
-      setMessages(chatMessages);
-      scrollToBottom();
-      markMessagesAsRead(chatId, user.uid);
-      chatMessages.forEach(message => {
-        if (message.senderId === friend.uid && !message.seenBy?.includes(user.uid)) {
-      }
-      });
-    });
-
-    return unsubscribe;
-  }, [chatId, user.uid]);
-  
+  // Scroll to bottom
   const scrollToBottom = () => {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 300);
   };
 
+  // Send message
   const handleSendMessage = async (e) => {
     e.preventDefault(); // Prevent form submission refresh
     
@@ -380,6 +941,7 @@ useEffect(() => {
     }
   };
 
+  // Save message
   const handleSaveMessage = async (messageId) => {
     try {
       await saveMessage(chatId, messageId, user.uid);
@@ -390,6 +952,7 @@ useEffect(() => {
     }
   };
 
+  // Unsave message
   const handleUnsaveMessage = async (messageId) => {
     try {
       await unsaveMessage(chatId, messageId);
@@ -400,6 +963,7 @@ useEffect(() => {
     }
   };
 
+  // Start editing message
   const handleStartEdit = (message) => {
     if (message.senderId !== user.uid) return;
 
@@ -425,11 +989,13 @@ useEffect(() => {
     setShowMessageMenu(false);
   };
 
+  // Cancel edit
   const handleCancelEdit = () => {
     setEditingMessageId(null);
     setEditText("");
   };
 
+  // Save edit
   const handleSaveEdit = async (messageId) => {
     if (!editText.trim()) return;
 
@@ -443,20 +1009,24 @@ useEffect(() => {
     }
   };
 
+  // Handle message hover
   const handleMessageHover = (message) => {
     setHoveredMessage(message);
   };
 
+  // Handle message leave
   const handleMessageLeave = () => {
     setHoveredMessage(null);
   };
 
+  // Handle arrow click
   const handleArrowClick = (e, message) => {
     e.stopPropagation();
     setSelectedMessage(message);
     setShowMessageMenu(true);
   };
 
+  // Handle forward click
   const handleForwardClick = (message) => {
     setSelectedMessage(message);
     setSelectedFriends([]);
@@ -464,6 +1034,7 @@ useEffect(() => {
     setShowMessageMenu(false);
   };
 
+  // Handle friend selection
   const handleFriendSelection = (friendId) => {
     setSelectedFriends((prev) => {
       if (prev.includes(friendId)) {
@@ -474,6 +1045,7 @@ useEffect(() => {
     });
   };
 
+  // Handle forward messages
   const handleForwardMessages = async () => {
     if (!selectedMessage || selectedFriends.length === 0) return;
 
@@ -497,29 +1069,14 @@ useEffect(() => {
     }
   };
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (
-        showMessageMenu &&
-        !e.target.closest(".chat-dropdown-menu") &&
-        !e.target.closest(".chat-menu-arrow")
-      ) {
-        setShowMessageMenu(false);
-      }
-    };
-
-    document.addEventListener("click", handleClickOutside);
-    return () => {
-      document.removeEventListener("click", handleClickOutside);
-    };
-  }, [showMessageMenu]);
-
+  // Format time
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  // Check if message can be edited
   const canEditMessage = (message) => {
     if (message.senderId !== user.uid) return false;
     if (!message.canEditUntil) return false;
@@ -535,14 +1092,17 @@ useEffect(() => {
     }
   };
 
+  // Check if message is saved
   const isMessageSaved = (message) => {
     return message.isSaved === true;
   };
 
+  // Check if message is edited
   const isMessageEdited = (message) => {
     return message.isEdited === true;
   };
 
+  // Render message content
   const renderMessageContent = (message) => {
     const isSeenByRecipient = message.senderId === user.uid && message.read === true;
     
@@ -625,6 +1185,7 @@ useEffect(() => {
     );
   };
 
+  // Render menu options
   const renderMenuOptions = (message) => {
     if (message.type === "image") {
       return (
@@ -683,26 +1244,7 @@ useEffect(() => {
     );
   };
 
-  useEffect(() => {
-    const checkBlockStatus = async () => {
-      if (!user?.uid || !friend?.uid) return;
-      
-      try {
-        const blockedList = await getBlockedUsers(user.uid);
-        setBlockedUsers(blockedList);
-        
-        const isUserBlocked = blockedList.some(blockedUser => 
-          blockedUser.uid === friend.uid
-        );
-        setIsBlocked(isUserBlocked);
-      } catch (error) {
-        console.error("Error checking block status:", error);
-      }
-    };
-
-    checkBlockStatus();
-  }, [user?.uid, friend?.uid]);
-
+  // Block user
   const handleBlockUser = async () => {
     if (!user?.uid || !friend?.uid) return;
     
@@ -731,6 +1273,7 @@ useEffect(() => {
     }
   };
 
+  // Delete chat
   const handleDeleteChat = async () => {
     if (!chatId || !user?.uid) return;
     
@@ -751,28 +1294,13 @@ useEffect(() => {
     setShowUserMenu(false);
   };
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (
-        showUserMenu &&
-        !e.target.closest(".chat-user-menu-button") &&
-        !e.target.closest(".chat-user-dropdown-menu")
-      ) {
-        setShowUserMenu(false);
-      }
-    };
-
-    document.addEventListener("click", handleClickOutside);
-    return () => {
-      document.removeEventListener("click", handleClickOutside);
-    };
-  }, [showUserMenu]);
-
+  // Start reply
   const handleStartReply = (message) => {
     setReplyingTo(message);
     inputRef.current?.focus();
   };
 
+  // Cancel reply
   const handleCancelReply = () => {
     setReplyingTo(null);
     setReplyText('');
@@ -796,7 +1324,7 @@ useEffect(() => {
       {/* Chat Header */}
       <div className="chat-header">
         <button onClick={onBack} className="chat-back-button">
-          <svg aria-label="Close" class="x1lliihq x1n2onr6 x9bdzbf" fill="currentColor" height="18" role="img" viewBox="0 0 24 24" width="18"><title>Close</title><polyline fill="none" points="20.643 3.357 12 12 3.353 20.647" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"></polyline><line fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" x1="20.649" x2="3.354" y1="20.649" y2="3.354"></line></svg>
+          <svg aria-label="Close" className="x1lliihq x1n2onr6 x9bdzbf" fill="currentColor" height="18" role="img" viewBox="0 0 24 24" width="18"><title>Close</title><polyline fill="none" points="20.643 3.357 12 12 3.353 20.647" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3"></polyline><line fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" x1="20.649" x2="3.354" y1="20.649" y2="3.354"></line></svg>
         </button>
         <div className="chat-user-info">
           <div className="chat-avatar-with-status">
@@ -848,7 +1376,17 @@ useEffect(() => {
           className="chat-music-button"
           disabled={loading}
         >
-          <svg aria-label="Reels" class="x1lliihq x1n2onr6 x5n08af" height="24" viewBox="0 0 24 24" width="24"><title>Music</title><path d="M22.935 7.468c-.063-1.36-.307-2.142-.512-2.67a5.341 5.341 0 0 0-1.27-1.95 5.345 5.345 0 0 0-1.95-1.27c-.53-.206-1.311-.45-2.672-.513C15.333 1.012 14.976 1 12 1s-3.333.012-4.532.065c-1.36.063-2.142.307-2.67.512-.77.298-1.371.69-1.95 1.27a5.36 5.36 0 0 0-1.27 1.95c-.206.53-.45 1.311-.513 2.672C1.012 8.667 1 9.024 1 12s.012 3.333.065 4.532c.063 1.36.307 2.142.512 2.67.297.77.69 1.372 1.27 1.95.58.581 1.181.974 1.95 1.27.53.206 1.311.45 2.672.513C8.667 22.988 9.024 23 12 23s3.333-.012 4.532-.065c1.36-.063 2.142-.307 2.67-.512a5.33 5.33 0 0 0 1.95-1.27 5.356 5.356 0 0 0 1.27-1.95c.206-.53.45-1.311.513-2.672.053-1.198.065-1.555.065-4.531s-.012-3.333-.065-4.532Zm-1.998 8.972c-.05 1.07-.228 1.652-.38 2.04-.197.51-.434.874-.82 1.258a3.362 3.362 0 0 1-1.258.82c-.387.151-.97.33-2.038.379-1.162.052-1.51.063-4.441.063s-3.28-.01-4.44-.063c-1.07-.05-1.652-.228-2.04-.38a3.354 3.354 0 0 1-1.258-.82 3.362 3.362 0 0 1-.82-1.258c-.151-.387-.33-.97-.379-2.038C3.011 15.28 3 14.931 3 12s.01-3.28.063-4.44c.05-1.07.228-1.652.38-2.04.197-.51.434-.875.82-1.26a3.372 3.372 0 0 1 1.258-.819c.387-.15.97-.329 2.038-.378C8.72 3.011 9.069 3 12 3s3.28.01 4.44.063c1.07.05 1.652.228 2.04.38.51.197.874.433 1.258.82.385.382.622.747.82 1.258.151.387.33.97.379 2.038C20.989 8.72 21 9.069 21 12s-.01 3.28-.063 4.44Zm-4.584-6.828-5.25-3a2.725 2.725 0 0 0-2.745.01A2.722 2.722 0 0 0 6.988 9v6c0 .992.512 1.88 1.37 2.379.432.25.906.376 1.38.376.468 0 .937-.123 1.365-.367l5.25-3c.868-.496 1.385-1.389 1.385-2.388s-.517-1.892-1.385-2.388Zm-.993 3.04-5.25 3a.74.74 0 0 1-.748-.003.74.74 0 0 1-.374-.649V9a.74.74 0 0 1 .374-.65.737.737 0 0 1 .748-.002l5.25 3c.341.196.378.521.378.652s-.037.456-.378.651Z"></path></svg>
+          <svg aria-label="Reels" className="x1lliihq x1n2onr6 x5n08af" height="24" viewBox="0 0 24 24" width="24"><title>Music</title><path d="M22.935 7.468c-.063-1.36-.307-2.142-.512-2.67a5.341 5.341 0 0 0-1.27-1.95 5.345 5.345 0 0 0-1.95-1.27c-.53-.206-1.311-.45-2.672-.513C15.333 1.012 14.976 1 12 1s-3.333.012-4.532.065c-1.36.063-2.142.307-2.67.512-.77.298-1.371.69-1.95 1.27a5.36 5.36 0 0 0-1.27 1.95c-.206.53-.45 1.311-.513 2.672C1.012 8.667 1 9.024 1 12s.012 3.333.065 4.532c.063 1.36.307 2.142.512 2.67.297.77.69 1.372 1.27 1.95.58.581 1.181.974 1.95 1.27.53.206 1.311.45 2.672.513C8.667 22.988 9.024 23 12 23s3.333-.012 4.532-.065c1.36-.063 2.142-.307 2.67-.512a5.33 5.33 0 0 0 1.95-1.27a5.356 5.356 0 0 0 1.27-1.95c.206-.53.45-1.311.513-2.672.053-1.198.065-1.555.065-4.531s-.012-3.333-.065-4.532Zm-1.998 8.972c-.05 1.07-.228 1.652-.38 2.04-.197.51-.434.874-.82 1.258a3.362 3.362 0 0 1-1.258.82c-.387.151-.97.33-2.038.379-1.162.052-1.51.063-4.441.063s-3.28-.01-4.44-.063c-1.07-.05-1.652-.228-2.04-.38a3.354 3.354 0 0 1-1.258-.82 3.362 3.362 0 0 1-.82-1.258c-.151-.387-.33-.97-.379-2.038C3.011 15.28 3 14.931 3 12s.01-3.28.063-4.44c.05-1.07.228-1.652.38-2.04.197-.51.434-.875.82-1.26a3.372 3.372 0 0 1 1.258-.819c.387-.15.97-.329 2.038-.378C8.72 3.011 9.069 3 12 3s3.28.01 4.44.063c1.07.05 1.652.228 2.04.38.51.197.874.433 1.258.82.385.382.622.747.82 1.258.151.387.33.97.379 2.038C20.989 8.72 21 9.069 21 12s-.01 3.28-.063 4.44Zm-4.584-6.828-5.25-3a2.725 2.725 0 0 0-2.745.01A2.722 2.722 0 0 0 6.988 9v6c0 .992.512 1.88 1.37 2.379.432.25.906.376 1.38.376.468 0 .937-.123 1.365-.367l5.25-3c.868-.496 1.385-1.389 1.385-2.388s-.517-1.892-1.385-2.388Zm-.993 3.04-5.25 3a.74.74 0 0 1-.748-.003.74.74 0 0 1-.374-.649V9a.74.74 0 0 1 .374-.65.737.737 0 0 1 .748-.002l5.25 3c.341.196.378.521.378.652s-.037.456-.378.651Z"></path></svg>
+        </button>
+
+        {/* Audio Call Button */}
+        <button
+          onClick={initiateAudioCall}
+          className="chat-call-button"
+          title="Audio call"
+          disabled={isBlocked || loading || isInCall}
+        >
+          <svg aria-label="Audio call" fill="currentColor" height="24" width="24" viewBox="0 0 24 24"><path d="M18.227 22.912c-4.913 0-9.286-3.627-11.486-5.828C4.486 14.83.731 10.291.921 5.231a3.289 3.289 0 0 1 .908-2.138 17.116 17.116 0 0 1 1.865-1.71 2.307 2.307 0 0 1 3.004.174 13.283 13.283 0 0 1 3.658 5.325 2.551 2.551 0 0 1-.19 1.941l-.455.853a.463.463 0 0 0-.024.387 7.57 7.57 0 0 0 4.077 4.075.455.455 0 0 0 .386-.024l.853-.455a2.548 2.548 0 0 1 1.94-.19 13.278 13.278 0 0 1 5.326 3.658 2.309 2.309 0 0 1 .174 3.003 17.319 17.319 0 0 1-1.71 1.866 3.29 3.29 0 0 1-2.138.91 10.27 10.27 0 0 1-.368.006Zm-13.144-20a.27.27 0 0 0-.167.054A15.121 15.121 0 0 0 3.28 4.47a1.289 1.289 0 0 0-.36.836c-.161 4.301 3.21 8.34 5.235 10.364s6.06 5.403 10.366 5.236a1.284 1.284 0 0 0 .835-.36 15.217 15.217 0 0 0 1.504-1.637.324.324 0 0 0-.047-.41 11.62 11.62 0 0 0-4.457-3.119.545.545 0 0 0-.411.044l-.854.455a2.452 2.452 0 0 1-2.071.116 9.571 9.571 0 0 1-5.189-5.188 2.457 2.457 0 0 1 .115-2.071l.456-.855a.544.544 0 0 0 .043-.41 11.629 11.629 0 0 0-3.118-4.458.36.36 0 0 0-.244-.1Z"></path></svg>
         </button>
       </div>
 
@@ -939,7 +1477,7 @@ useEffect(() => {
                         onClick={() => handleStartReply(message)}
                         title="Reply to this message"
                       >
-                        <span aria-describedby="_r_2a_" class="html-span xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x18d9i69 x1c1uobl x1hl2dhg x16tdsg8 x1vvkbs x4k7w5x x1h91t0o x1h9r5lt x1jfb8zj xv2umb2 x1beo9mf xaigb6o x12ejxvf x3igimt xarpa2k xedcshv x1lytzrv x1t2pt76 x7ja8zs x1qrby5j"><div aria-disabled="false" role="button" tabindex="0"><div class="x1i10hfl x972fbf x10w94by x1qhh985 x14e42zd x9f619 x3ct3a4 xdj266r x14z9mp xat24cr x1lziwak x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x6s0dn4 xjbqb8w x1ejq31n x18oe1m7 x1sy0etr xstzfhl x1ypdohk x78zum5 xl56j7k x1y1aw1k xf159sx xwib8y2 xmzvs34 x1epzrsm x1jplu5e x14snt5h x4gyw5p x1o7uuvo x1c9tyrk xeusxvb x1pahc9y x1ertn4p xxk0z11 x1hc1fzr xvy4d1p x15vn3sj" role="button" tabindex="0"><div class="x6s0dn4 x78zum5 xdt5ytf xl56j7k"><svg aria-label="Reply to message from igtestingsub" class="x1lliihq x1n2onr6 x5n08af" fill="currentColor" height="16" role="img" viewBox="0 0 24 24" width="16"><title>Reply to message from igtestingsub</title><path d="M14 8.999H4.413l5.294-5.292a1 1 0 1 0-1.414-1.414l-7 6.998c-.014.014-.019.033-.032.048A.933.933 0 0 0 1 9.998V10c0 .027.013.05.015.076a.907.907 0 0 0 .282.634l6.996 6.998a1 1 0 0 0 1.414-1.414L4.415 11H14a7.008 7.008 0 0 1 7 7v3.006a1 1 0 0 0 2 0V18a9.01 9.01 0 0 0-9-9Z"></path></svg></div></div></div></span>
+                        <span aria-describedby="_r_2a_" className="html-span xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x18d9i69 x1c1uobl x1hl2dhg x16tdsg8 x1vvkbs x4k7w5x x1h91t0o x1h9r5lt x1jfb8zj xv2umb2 x1beo9mf xaigb6o x12ejxvf x3igimt xarpa2k xedcshv x1lytzrv x1t2pt76 x7ja8zs x1qrby5j"><div aria-disabled="false" role="button" tabIndex="0"><div className="x1i10hfl x972fbf x10w94by x1qhh985 x14e42zd x9f619 x3ct3a4 xdj266r x14z9mp xat24cr x1lziwak x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x6s0dn4 xjbqb8w x1ejq31n x18oe1m7 x1sy0etr xstzfhl x1ypdohk x78zum5 xl56j7k x1y1aw1k xf159sx xwib8y2 xmzvs34 x1epzrsm x1jplu5e x14snt5h x4gyw5p x1o7uuvo x1c9tyrk xeusxvb x1pahc9y x1ertn4p xxk0z11 x1hc1fzr xvy4d1p x15vn3sj" role="button" tabIndex="0"><div className="x6s0dn4 x78zum5 xdt5ytf xl56j7k"><svg aria-label="Reply to message from igtestingsub" className="x1lliihq x1n2onr6 x5n08af" fill="currentColor" height="16" role="img" viewBox="0 0 24 24" width="16"><title>Reply to message from igtestingsub</title><path d="M14 8.999H4.413l5.294-5.292a1 1 0 1 0-1.414-1.414l-7 6.998c-.014.014-.019.033-.032.048A.933.933 0 0 0 1 9.998V10c0 .027.013.05.015.076a.907.907 0 0 0 .282.634l6.996 6.998a1 1 0 0 0 1.414-1.414L4.415 11H14a7.008 7.008 0 0 1 7 7v3.006a1 1 0 0 0 2 0V18a9.01 9.01 0 0 0-9-9Z"></path></svg></div></div></div></span>
                       </button>
                     )}
                   </div>
@@ -1039,7 +1577,7 @@ useEffect(() => {
           className="chat-image-upload-button"
           title={cloudinaryLoaded ? "Upload image" : "Loading image upload..."}
         >
-          <svg viewBox="0 0 24 24" width="44" height="44" fill="currentColor" class="x14ctfv xbudbmw x10l6tqk xwa60dl x11lhmoz"><path d="M12 9.652a3.54 3.54 0 1 0 3.54 3.539A3.543 3.543 0 0 0 12 9.65zm6.59-5.187h-.52a1.107 1.107 0 0 1-1.032-.762 3.103 3.103 0 0 0-3.127-1.961H10.09a3.103 3.103 0 0 0-3.127 1.96 1.107 1.107 0 0 1-1.032.763h-.52A4.414 4.414 0 0 0 1 8.874v9.092a4.413 4.413 0 0 0 4.408 4.408h13.184A4.413 4.413 0 0 0 23 17.966V8.874a4.414 4.414 0 0 0-4.41-4.41zM12 18.73a5.54 5.54 0 1 1 5.54-5.54A5.545 5.545 0 0 1 12 18.73z"></path></svg>
+          <svg viewBox="0 0 24 24" width="44" height="44" fill="currentColor" className="x14ctfv xbudbmw x10l6tqk xwa60dl x11lhmoz"><path d="M12 9.652a3.54 3.54 0 1 0 3.54 3.539A3.543 3.543 0 0 0 12 9.65zm6.59-5.187h-.52a1.107 1.107 0 0 1-1.032-.762 3.103 3.103 0 0 0-3.127-1.961H10.09a3.103 3.103 0 0 0-3.127 1.96 1.107 1.107 0 0 1-1.032.763h-.52A4.414 4.414 0 0 0 1 8.874v9.092a4.413 4.413 0 0 0 4.408 4.408h13.184A4.413 4.413 0 0 0 23 17.966V8.874a4.414 4.414 0 0 0-4.41-4.41zM12 18.73a5.54 5.54 0 1 1 5.54-5.54A5.545 5.545 0 0 1 12 18.73z"></path></svg>
         </button>
 
         <input
@@ -1063,7 +1601,7 @@ useEffect(() => {
           disabled={loading || (!newMessage.trim() && !replyText.trim() && !selectedImage)}
           className="chat-send-button"
         >
-          <svg aria-label="Send" class="x1lliihq x1n2onr6 x9bdzbf" fill="currentColor" height="18" role="img" viewBox="0 0 24 24" width="18"><title>Send</title><path d="M22.513 3.576C21.826 2.552 20.617 2 19.384 2H4.621c-1.474 0-2.878.818-3.46 2.173-.6 1.398-.297 2.935.784 3.997l3.359 3.295a1 1 0 0 0 1.195.156l8.522-4.849a1 1 0 1 1 .988 1.738l-8.526 4.851a1 1 0 0 0-.477 1.104l1.218 5.038c.343 1.418 1.487 2.534 2.927 2.766.208.034.412.051.616.051 1.26 0 2.401-.644 3.066-1.763l7.796-13.118a3.572 3.572 0 0 0-.116-3.863Z"></path></svg>
+          <svg aria-label="Send" className="x1lliihq x1n2onr6 x9bdzbf" fill="currentColor" height="18" role="img" viewBox="0 0 24 24" width="18"><title>Send</title><path d="M22.513 3.576C21.826 2.552 20.617 2 19.384 2H4.621c-1.474 0-2.878.818-3.46 2.173-.6 1.398-.297 2.935.784 3.997l3.359 3.295a1 1 0 0 0 1.195.156l8.522-4.849a1 1 0 1 1 .988 1.738l-8.526 4.851a1 1 0 0 0-.477 1.104l1.218 5.038c.343 1.418 1.487 2.534 2.927 2.766.208.034.412.051.616.051 1.26 0 2.401-.644 3.066-1.763l7.796-13.118a3.572 3.572 0 0 0-.116-3.863Z"></path></svg>
         </button>
       </form>
 
@@ -1075,6 +1613,34 @@ useEffect(() => {
         pinned={true}
         onClose={() => setShowMusicPlayer(false)}
       />
+
+      {/* Incoming Call Modal */}
+      {incomingCall && (
+        <IncomingCallModal
+          callerName={incomingCall.callerName}
+          callerPhoto={friend?.photoURL}
+          onAccept={handleAcceptCall}
+          onDecline={handleDeclineCall}
+          onClose={() => setIncomingCall(null)}
+          ringtonePlaying={true}
+        />
+      )}
+
+      {/* Active Call Screen */}
+      {isInCall && friend && (
+        <CallScreen
+          friend={friend}
+          callState={callState}
+          callDuration={callDuration}
+          onEndCall={handleEndCall}
+          onToggleMute={handleToggleMute}
+          onToggleSpeaker={handleToggleSpeaker}
+          isInitiator={!incomingCall} // true if we initiated, false if we received
+        />
+      )}
+
+      {/* Hidden audio element for remote stream */}
+      <audio className="remote-audio" autoPlay playsInline />
     </div>
   );
 }
