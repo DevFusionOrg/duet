@@ -96,6 +96,37 @@
   padding-top: 116px;
 }
 
+.chat-call-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+  color: #262626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-call-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Call button specific styles */
+.chat-call-button {
+  color: #0070F6;
+}
+
+.chat-call-button:hover:not(:disabled) {
+  background-color: rgba(0, 112, 246, 0.1);
+}
+
+.chat-call-button:disabled {
+  color: #999;
+}
+
 .chat-message-wrapper {
   display: flex;
   align-items: flex-end;
