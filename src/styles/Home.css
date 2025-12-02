@@ -1333,3 +1333,8 @@
 .status.offline {
   color: #ff0000;
 }
+
+.SearchHeading{
+  text-align: center;
+  color: #764ba2;
+}
