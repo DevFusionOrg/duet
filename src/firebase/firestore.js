@@ -559,22 +559,6 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
   }
 };
 
-export const markMessageAsSeen = async (chatId, messageId, seenByUserId) => {
-  try {
-    const messageRef = doc(db, "chats", chatId, "messages", messageId);
-    
-    await updateDoc(messageRef, {
-      read: true,
-      readBy: seenByUserId,
-      readAt: new Date()
-    });
-    
-    console.log("Message marked as seen by:", seenByUserId);
-  } catch (error) {
-    console.error("Error marking message as seen:", error);
-  }
-};
-
 export const saveUserNotificationToken = async (userId, token) => {
   try {
     const userRef = doc(db, "users", userId);
@@ -599,15 +583,16 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       text: text || "",
       timestamp: new Date(),
       read: false,
-      readBy: null, // Who read it
-      readAt: null, // When it was read
-      seenBy: [], // Array of users who have seen it
+      readBy: null,
+      readAt: null,
+      seenBy: [],
       deletionTime: deletionTime,
       isSaved: false,
       isEdited: false,
       editHistory: [],
       originalText: text || "",
       canEditUntil: new Date(Date.now() + 15 * 60 * 1000),
+      isReply: false,
     };
 
     const receiverId = chatId.replace(senderId, '').replace('_', '');
@@ -632,6 +617,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     await updateDoc(chatRef, {
       lastMessage: text || "📷 Image",
       lastMessageAt: new Date(),
+      lastMessageId: messageRef.id, // Add this line
     });
 
     return messageRef.id;
@@ -770,7 +756,6 @@ export const listenToUserChats = (userId, callback) => {
   });
 };
 
-// FIXED: Missing closing brace in markMessagesAsRead
 export const markMessagesAsRead = async (chatId, userId) => {
   try {
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -799,7 +784,6 @@ export const markMessagesAsRead = async (chatId, userId) => {
   }
 };
 
-// FIXED: Simplified version without complex queries
 export const listenToUnreadMessagesCount = (userId, callback) => {
   return listenToUserChats(userId, (chats) => {
     const friendsWithUnread = new Set();
@@ -1249,4 +1233,117 @@ export const getBlockedUsers = async (userId) => {
     console.error("Error getting blocked users:", error);
     return [];
   }
+};
+
+export const replyToMessage = async (chatId, originalMessageId, replyText, senderId, imageData = null) => {
+  try {
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    
+    const originalMessageRef = doc(db, "chats", chatId, "messages", originalMessageId);
+    const originalMessageSnap = await getDoc(originalMessageRef);
+    
+    if (!originalMessageSnap.exists()) {
+      throw new Error("Original message not found");
+    }
+    
+    const originalMessage = originalMessageSnap.data();
+    
+    const deletionTime = new Date();
+    deletionTime.setHours(deletionTime.getHours() + 24);
+    
+    const replyData = {
+      senderId,
+      text: replyText || "",
+      timestamp: new Date(),
+      read: false,
+      readBy: null,
+      readAt: null,
+      seenBy: [],
+      deletionTime: deletionTime,
+      isSaved: false,
+      isEdited: false,
+      editHistory: [],
+      originalText: replyText || "",
+      canEditUntil: new Date(Date.now() + 15 * 60 * 1000),
+      isReply: true,
+      originalMessageId: originalMessageId,
+      originalSenderId: originalMessage.senderId,
+      originalMessageText: originalMessage.text,
+      originalMessageType: originalMessage.type,
+    };
+    
+    if (imageData) {
+      replyData.image = {
+        publicId: imageData.public_id,
+        url: imageData.secure_url,
+        width: imageData.width,
+        height: imageData.height,
+        format: imageData.format,
+      };
+      replyData.type = "image";
+    } else {
+      replyData.type = "text";
+    }
+    
+    if (originalMessage.image) {
+      replyData.originalMessageImage = {
+        url: originalMessage.image.url,
+        publicId: originalMessage.image.publicId,
+      };
+    }
+    
+    const receiverId = chatId.replace(senderId, '').replace('_', '');
+    await sendPushNotification(senderId, receiverId, replyData, chatId);
+    
+    const messageRef = await addDoc(messagesRef, replyData);
+    
+    const chatRef = doc(db, "chats", chatId);
+    await updateDoc(chatRef, {
+      lastMessage: replyText || "📷 Image",
+      lastMessageAt: new Date(),
+      lastMessageId: messageRef.id,
+    });
+    
+    return messageRef.id;
+    
+  } catch (error) {
+    console.error("Error replying to message:", error);
+    throw error;
+  }
+};
+
+export const getMessageById = async (chatId, messageId) => {
+  try {
+    const messageRef = doc(db, "chats", chatId, "messages", messageId);
+    const messageSnap = await getDoc(messageRef);
+    
+    if (!messageSnap.exists()) {
+      return null;
+    }
+    
+    return {
+      id: messageSnap.id,
+      ...messageSnap.data(),
+    };
+  } catch (error) {
+    console.error("Error getting message by ID:", error);
+    return null;
+  }
+};
+
+export const getReplyNotificationData = (originalMessage, replyText, senderName) => {
+  const originalText = originalMessage.text || "an image";
+  const truncatedText = originalText.length > 50 
+    ? originalText.substring(0, 50) + "..."
+    : originalText;
+  
+  return {
+    title: "Reply to your message",
+    body: `${senderName}: ${replyText || "📷 Image"}`,
+    data: {
+      originalMessageId: originalMessage.id,
+      originalText: truncatedText,
+      type: 'reply'
+    }
+  };
 };
