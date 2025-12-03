@@ -96,9 +96,9 @@ class CallService {
       // Remove after delay
       setTimeout(() => {
         remove(callRef).catch(() => {});
-      }, 3000);
+      }, 30000);
 
-      console.log('✅ Call declined');
+      console.log('✅ Call declined' ,  finalStatus);
     } catch (error) {
       console.error('❌ Error declining call:', error);
       throw error;

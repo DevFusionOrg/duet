@@ -456,6 +456,29 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
+  const listenForWebRTCProgress = (callId) => {
+    console.log('👂 Setting up WebRTC progress listener for:', callId);
+    // Listen for ICE candidates
+    const signalsRef = ref(database, `callSignals/${callId}`);
+    const unsubscribe = onValue(signalsRef, (snapshot) => {
+      const signals = snapshot.val();
+      if (signals) {
+        const signalCount = Object.keys(signals).length;
+        console.log(`📡 WebRTC signals exchanged: ${signalCount}`);
+
+        // Check if we have both offer and answer
+        const hasOffer = Object.values(signals).some(s => s.type === 'offer');
+        const hasAnswer = Object.values(signals).some(s => s.type === 'answer');
+        const hasCandidates = Object.values(signals).some(s => s.type === 'candidate');
+      
+        if (hasOffer && hasAnswer && hasCandidates) {
+          console.log('✅ WebRTC negotiation complete - should be connecting soon');
+        }
+      }
+    });
+    return unsubscribe;
+  };
+
   const initiateAudioCall = async () => {
     if (!user || !friend || !chatId) {
       console.error('Cannot initiate call: Missing user, friend, or chatId');
@@ -538,6 +561,7 @@ function Chat({ user, friend, onBack }) {
       WebRTCService.createPeerConnection(stream);
       listenForSignaling(callData.callId);
       listenForCallAcceptance(callData.callId);
+      listenForWebRTCProgress(callData.callId);
     } catch (error) {
       console.error('Error initiating call:', error);
       handleCallError(error);
@@ -583,7 +607,7 @@ function Chat({ user, friend, onBack }) {
         }
       } else {
         console.log('Call data removed');
-        handleEndCall();
+        return;
       }
     });
     callTimeoutRef.current = { unsubscribe, isListener: true };
@@ -682,6 +706,7 @@ function Chat({ user, friend, onBack }) {
       });
       WebRTCService.createPeerConnection(stream);
       listenForSignaling(incomingCall.callId);
+      listenForWebRTCProgress(incomingCall.callId);
       setIncomingCall(null);
       incomingCallRef.current = null;
       setIsInCall(true);
@@ -743,7 +768,7 @@ function Chat({ user, friend, onBack }) {
     console.log('handleEndCall called, current state:', callStateRef.current);
     
     // Prevent multiple calls
-    if (callStateRef.current === 'ended' || callStateRef.current === 'idle') {
+    if (callStateRef.current === 'ended' || callStateRef.current === 'idle' || callStateRef.current === 'ending') {
       console.log('Call already ended, skipping');
       return;
     }
