@@ -585,9 +585,9 @@ class WebRTCService {
   // Send multiple signals at once
   async sendSignals(signals) {
     try {
-      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_${signal.type}`);
+      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_batch`);
       await set(signalRef, {
-        ...signal,
+      signals: signals,
         timestamp: Date.now(),
         senderId: this.isInitiator ? 'caller' : 'callee'
       });
@@ -599,9 +599,9 @@ class WebRTCService {
   // Send single signal
   async sendSignal(signal) {
     try {
-      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_batch`);
+      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_${signal.type}`);
       await set(signalRef, {
-        signals: signals,
+        ...signal,
         timestamp: Date.now(),
         senderId: this.isInitiator ? 'caller' : 'callee'
       });
@@ -614,7 +614,7 @@ class WebRTCService {
   async sendEndCallSignal() {
     try {
       const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_end`);
-      await set(signalRef, {
+      await set(signalRef, { 
         type: 'end-call',
         timestamp: Date.now(),
         senderId: this.isInitiator ? 'caller' : 'callee'
