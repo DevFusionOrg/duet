@@ -98,7 +98,7 @@ class CallService {
         remove(callRef).catch(() => {});
       }, 30000);
 
-      console.log('✅ Call declined' ,  finalStatus);
+      console.log('✅ Call declined');
     } catch (error) {
       console.error('❌ Error declining call:', error);
       throw error;
