@@ -29,7 +29,6 @@
   max-width: 150px;
   margin: 0 12px;
   flex-shrink: 0;
-  display: none;
 }
 
 .header {
@@ -133,14 +132,6 @@
 .closeButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.nowPlaying {
-  display: none;
-}
-
-.songTitle {
-  display: none;
 }
 
 .playerControls {
@@ -280,4 +271,66 @@
   .searchInput {
     font-size: 11px;
   }
+}
+
+/* Add this at the beginning of your CSS file */
+.musicPlayerWrapper {
+  position: fixed;
+  top: 56px; /* Height of your header */
+  left: 0;
+  right: 0;
+  z-index: 999;
+}
+
+.nowPlayingBar {
+  background: #68707a;
+  color: white;
+  padding: 6px 16px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: 36px;
+  box-sizing: border-box;
+}
+
+.nowPlayingText {
+  color: #dddddd;
+  margin-right: 8px;
+  font-weight: 500;
+}
+
+.songNameText {
+  color: #ffffff;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Update the musicPlayer positioning */
+.musicPlayer {
+  position: relative; /* Change from fixed to relative */
+  top: 0; /* Remove the top positioning */
+  right: 0;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  z-index: 998;
+  padding: 8px;
+  box-sizing: border-box;
+  transition: all 200ms ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Update the chat messages padding to account for the extra height */
+.chat-messages-container {
+  padding-top: 152px; /* Increased from 116px to account for nowPlayingBar */
 }
