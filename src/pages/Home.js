@@ -407,6 +407,9 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [showBlockedUsers, setShowBlockedUsers] = useState(false);
+  const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
@@ -417,6 +420,28 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
       });
     }
   }, [userProfile, editing]);
+
+  useEffect(() => {
+    const loadBlockedUsers = async () => {
+      if (!user?.uid) return;
+      
+      setLoadingBlockedUsers(true);
+      try {
+        const { getBlockedUsers } = await import("../firebase/firestore");
+        const blockedList = await getBlockedUsers(user.uid);
+        setBlockedUsers(blockedList);
+      } catch (error) {
+        console.error("Error loading blocked users:", error);
+        setMessage("Error loading blocked users: " + error.message);
+      } finally {
+        setLoadingBlockedUsers(false);
+      }
+    };
+
+    if (!editing) {
+      loadBlockedUsers();
+    }
+  }, [user?.uid, editing]);
 
   const handleProfilePictureUpload = async () => {
     if (!user) return;
@@ -513,6 +538,101 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
       setMessage("Error updating profile: " + error.message);
     }
     setLoading(false);
+  };
+
+  const handleUnblockUser = async (userId) => {
+    if (!user?.uid) return;
+
+    const confirmUnblock = window.confirm(
+      "Are you sure you want to unblock this user? You will be able to message each other again."
+    );
+    
+    if (!confirmUnblock) return;
+
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const { unblockUser } = await import("../firebase/firestore");
+      await unblockUser(user.uid, userId);
+      
+      // Refresh blocked users list
+      setBlockedUsers(prev => prev.filter(user => user.uid !== userId));
+      
+      setMessage("User unblocked successfully!");
+    } catch (error) {
+      console.error("Error unblocking user:", error);
+      setMessage("Error unblocking user: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderBlockedUsersModal = () => {
+    if (!showBlockedUsers) return null;
+
+    return (
+      <div className="blocked-users-modal-overlay">
+        <div className="blocked-users-modal">
+          <div className="blocked-users-modal-header">
+            <h3>Blocked Users ({blockedUsers.length})</h3>
+            <button 
+              onClick={() => setShowBlockedUsers(false)}
+              className="blocked-users-close-button"
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="blocked-users-modal-content">
+            {loadingBlockedUsers ? (
+              <div className="blocked-users-loading">
+                <p>Loading blocked users...</p>
+              </div>
+            ) : blockedUsers.length === 0 ? (
+              <div className="no-blocked-users">
+                <p>No blocked users</p>
+                <p className="no-blocked-users-description">
+                  When you block someone, they won't be able to message you or see your profile.
+                </p>
+              </div>
+            ) : (
+              <div className="blocked-users-list">
+                {blockedUsers.map((blockedUser) => (
+                  <div key={blockedUser.uid} className="blocked-user-item">
+                    <img 
+                      src={blockedUser.photoURL || "/default-avatar.png"} 
+                      alt={blockedUser.displayName}
+                      className="blocked-user-avatar"
+                    />
+                    <div className="blocked-user-info">
+                      <div className="blocked-user-name">{blockedUser.displayName}</div>
+                      <div className="blocked-user-username">@{blockedUser.username}</div>
+                    </div>
+                    <button
+                      onClick={() => handleUnblockUser(blockedUser.uid)}
+                      disabled={loading}
+                      className="unblock-user-button"
+                    >
+                      {loading ? "Processing..." : "Unblock"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="blocked-users-modal-footer">
+            <button
+              onClick={() => setShowBlockedUsers(false)}
+              className="blocked-users-close-footer-button"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (!userProfile) {
@@ -681,6 +801,30 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
             </div>
           </div>
 
+          <div className="profile-section">
+            <h3 className="profile-section-title">Privacy & Security</h3>
+            <div className="profile-blocked-section">
+              <div className="profile-blocked-header">
+                <h4 className="profile-blocked-title">Blocked Users</h4>
+                <div className="profile-blocked-count">
+                  {blockedUsers.length} user{blockedUsers.length !== 1 ? 's' : ''} blocked
+                </div>
+              </div>
+              
+              <div className="profile-blocked-description">
+                <p>Blocked users cannot message you, call you, or see your profile.</p>
+              </div>
+              
+              <button
+                onClick={() => setShowBlockedUsers(true)}
+                className="profile-manage-blocked-button"
+                disabled={loadingBlockedUsers}
+              >
+                {loadingBlockedUsers ? "Loading..." : "Manage Blocked Users"}
+              </button>
+            </div>
+          </div>
+
           <div className="profile-actions">
             <button 
               onClick={onEditToggle}
@@ -691,6 +835,7 @@ function ProfileView({ user, userProfile, editing, onEditToggle, onBack }) {
           </div>
         </div>
       </div>
+      {renderBlockedUsersModal()}
     </div>
   );
 }

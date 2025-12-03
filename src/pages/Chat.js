@@ -1622,7 +1622,7 @@ function Chat({ user, friend, onBack }) {
           type="text"
           value={replyingTo ? replyText : newMessage}
           onChange={(e) => {
-            if (isBlocked) return; // Prevent typing when blocked
+            if (isBlocked) return;
             if (replyingTo) {
               setReplyText(e.target.value);
             } else {
