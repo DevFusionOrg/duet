@@ -490,6 +490,10 @@ class WebRTCService {
   }
 
   async handleSignal(signal) {
+    console.log('🔍 handleSignal called - Peer exists?', !!this.peer);
+    console.log('🔍 isEnded?', this.isEnded);
+    console.log('🔍 Connection state:', this.connectionState);
+  
     if (!this.peer || this.isEnded) {
       console.log('Peer not ready or call ended, ignoring signal');
       return;
