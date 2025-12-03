@@ -154,9 +154,9 @@ function Chat({ user, friend, onBack }) {
           clearTimeout(callTimeoutRef.current);
         }
         callTimeoutRef.current = setTimeout(() => {
-          console.log('Auto-declining call after 30 seconds:', newIncomingCall.callId);
+          console.log('Auto-declining call after 60 seconds:', newIncomingCall.callId);
           handleAutoDeclineCall(newIncomingCall.callId);
-        }, 30000);
+        }, 60000);
       }
       calls.filter(call => call.callerId !== friend.uid && call.receiverId === user.uid)
         .forEach(staleCall => {
@@ -603,7 +603,9 @@ function Chat({ user, friend, onBack }) {
           handleCallDeclined();
         } else if (callData.status === 'ended' || callData.status === 'missed') {
           console.log('Call ended or missed remotely');
+          setTimeout(() => {
           handleEndCall();
+          }, 2000); // Wait 2 seconds
         }
       } else {
         console.log('Call data removed');
