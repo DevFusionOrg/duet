@@ -58,7 +58,7 @@ class WebRTCService {
     this.reconnectAttempts = 0;
     
     // Setup signaling with structured paths
-    this.signalingRef = ref(database, `calls/${callId}/signals`);
+    this.signalingRef = ref(database, `callSignals/${callId}`);
     
     // Clear any previous signaling data
     try {
@@ -252,14 +252,14 @@ class WebRTCService {
         
         switch (state) {
           case 'connected':
-            console.log('WebRTC connection established');
+            console.log('✅ WebRTC connection established');
             this.reconnectAttempts = 0; // Reset reconnect attempts
             if (this.onConnectCallback) {
               this.onConnectCallback();
             }
             break;
           case 'disconnected':
-            console.log('WebRTC disconnected');
+            console.log('⚠️ WebRTC disconnected');
             if (this.onDisconnectCallback) {
               this.onDisconnectCallback();
             }
@@ -278,6 +278,9 @@ class WebRTCService {
             if (this.onCloseCallback && !this.isEnded) {
               this.onCloseCallback();
             }
+            break;
+          default:
+            console.log('Unknown connection state:', state);
             break;
         }
       };

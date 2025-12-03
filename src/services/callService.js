@@ -4,33 +4,21 @@ import {
   collection, 
   doc, 
   addDoc, 
-  updateDoc,
-  setDoc,
-  getDoc,
-  query as firestoreQuery, 
-  where, 
-  orderBy, 
-  limit,
-  getDocs,
-  serverTimestamp 
+  updateDoc
 } from 'firebase/firestore';
 
 class CallService {
   constructor() {
     this.activeCallsRef = ref(database, 'activeCalls');
-    this.callHistoryRef = collection(db, 'callHistory');
-    this.userCallHistoryRef = collection(db, 'userCallHistory');
   }
 
-  // SIMPLIFIED: Create a new call without Firestore timestamps
+  // Create a new call
   async createCall(callerId, callerName, receiverId, receiverName) {
     try {
-      console.log('Creating call from', callerId, 'to', receiverId);
+      console.log('📞 Creating call from', callerName, 'to', receiverName);
       
-      // Generate unique call ID
-      const callId = `${callerId}_${receiverId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const callId = `${callerId}_${receiverId}_${Date.now()}`;
       
-      // SIMPLIFIED call data for Realtime Database
       const callData = {
         callId,
         callerId,
@@ -39,52 +27,28 @@ class CallService {
         receiverName,
         status: 'ringing',
         createdAt: Date.now(),
-        type: 'audio'
+        type: 'audio',
+        acceptedAt: null,
+        endedAt: null,
+        duration: 0
       };
 
-      console.log('Call data:', callData);
-
-      // Create call in Realtime Database (SIMPLIFIED)
+      // Create call in Realtime Database
       const callRef = ref(database, `activeCalls/${callId}`);
-      
-      // Use set() with simpler data
       await set(callRef, callData);
-      console.log('Call created in Realtime Database');
-
-      // Log to Firestore for history (optional)
-      try {
-        await this.logCallEvent({
-          callId,
-          event: 'created',
-          userId: callerId,
-          details: {
-            receiverId,
-            receiverName,
-            timestamp: new Date().toISOString()
-          }
-        });
-      } catch (logError) {
-        console.warn('Failed to log call event:', logError);
-        // Don't throw, this is just logging
-      }
+      console.log('✅ Call created:', callId);
 
       return { callId, ...callData };
     } catch (error) {
-      console.error('Error creating call:', error);
-      
-      // Provide more helpful error message
-      if (error.message.includes('PERMISSION_DENIED')) {
-        throw new Error('Permission denied. Please check Firebase security rules.');
-      }
-      
+      console.error('❌ Error creating call:', error);
       throw error;
     }
   }
 
-  // SIMPLIFIED: Accept call
+  // Accept call
   async acceptCall(callId, receiverId) {
     try {
-      console.log('Accepting call:', callId, 'by:', receiverId);
+      console.log('📞 Accepting call:', callId);
       
       const callRef = ref(database, `activeCalls/${callId}`);
       const snapshot = await get(callRef);
@@ -94,30 +58,27 @@ class CallService {
         throw new Error('Call not found');
       }
       
-      // Validate receiver
       if (callData.receiverId !== receiverId) {
         throw new Error('Unauthorized to accept this call');
       }
 
-      // SIMPLIFIED update
       await update(callRef, {
         status: 'accepted',
         acceptedAt: Date.now()
       });
 
-      console.log('Call accepted successfully');
-      
+      console.log('✅ Call accepted');
       return callData;
     } catch (error) {
-      console.error('Error accepting call:', error);
+      console.error('❌ Error accepting call:', error);
       throw error;
     }
   }
 
-  // SIMPLIFIED: Decline call
+  // Decline call
   async declineCall(callId, receiverId) {
     try {
-      console.log('Declining call:', callId);
+      console.log('📞 Declining call:', callId);
       
       const callRef = ref(database, `activeCalls/${callId}`);
       const snapshot = await get(callRef);
@@ -127,90 +88,67 @@ class CallService {
         throw new Error('Call not found');
       }
 
-      // SIMPLIFIED update
       await update(callRef, {
         status: 'declined',
-        declinedAt: Date.now()
+        endedAt: Date.now()
       });
 
-      // Remove after some time
+      // Remove after delay
       setTimeout(() => {
         remove(callRef).catch(() => {});
-      }, 5000);
+      }, 3000);
 
-      console.log('Call declined successfully');
-      
+      console.log('✅ Call declined');
     } catch (error) {
-      console.error('Error declining call:', error);
+      console.error('❌ Error declining call:', error);
       throw error;
     }
   }
 
-  // SIMPLIFIED: End call
+  // End call
   async endCall(callId, userId, duration = 0, status = 'ended') {
     try {
-      console.log('Ending call:', callId, 'by:', userId);
+      console.log('📞 Ending call:', callId, 'status:', status);
       
       const callRef = ref(database, `activeCalls/${callId}`);
       const snapshot = await get(callRef);
       const callData = snapshot.val();
 
       if (!callData) {
-        console.log('Call already ended or not found:', callId);
+        console.log('Call already ended');
         return;
       }
 
-      // Validate user can end this call
+      // Validate user
       const isParticipant = callData.callerId === userId || callData.receiverId === userId;
       if (!isParticipant) {
-        console.warn('User not authorized to end this call:', userId);
+        console.warn('User not authorized to end this call');
         return;
       }
 
-      let finalStatus = status;
-      if (status === 'ended' && duration === 0) {
-        finalStatus = 'missed';
-      }
+      const finalStatus = status === 'ended' && duration === 0 ? 'missed' : status;
 
-      // SIMPLIFIED update
-      const updateData = {
+      await update(callRef, {
         status: finalStatus,
         endedAt: Date.now(),
-        duration: duration || 0,
-        endedBy: userId
-      };
+        duration: duration || 0
+      });
 
-      await update(callRef, updateData);
-
-      // Save to Firestore history (optional)
-      try {
-        const historyData = {
-          ...callData,
-          ...updateData,
-          endedAt: Date.now()
-        };
-
-        await this.addToCallHistory(historyData);
-      } catch (historyError) {
-        console.warn('Failed to save call history:', historyError);
-      }
-
-      // Remove active call after delay
+      // Remove after delay
       setTimeout(() => {
         remove(callRef).catch(() => {});
       }, 3000);
 
-      console.log('Call ended successfully:', finalStatus);
+      console.log('✅ Call ended:', finalStatus);
       
     } catch (error) {
-      console.error('Error ending call:', error);
-      // Don't throw, just log
+      console.error('❌ Error ending call:', error);
     }
   }
 
   // Listen for incoming calls
   listenForIncomingCalls(userId, callback) {
-    console.log('Setting up call listener for user:', userId);
+    console.log('👂 Setting up call listener for user:', userId);
     
     const callsRef = ref(database, 'activeCalls');
     
@@ -221,19 +159,17 @@ class CallService {
       if (calls) {
         Object.keys(calls).forEach(callId => {
           const call = calls[callId];
-          
-          // Only show ringing calls for this specific user
+          // Only show ringing calls for this user
           if (call.receiverId === userId && call.status === 'ringing') {
-            call.callId = callId; // Ensure callId is set
-            incomingCalls.push(call);
+            incomingCalls.push({ ...call, callId });
           }
         });
       }
       
-      console.log('Incoming calls for', userId, ':', incomingCalls.length);
+      console.log('📞 Incoming calls for', userId, ':', incomingCalls.length);
       callback(incomingCalls);
     }, (error) => {
-      console.error('Error listening for calls:', error);
+      console.error('❌ Error listening for calls:', error);
       callback([]);
     });
 
@@ -251,7 +187,6 @@ class CallService {
       const messagesRef = collection(db, 'chats', chatId, 'messages');
       
       let messageText = '';
-      
       if (type === 'started') {
         messageText = 'Audio call started';
       } else if (type === 'ended') {
@@ -280,10 +215,10 @@ class CallService {
         lastMessageAt: new Date()
       });
 
-      console.log('Call notification sent:', type);
+      console.log('📢 Call notification sent:', type);
 
     } catch (error) {
-      console.error('Error sending call notification:', error);
+      console.error('❌ Error sending call notification:', error);
     }
   }
 
@@ -292,32 +227,6 @@ class CallService {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }
-
-  // Log individual call event
-  async logCallEvent(eventData) {
-    try {
-      const eventLogRef = collection(db, 'callEvents');
-      await addDoc(eventLogRef, {
-        ...eventData,
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      console.warn('Failed to log call event:', error);
-    }
-  }
-
-  // Add call to main call history
-  async addToCallHistory(callData) {
-    try {
-      const historyRef = collection(db, 'callHistory');
-      await addDoc(historyRef, {
-        ...callData,
-        loggedAt: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Error adding to call history:', error);
-    }
   }
 }
 

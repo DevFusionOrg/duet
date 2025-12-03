@@ -499,7 +499,7 @@ function Chat({ user, friend, onBack }) {
         }
       });
       WebRTCService.setOnConnect(() => {
-        console.log('WebRTC connected');
+        console.log('WebRTC : ✅ Call connected');
         setCallState('active');
         setCallStartTime(Date.now());
         callStateRef.current = 'active';
