@@ -573,6 +573,31 @@ export const saveUserNotificationToken = async (userId, token) => {
 
 export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
+    const receiverId = chatId.replace(senderId, '').replace('_', '');
+    
+    const receiverRef = doc(db, "users", receiverId);
+    const receiverSnap = await getDoc(receiverRef);
+    
+    if (receiverSnap.exists()) {
+      const receiverData = receiverSnap.data();
+      
+      if (receiverData.blockedUsers && receiverData.blockedUsers.includes(senderId)) {
+        throw new Error("You cannot send messages to this user. You have been blocked.");
+      }
+      
+      const senderRef = doc(db, "users", senderId);
+      const senderSnap = await getDoc(senderRef);
+      
+      if (senderSnap.exists()) {
+        const senderData = senderSnap.data();
+        if (senderData.blockedUsers && senderData.blockedUsers.includes(receiverId)) {
+          throw new Error("You cannot send messages to a user you have blocked. Unblock them first.");
+        }
+      }
+    } else {
+      throw new Error("Receiver not found");
+    }
+
     const messagesRef = collection(db, "chats", chatId, "messages");
 
     const deletionTime = new Date();
@@ -595,7 +620,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       isReply: false,
     };
 
-    const receiverId = chatId.replace(senderId, '').replace('_', '');
+    // Only send notification if NOT blocked
     await sendPushNotification(senderId, receiverId, messageData, chatId);
 
     if (imageData) {
@@ -617,7 +642,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     await updateDoc(chatRef, {
       lastMessage: text || "📷 Image",
       lastMessageAt: new Date(),
-      lastMessageId: messageRef.id, // Add this line
+      lastMessageId: messageRef.id,
     });
 
     return messageRef.id;
@@ -629,6 +654,9 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
 
 export const getUserChats = async (userId) => {
   try {
+    const userProfile = await getUserProfile(userId);
+    const blockedUsers = userProfile?.blockedUsers || [];
+    
     const chatsRef = collection(db, "chats");
     const q = query(chatsRef, where("participants", "array-contains", userId));
     const querySnapshot = await getDocs(q);
@@ -640,8 +668,12 @@ export const getUserChats = async (userId) => {
       const otherParticipantId = chatData.participants.find(
         (id) => id !== userId,
       );
+      
+      if (blockedUsers.includes(otherParticipantId)) {
+        continue;
+      }
+      
       const otherUser = await getUserProfile(otherParticipantId);
-
       const unreadCount = await getUnreadCount(chatData.id, userId);
 
       chats.push({
@@ -661,8 +693,17 @@ export const getUserChats = async (userId) => {
   }
 };
 
-export const getChatMessages = async (chatId) => {
+export const getChatMessages = async (chatId, currentUserId) => {
   try {
+    const currentUserRef = doc(db, "users", currentUserId);
+    const currentUserSnap = await getDoc(currentUserRef);
+    
+    let blockedUsers = [];
+    if (currentUserSnap.exists()) {
+      const currentUserData = currentUserSnap.data();
+      blockedUsers = currentUserData.blockedUsers || [];
+    }
+    
     const messagesRef = collection(db, "chats", chatId, "messages");
     const q = query(messagesRef, orderBy("timestamp", "asc"));
     const querySnapshot = await getDocs(q);
@@ -672,6 +713,10 @@ export const getChatMessages = async (chatId) => {
 
     for (const doc of querySnapshot.docs) {
       const messageData = doc.data();
+      
+      if (blockedUsers.includes(messageData.senderId)) {
+        continue;
+      }
 
       if (
         messageData.deletionTime &&
@@ -695,64 +740,95 @@ export const getChatMessages = async (chatId) => {
   }
 };
 
-export const listenToChatMessages = (chatId, callback) => {
-  const messagesRef = collection(db, "chats", chatId, "messages");
-  const q = query(messagesRef, orderBy("timestamp", "asc"));
+export const listenToChatMessages = (chatId, currentUserId, callback) => {
+  const currentUserRef = doc(db, "users", currentUserId);
+  
+  const unsubscribeUser = onSnapshot(currentUserRef, async (userSnap) => {
+    let blockedUsers = [];
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      blockedUsers = userData.blockedUsers || [];
+    }
+    
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    const q = query(messagesRef, orderBy("timestamp", "asc"));
+    
+    return onSnapshot(q, async (snapshot) => {
+      const now = new Date();
+      const messages = [];
 
-  return onSnapshot(q, async (snapshot) => {
-    const now = new Date();
-    const messages = [];
-
-    for (const doc of snapshot.docs) {
-      const messageData = doc.data();
-
-      if (
-        messageData.deletionTime &&
-        now > messageData.deletionTime.toDate() &&
-        !messageData.isSaved
-      ) {
-        if (messageData.type === "image" && messageData.image) {
-          await trackCloudinaryDeletion(chatId, doc.id, messageData.image);
+      for (const doc of snapshot.docs) {
+        const messageData = doc.data();
+        
+        if (blockedUsers.includes(messageData.senderId)) {
+          continue;
         }
-        await deleteDoc(doc.ref);
-        continue;
+
+        if (
+          messageData.deletionTime &&
+          now > messageData.deletionTime.toDate() &&
+          !messageData.isSaved
+        ) {
+          if (messageData.type === "image" && messageData.image) {
+            await trackCloudinaryDeletion(chatId, doc.id, messageData.image);
+          }
+          await deleteDoc(doc.ref);
+          continue;
+        }
+
+        messages.push({
+          id: doc.id,
+          ...messageData,
+        });
       }
 
-      messages.push({
-        id: doc.id,
-        ...messageData,
-      });
-    }
-
-    callback(messages);
+      callback(messages);
+    });
   });
+  
+  return unsubscribeUser;
 };
 
 export const listenToUserChats = (userId, callback) => {
-  const chatsRef = collection(db, "chats");
-  const q = query(chatsRef, where("participants", "array-contains", userId));
-
-  return onSnapshot(q, async (snapshot) => {
-    const chats = [];
-
-    for (const docSnap of snapshot.docs) {
-      const chatData = docSnap.data();
-      const otherParticipantId = chatData.participants.find(
-        (id) => id !== userId,
-      );
-      const otherUser = await getUserProfile(otherParticipantId);
-      const unreadCount = await getUnreadCount(chatData.id, userId);
-
-      chats.push({
-        id: chatData.id,
-        ...chatData,
-        otherParticipant: otherUser,
-        unreadCount,
-      });
+  const userRef = doc(db, "users", userId);
+  
+  return onSnapshot(userRef, (userSnap) => {
+    let blockedUsers = [];
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      blockedUsers = userData.blockedUsers || [];
     }
+    
+    const chatsRef = collection(db, "chats");
+    const q = query(chatsRef, where("participants", "array-contains", userId));
+    
+    return onSnapshot(q, async (snapshot) => {
+      const chats = [];
 
-    chats.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
-    callback(chats);
+      for (const docSnap of snapshot.docs) {
+        const chatData = docSnap.data();
+        const otherParticipantId = chatData.participants.find(
+          (id) => id !== userId,
+        );
+        
+        if (blockedUsers.includes(otherParticipantId)) {
+          continue;
+        }
+        
+        const otherUser = await getUserProfile(otherParticipantId);
+        const unreadCount = await getUnreadCount(chatData.id, userId);
+
+        chats.push({
+          id: chatData.id,
+          ...chatData,
+          otherParticipant: otherUser,
+          unreadCount,
+        });
+      }
+
+      chats.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
+      callback(chats);
+    });
   });
 };
 

@@ -921,3 +921,32 @@
 .chat-message-wrapper:hover .reply-button {
   opacity: 0.8;
 }
+
+.blocked-user {
+  opacity: 0.5;
+  filter: grayscale(100%);
+}
+
+.blocked-badge {
+  font-size: 12px;
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+.chat-message-input.disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+  color: #999;
+}
+
+.chat-send-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.user-status.blocked {
+  color: #ff4444;
+}

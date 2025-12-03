@@ -19,6 +19,7 @@ import {
   getBlockedUsers,
   deleteChat,
   replyToMessage,
+  getUserProfile,
 } from "../firebase/firestore";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebase";
@@ -35,7 +36,7 @@ function Chat({ user, friend, onBack }) {
   const [loading,] = useState(false);
   const [chatId, setChatId] = useState(null);
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
-  const [callState, setCallState] = useState('idle'); // 'idle' | 'ringing' | 'connecting' | 'active' | 'ended'
+  const [callState, setCallState] = useState('idle');
   const [isInCall, setIsInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
@@ -62,121 +63,101 @@ function Chat({ user, friend, onBack }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const inputRef = useRef(null);
-  const [selectedImage, setSelectedImage] = useState(null);
-  
-  // Refs for call management - UPDATED
+  const [selectedImage, setSelectedImage] = useState(null); 
   const callTimeoutRef = useRef(null);
   const ringtoneAudioRef = useRef(null);
   const incomingCallRef = useRef(null);
   const callIdRef = useRef(null);
-  const callStateRef = useRef('idle'); // Track call state in ref for callbacks
-  const activeCallListenerRef = useRef(null); // Store active call listener
+  const callStateRef = useRef('idle');
+  const activeCallListenerRef = useRef(null);
 
-  // Initialize notifications
   useEffect(() => {
     const initializeNotifications = async () => {
-      const hasPermission = await notificationService.requestPermission();
-      setHasNotificationPermission(hasPermission);
-      
-      if (hasPermission) {
+      // FIX: Check for existing permission first
+      if (Notification.permission === 'granted') {
+        setHasNotificationPermission(true);
         const token = await requestNotificationPermission();
         setNotificationToken(token);
-        
         if (token && user) {
           await saveUserNotificationToken(user.uid, token);
         }
+      } else {
+        const hasPermission = await notificationService.requestPermission();
+        setHasNotificationPermission(hasPermission);
+        if (hasPermission) {
+          const token = await requestNotificationPermission();
+          setNotificationToken(token);
+          if (token && user) {
+            await saveUserNotificationToken(user.uid, token);
+          }
+        }
       }
     };
-
-    initializeNotifications();
+    
+    if (user?.uid) {
+      initializeNotifications();
+    }
   }, [user]);
 
-  // Setup foreground message listener
   useEffect(() => {
     const setupForegroundMessages = async () => {
       const payload = await onMessageListener();
       if (payload) {
         const { title, body, data } = payload.notification || payload;
         
-        notificationService.showNotification(title || 'New Message', {
-          body,
-          data,
-          icon: data?.senderPhoto || '/default-avatar.png'
-        });
+        // Only show if not from current chat
+        const isFromCurrentChat = data?.chatId === chatId;
+        const isAppInFocus = document.visibilityState === 'visible';
+        
+        if (!isFromCurrentChat && !isAppInFocus) {
+          notificationService.showNotification(title || 'New Message', {
+            body,
+            data,
+            icon: data?.senderPhoto || '/default-avatar.png',
+            tag: `fcm-${Date.now()}`
+          });
+        }
       }
     };
+    
+    if (hasNotificationPermission) {
+      setupForegroundMessages();
+    }
+  }, [hasNotificationPermission, chatId]);
 
-    setupForegroundMessages();
-  }, []);
-
-  // FIXED: Listen for incoming calls with user validation
   useEffect(() => {
     if (!user?.uid || !friend?.uid) return;
-
-    console.log('Setting up call listener for user:', user.uid, 'friend:', friend?.uid);
-    
-    // Clean up previous listener
     if (activeCallListenerRef.current) {
       activeCallListenerRef.current();
       activeCallListenerRef.current = null;
     }
-
-    const unsubscribe = CallService.listenForIncomingCalls(user.uid, (calls) => {
-      console.log('Incoming calls received:', calls);
-      
-      // CRITICAL FIX: Filter calls for the current friend only
+    const unsubscribe = CallService.listenForIncomingCalls(user.uid, (calls) => {      
       const relevantCalls = calls.filter(call => {
-        // Only show calls from the current chat friend
         const isFromCurrentFriend = call.callerId === friend.uid;
         const isForCurrentUser = call.receiverId === user.uid;
         const isActive = call.status === 'ringing';
-        
-        console.log('Call check:', {
-          callId: call.callId,
-          isFromCurrentFriend,
-          isForCurrentUser,
-          isActive,
-          currentFriendId: friend.uid,
-          callerId: call.callerId,
-          receiverId: call.receiverId
-        });
-        
         return isFromCurrentFriend && isForCurrentUser && isActive;
       });
-      
-      console.log('Relevant calls for current friend:', relevantCalls);
-      
-      // Don't process if we're already in a call or have an incoming call
       if (relevantCalls.length > 0 && !incomingCall && callStateRef.current === 'idle') {
         const newIncomingCall = relevantCalls[0];
         console.log('Setting incoming call from current friend:', newIncomingCall);
-        
-        // Validate this is really for us
         if (newIncomingCall.receiverId !== user.uid) {
           console.error('Wrong user! This call is for:', newIncomingCall.receiverId, 'but we are:', user.uid);
           return;
         }
-        
         setIncomingCall(newIncomingCall);
         incomingCallRef.current = newIncomingCall;
         callIdRef.current = newIncomingCall.callId;
         callStateRef.current = 'ringing';
-        
-        // Play ringtone for incoming call
         playRingtone();
-        
-        // Set timeout for auto-decline after 1 minute
         if (callTimeoutRef.current) {
           clearTimeout(callTimeoutRef.current);
         }
-        
         callTimeoutRef.current = setTimeout(() => {
-          console.log('Auto-declining call after 1 minute:', newIncomingCall.callId);
+          console.log('Auto-declining call after 30 seconds:', newIncomingCall.callId);
           handleAutoDeclineCall(newIncomingCall.callId);
-        }, 60000); // 1 minute
+        }, 30000);
       }
-      
-      // Clean up stale calls not from current friend
       calls.filter(call => call.callerId !== friend.uid && call.receiverId === user.uid)
         .forEach(staleCall => {
           console.log('Cleaning up stale call not from current friend:', staleCall.callId);
@@ -185,7 +166,6 @@ function Chat({ user, friend, onBack }) {
           }
         });
     });
-
     activeCallListenerRef.current = unsubscribe;
 
     return () => {
@@ -196,12 +176,9 @@ function Chat({ user, friend, onBack }) {
     };
   }, [user?.uid, friend?.uid, incomingCall]);
 
-  // Listen for friend's online status
   useEffect(() => {
     if (!friend?.uid) return;
-
     const userRef = doc(db, "users", friend.uid);
-
     const unsubscribe = onSnapshot(userRef, (doc) => {
       if (doc.exists()) {
         const userData = doc.data();
@@ -209,13 +186,11 @@ function Chat({ user, friend, onBack }) {
         setLastSeen(userData.lastSeen || null);
       }
     });
-
     return () => {
       if (unsubscribe) unsubscribe();
     };
   }, [friend?.uid]);
 
-  // Call duration timer
   useEffect(() => {
     let interval;
     if (isInCall && callState === 'active' && callStartTime) {
@@ -224,73 +199,85 @@ function Chat({ user, friend, onBack }) {
         setCallDuration(duration);
       }, 1000);
     }
-
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [isInCall, callState, callStartTime]);
 
-  // Listen for chat messages
   useEffect(() => {
-    if (!chatId) return;
-
-    const unsubscribe = listenToChatMessages(chatId, (chatMessages) => {
-      const previousMessageCount = messages.length;
+    if (!chatId || !user?.uid) return;
+    
+    let previousMessagesLength = messages.length;
+    let lastNotifiedMessageId = null;
+    
+    const unsubscribe = listenToChatMessages(chatId, user.uid, (chatMessages) => {
+      const newMessages = [];
+      
+      // Find new messages since last update
+      if (previousMessagesLength > 0) {
+        const previousMessageIds = new Set(messages.map(msg => msg.id));
+        newMessages.push(...chatMessages.filter(msg => 
+          !previousMessageIds.has(msg.id) && 
+          msg.senderId !== user.uid && 
+          msg.id !== lastNotifiedMessageId
+        ));
+      } else if (chatMessages.length > 0) {
+        previousMessagesLength = chatMessages.length;
+      }
+      
+      // Update messages state
       setMessages(chatMessages);
       scrollToBottom();
-      markMessagesAsRead(chatId, user.uid);
       
-      if (chatMessages.length > previousMessageCount && previousMessageCount > 0) {
-        const newMessages = chatMessages.slice(previousMessageCount);
-        const newMessageFromFriend = newMessages.find(msg => 
-          msg.senderId === friend.uid && 
-          !msg.seenBy?.includes(user.uid)
-        );
-        
-        if (newMessageFromFriend) {
-          showNewMessageNotification(newMessageFromFriend);
+      // Mark messages as read when:
+      // 1. We're actively viewing the chat OR
+      // 2. The app/tab is in focus
+      if (document.visibilityState === 'visible') {
+        markMessagesAsRead(chatId, user.uid);
+      }
+      
+      // Show notifications for new messages
+      if (newMessages.length > 0) {
+        const latestNewMessage = newMessages[newMessages.length - 1];
+        if (latestNewMessage.senderId === friend?.uid) {
+          showNewMessageNotification(latestNewMessage);
+          lastNotifiedMessageId = latestNewMessage.id;
         }
       }
+      
+      previousMessagesLength = chatMessages.length;
     });
-
+    
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [chatId, user.uid, messages.length]);
+  }, [chatId, user?.uid, friend?.uid]);
 
-  // Load Cloudinary script
   useEffect(() => {
     const loadCloudinaryScript = () => {
       if (window.cloudinary) {
         setCloudinaryLoaded(true);
         return;
       }
-
       const script = document.createElement("script");
       script.src = "https://upload-widget.cloudinary.com/global/all.js";
       script.type = "text/javascript";
       script.async = true;
-
       script.onload = () => {
         console.log("Cloudinary script loaded successfully");
         setCloudinaryLoaded(true);
       };
-
       script.onerror = () => {
         console.error("Failed to load Cloudinary script");
         setCloudinaryLoaded(false);
       };
-
       document.head.appendChild(script);
     };
-
     loadCloudinaryScript();
   }, []);
 
-  // Initialize chat and friends
   useEffect(() => {
     if (!user || !friend) return;
-
     const setup = async () => {
       try {
         const id = await getOrCreateChat(user.uid, friend.uid);
@@ -299,7 +286,6 @@ function Chat({ user, friend, onBack }) {
       } catch (error) {
         console.error("Error initializing chat:", error);
       }
-
       try {
         const userFriends = await getUserFriends(user.uid);
         setFriends(userFriends);
@@ -307,32 +293,41 @@ function Chat({ user, friend, onBack }) {
         console.error("Error loading friends:", error);
       }
     };
-
     setup();
   }, [user, friend]);
 
-  // Check block status
   useEffect(() => {
-    const checkBlockStatus = async () => {
-      if (!user?.uid || !friend?.uid) return;
-      
-      try {
-        const blockedList = await getBlockedUsers(user.uid);
-        setBlockedUsers(blockedList);
-        
-        const isUserBlocked = blockedList.some(blockedUser => 
-          blockedUser.uid === friend.uid
-        );
-        setIsBlocked(isUserBlocked);
-      } catch (error) {
-        console.error("Error checking block status:", error);
+    const handleVisibilityChange = () => {
+      // When tab becomes visible, mark messages as read
+      if (document.visibilityState === 'visible' && chatId && user?.uid) {
+        markMessagesAsRead(chatId, user.uid);
       }
     };
 
-    checkBlockStatus();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [chatId, user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid || !friend?.uid) return;
+    const userRef = doc(db, "users", user.uid);
+    const unsubscribe = onSnapshot(userRef, (doc) => {
+      if (doc.exists()) {
+        const userData = doc.data();
+        const blockedList = userData.blockedUsers || [];
+        setBlockedUsers(blockedList);
+        const isUserBlocked = blockedList.includes(friend?.uid);
+        setIsBlocked(isUserBlocked);
+      }
+    }); 
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [user?.uid, friend?.uid]);
 
-  // Handle click outside message menu
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -343,14 +338,12 @@ function Chat({ user, friend, onBack }) {
         setShowMessageMenu(false);
       }
     };
-
     document.addEventListener("click", handleClickOutside);
     return () => {
       document.removeEventListener("click", handleClickOutside);
     };
   }, [showMessageMenu]);
 
-  // Handle click outside user menu
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -361,52 +354,37 @@ function Chat({ user, friend, onBack }) {
         setShowUserMenu(false);
       }
     };
-
     document.addEventListener("click", handleClickOutside);
     return () => {
       document.removeEventListener("click", handleClickOutside);
     };
   }, [showUserMenu]);
 
-  // Cleanup on unmount - FIXED
   useEffect(() => {
     return () => {
-      console.log('Chat component unmounting, cleaning up...');
-      
-      // Cleanup timeouts and audio
       if (callTimeoutRef.current) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
       }
-      
       stopRingtone();
-      
-      // End call if active
       if (callStateRef.current !== 'idle' && callStateRef.current !== 'ended') {
         console.log('Ending call on unmount');
         handleEndCall();
       }
-      
-      // Clean up listeners
       if (activeCallListenerRef.current) {
         activeCallListenerRef.current();
         activeCallListenerRef.current = null;
       }
-      
       WebRTCService.endCall();
     };
   }, []);
 
-  // Play ringtone function
   const playRingtone = () => {
     try {
-      stopRingtone(); // Stop any existing ringtone
-      
+      stopRingtone();
       ringtoneAudioRef.current = new Audio('/ringtone.mp3');
       ringtoneAudioRef.current.loop = true;
       ringtoneAudioRef.current.volume = 0.7;
-      
-      // Play with error handling
       const playPromise = ringtoneAudioRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch(error => {
@@ -418,7 +396,6 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
-  // Stop ringtone function
   const stopRingtone = () => {
     if (ringtoneAudioRef.current) {
       try {
@@ -431,183 +408,137 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
-  // Auto decline call after 1 minute - FIXED VERSION
   const handleAutoDeclineCall = async (callId) => {
     if (!callId || !user) {
       console.log('No call ID or user for auto decline');
       return;
     }
-
     try {
       console.log('Auto declining call:', callId);
-      
-      // Update call status to missed
       await CallService.endCall(callId, user.uid, 0, 'missed');
-      
-      // Send missed call notification
       if (incomingCallRef.current && chatId) {
         CallService.sendCallNotification(chatId, user.uid, incomingCallRef.current.callerId, 'missed');
       }
-      
-      // Show notification
       if (incomingCallRef.current) {
         notificationService.showNotification('Missed Call', {
           body: `Missed call from ${incomingCallRef.current.callerName}`,
           icon: friend?.photoURL || '/default-avatar.png'
         });
-      }
-      
+      } 
     } catch (error) {
       console.error('Error auto declining call:', error);
     } finally {
-      // Cleanup
       cleanupIncomingCall();
     }
   };
 
-  // Cleanup incoming call state
   const cleanupIncomingCall = () => {
     setIncomingCall(null);
     incomingCallRef.current = null;
     callIdRef.current = null;
     callStateRef.current = 'idle';
     stopRingtone();
-    
     if (callTimeoutRef.current) {
       clearTimeout(callTimeoutRef.current);
       callTimeoutRef.current = null;
     }
   };
 
-  // Call functions
   const initiateAudioCall = async () => {
     if (!user || !friend || !chatId) {
       console.error('Cannot initiate call: Missing user, friend, or chatId');
       return;
     }
-
     if (isBlocked) {
       alert("You cannot call a blocked user");
       return;
     }
-
-    // Check if already in a call
+    try {
+      const otherUserProfile = await getUserProfile(friend.uid);
+      if (otherUserProfile?.blockedUsers?.includes(user.uid)) {
+        alert("You cannot call this user. You have been blocked.");
+        return;
+      }
+    } catch (error) {
+      console.error("Error checking if blocked by user:", error);
+    }
     if (callStateRef.current !== 'idle') {
       alert("You are already in a call");
       return;
     }
-
     try {
       console.log('Initiating audio call to:', friend.displayName);
-      
-      // Set call state to ringing
       setCallState('ringing');
       setIsInCall(true);
       callStateRef.current = 'ringing';
-      
-      // Create call in database
       const callData = await CallService.createCall(
         user.uid,
         user.displayName,
         friend.uid,
         friend.displayName
       );
-
-      console.log('Call created:', callData);
-      
-      // Store call ID
       callIdRef.current = callData.callId;
-
-      // Set timeout for auto-end after 1 minute
       if (callTimeoutRef.current) {
         clearTimeout(callTimeoutRef.current);
       }
-      
       callTimeoutRef.current = setTimeout(() => {
         handleCallTimeout(callData.callId);
-      }, 60000); // 1 minute
-
-      // Initialize WebRTC
+      }, 60000);
       const stream = await WebRTCService.initializeCall(
         callData.callId,
-        true, // isInitiator
+        true,
         user.uid,
         friend.uid
       );
-
-      // Setup callbacks
       WebRTCService.setOnRemoteStream((remoteStream) => {
         console.log('Remote stream received');
-        // Handle remote audio stream
         const audioElement = document.querySelector('.remote-audio');
         if (audioElement) {
           audioElement.srcObject = remoteStream;
           audioElement.play().catch(e => console.log('Remote audio play failed:', e));
         }
       });
-
       WebRTCService.setOnConnect(() => {
         console.log('WebRTC connected');
         setCallState('active');
         setCallStartTime(Date.now());
         callStateRef.current = 'active';
-        
-        // Clear timeout since call was accepted
         if (callTimeoutRef.current) {
           clearTimeout(callTimeoutRef.current);
           callTimeoutRef.current = null;
         }
-        
-        // Send call started notification
         CallService.sendCallNotification(chatId, user.uid, friend.uid, 'started');
-        
-        // Log call start
-        console.log('Call started with', friend.displayName);
       });
-
       WebRTCService.setOnError((error) => {
         console.error('WebRTC error:', error);
         handleCallError(error);
       });
-
       WebRTCService.setOnClose(() => {
         console.log('WebRTC connection closed');
         handleEndCall();
       });
-
       WebRTCService.setOnDisconnect(() => {
         console.log('WebRTC disconnected, attempting to reconnect...');
-        // Don't end call immediately on disconnect
         });
-
-      // Create peer connection
       WebRTCService.createPeerConnection(stream);
-
-      // Listen for call acceptance
       listenForCallAcceptance(callData.callId);
-      
     } catch (error) {
       console.error('Error initiating call:', error);
       handleCallError(error);
     }
   };
 
-  // Listen for call acceptance - FIXED
   const listenForCallAcceptance = (callId) => {
     console.log('Listening for call acceptance:', callId);
     const callRef = ref(database, `activeCalls/${callId}`);
-    
     const unsubscribe = onValue(callRef, (snapshot) => {
       const callData = snapshot.val();
       if (callData) {
         console.log('Call status update:', callData.status);
-        
         if (callData.status === 'accepted') {
           setCallState('connecting');
           callStateRef.current = 'connecting';
           console.log('Call accepted by receiver');
-          
-          // Clear timeout since call was accepted
           if (callTimeoutRef.current) {
             clearTimeout(callTimeoutRef.current);
             callTimeoutRef.current = null;
@@ -624,62 +555,41 @@ function Chat({ user, friend, onBack }) {
         handleEndCall();
       }
     });
-
-    // Store unsubscribe function
     callTimeoutRef.current = { unsubscribe, isListener: true };
   };
 
-  // Handle call declined
   const handleCallDeclined = () => {
     setCallState('ended');
     setIsInCall(false);
     callStateRef.current = 'ended';
     alert('Call declined');
-    
-    // End WebRTC
     WebRTCService.endCall();
-    
-    // Clear timeout
     if (callTimeoutRef.current && !callTimeoutRef.current.isListener) {
       clearTimeout(callTimeoutRef.current);
     }
     callTimeoutRef.current = null;
-    
-    // Reset call ID
     callIdRef.current = null;
   };
 
-  // Handle call timeout (1 minute) - FIXED VERSION
   const handleCallTimeout = async (callId) => {
     if (!callId || !user) return;
-
-    console.log('Call timeout for call ID:', callId);
-    
     try {
-      // End call in database as missed
       await CallService.endCall(callId, user.uid, 0, 'missed');
-      
-      // Send missed call notification
       if (chatId && friend) {
         CallService.sendCallNotification(chatId, user.uid, friend.uid, 'missed');
       }
-      
-      // Show notification
       notificationService.showNotification('Call Ended', {
         body: 'Call timed out after 1 minute',
         icon: friend?.photoURL || '/default-avatar.png'
       });
-      
     } catch (error) {
       console.error('Error handling call timeout:', error);
     } finally {
-      // Cleanup
       setCallState('ended');
       setIsInCall(false);
       callStateRef.current = 'ended';
       WebRTCService.endCall();
       callIdRef.current = null;
-      
       if (callTimeoutRef.current && !callTimeoutRef.current.isListener) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
@@ -687,52 +597,33 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
-  // Handle accept call - FIXED VERSION
   const handleAcceptCall = async () => {
     if (!incomingCall) {
       console.log('No incoming call to accept');
       return;
     }
-
-    // Validate this is really for us
     if (incomingCall.receiverId !== user.uid) {
       console.error('Wrong user trying to accept call!');
       alert('This call is not for you');
       cleanupIncomingCall();
       return;
     }
-
-    console.log('Accepting call from:', incomingCall.callerName);
-    
     try {
-      // Stop ringtone
       stopRingtone();
-      
-      // Clear timeout
       if (callTimeoutRef.current) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
       }
-
-      // Set call state to connecting
       setCallState('connecting');
       callStateRef.current = 'connecting';
-      
-      // Accept call in database
       await CallService.acceptCall(incomingCall.callId, user.uid);
-
-      // Store call ID
       callIdRef.current = incomingCall.callId;
-
-      // Initialize WebRTC as receiver
       const stream = await WebRTCService.initializeCall(
         incomingCall.callId,
-        false, // not initiator
+        false,
         user.uid,
         incomingCall.callerId
       );
-
-      // Setup callbacks
       WebRTCService.setOnRemoteStream((remoteStream) => {
         console.log('Remote stream received (as receiver)');
         const audioElement = document.querySelector('.remote-audio');
@@ -741,80 +632,57 @@ function Chat({ user, friend, onBack }) {
           audioElement.play().catch(e => console.log('Remote audio play failed:', e));
         }
       });
-
       WebRTCService.setOnConnect(() => {
         console.log('Call connected as receiver');
         setCallState('active');
         setCallStartTime(Date.now());
         callStateRef.current = 'active';
-        
         if (chatId) {
           CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'started');
         }
       });
-
       WebRTCService.setOnError((error) => {
         console.error('WebRTC error (receiver):', error);
         handleCallError(error);
       });
-
       WebRTCService.setOnClose(() => {
         console.log('WebRTC connection closed (receiver)');
         handleEndCall();
       });
-
-      // Create peer connection
       WebRTCService.createPeerConnection(stream);
-
-      // Clear incoming call states
       setIncomingCall(null);
       incomingCallRef.current = null;
       setIsInCall(true);
-      
       console.log('Call accepted successfully');
-      
     } catch (error) {
       console.error('Error accepting call:', error);
       handleCallError(error);
     }
   };
 
-  // Handle decline call - FIXED VERSION
   const handleDeclineCall = async () => {
     if (!incomingCall) {
       console.log('No incoming call to decline');
       return;
     }
-
     console.log('Declining call from:', incomingCall.callerName);
-    
     try {
-      // Stop ringtone
       stopRingtone();
-      
-      // Clear timeout
       if (callTimeoutRef.current) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
       }
-
       await CallService.declineCall(incomingCall.callId, user.uid);
-      
-      // Send missed call notification
       if (chatId) {
         CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'missed');
       }
-      
-      // Show notification
       notificationService.showNotification('Call Declined', {
         body: `Declined call from ${incomingCall.callerName}`,
         icon: friend?.photoURL || '/default-avatar.png'
       });
-      
     } catch (error) {
       console.error('Error declining call:', error);
     } finally {
-      // Cleanup states
       cleanupIncomingCall();
     }
   };
@@ -926,17 +794,40 @@ function Chat({ user, friend, onBack }) {
     return false;
   };
 
-  // Show notification for new message
   const showNewMessageNotification = (message) => {
-    const isViewingThisChat = true;
-
-    if (!isViewingThisChat && hasNotificationPermission) {
+    // FIX 1: Remove the condition that blocks notifications when viewing chat
+    // Instead, check if the app is in focus/visible
+    
+    const isAppInFocus = document.visibilityState === 'visible';
+    const isFromCurrentFriend = message.senderId === friend?.uid;
+    
+    // Only show notification if:
+    // 1. Message is from the current chat friend
+    // 2. App is not in focus (or tab is hidden)
+    // 3. User has notification permission
+    // 4. Message is not from current user
+    
+    if (isFromCurrentFriend && !isAppInFocus && hasNotificationPermission && message.senderId !== user?.uid) {
       const notificationTitle = friend.displayName;
-      const notificationBody = message.type === 'image' ? '📷 Sent a photo' : message.text;
       
-      notificationService.showNotificationIfHidden(notificationTitle, {
-        body: notificationBody.length > 100 ? notificationBody.substring(0, 100) + '...' : notificationBody,
-        icon: friend.photoURL,
+      // Handle different message types
+      let notificationBody = '';
+      if (message.type === 'image') {
+        notificationBody = message.text ? `📷 ${message.text}` : '📷 Sent a photo';
+      } else if (message.isReply && message.originalMessageText) {
+        notificationBody = `↪️ Reply: ${message.text || 'Replied to a message'}`;
+      } else {
+        notificationBody = message.text || 'Sent a message';
+      }
+      
+      // Truncate long messages
+      if (notificationBody.length > 100) {
+        notificationBody = notificationBody.substring(0, 97) + '...';
+      }
+      
+      notificationService.showNotification(notificationTitle, {
+        body: notificationBody,
+        icon: friend.photoURL || '/default-avatar.png',
         badge: '/badge.png',
         data: {
           chatId,
@@ -945,23 +836,35 @@ function Chat({ user, friend, onBack }) {
           type: 'new-message'
         },
         vibrate: [200, 100, 200],
-        tag: `chat-${chatId}`,
+        tag: `chat-${chatId}-${message.id}`, // Unique tag for each message
         renotify: true,
         requireInteraction: false,
         silent: false
       });
+      
+      // Play notification sound
       playNotificationSound();
     }
   };
 
-  // Play notification sound
+// Play notification sound
   const playNotificationSound = () => {
-    const audio = new Audio('/notification.mp3');
-    audio.volume = 0.3;
-    audio.play().catch(e => console.log('Audio play failed:', e));
+    try {
+      const audio = new Audio('/notification.mp3');
+      audio.volume = 0.3;
+      
+      // Don't play sound if app is in focus (user is actively using it)
+      if (document.visibilityState !== 'visible') {
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(e => console.log('Notification sound play failed:', e));
+        }
+      }
+    } catch (error) {
+      console.error('Error playing notification sound:', error);
+    }
   };
 
-  // Get last seen text
   const getLastSeenText = () => {
     if (isFriendOnline) return "Online";
 
@@ -1056,12 +959,15 @@ function Chat({ user, friend, onBack }) {
 
   // Send message
   const handleSendMessage = async (e) => {
-    e.preventDefault(); // Prevent form submission refresh
+    e.preventDefault();
     
-    // Get the text from inputRef (since you're using controlled component)
+    if (isBlocked) {
+      alert("You cannot send messages to a user you have blocked. Unblock them first.");
+      return;
+    }
+
     const text = inputRef.current?.value?.trim();
     
-    // For debugging
     console.log('Sending message:', { 
       text, 
       selectedImage, 
@@ -1079,27 +985,21 @@ function Chat({ user, friend, onBack }) {
         console.log('Sending reply:', { replyText, originalMessageId: replyingTo.id });
         await replyToMessage(chatId, replyingTo.id, text, user.uid, selectedImage);
         
-        // Clear reply state
         setReplyingTo(null);
         if (inputRef.current) {
           inputRef.current.value = '';
-          setReplyText(''); // Also clear the replyText state
+          setReplyText('');
         }
       } else {
         console.log('Sending normal message:', text);
         await sendMessage(chatId, user.uid, text, selectedImage);
         
-        // Clear input
         if (inputRef.current) {
           inputRef.current.value = '';
-          setNewMessage(''); // Also clear the newMessage state
+          setNewMessage('');
         }
       }
-      
-      // Clear image if any
       setSelectedImage(null);
-      
-      // Scroll to bottom
       scrollToBottom();
     } catch (error) {
       console.error('Error sending message:', error);
@@ -1175,24 +1075,20 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
-  // Handle message hover
   const handleMessageHover = (message) => {
     setHoveredMessage(message);
   };
 
-  // Handle message leave
   const handleMessageLeave = () => {
     setHoveredMessage(null);
   };
 
-  // Handle arrow click
   const handleArrowClick = (e, message) => {
     e.stopPropagation();
     setSelectedMessage(message);
     setShowMessageMenu(true);
   };
 
-  // Handle forward click
   const handleForwardClick = (message) => {
     setSelectedMessage(message);
     setSelectedFriends([]);
@@ -1200,7 +1096,6 @@ function Chat({ user, friend, onBack }) {
     setShowMessageMenu(false);
   };
 
-  // Handle friend selection
   const handleFriendSelection = (friendId) => {
     setSelectedFriends((prev) => {
       if (prev.includes(friendId)) {
@@ -1211,7 +1106,6 @@ function Chat({ user, friend, onBack }) {
     });
   };
 
-  // Handle forward messages
   const handleForwardMessages = async () => {
     if (!selectedMessage || selectedFriends.length === 0) return;
 
@@ -1235,14 +1129,12 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
-  // Format time
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  // Check if message can be edited
   const canEditMessage = (message) => {
     if (message.senderId !== user.uid) return false;
     if (!message.canEditUntil) return false;
@@ -1258,21 +1150,17 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
-  // Check if message is saved
   const isMessageSaved = (message) => {
     return message.isSaved === true;
   };
 
-  // Check if message is edited
   const isMessageEdited = (message) => {
     return message.isEdited === true;
   };
 
-  // Render message content
   const renderMessageContent = (message) => {
     const isSeenByRecipient = message.senderId === user.uid && message.read === true;
     
-    // Common status component
     const renderMessageStatus = () => (
       <div className="chat-message-status">
         <span className="chat-message-time">
@@ -1284,7 +1172,6 @@ function Chat({ user, friend, onBack }) {
         {isMessageSaved(message) && (
           <span className="chat-saved-indicator">⭐</span>
         )}
-        {/* Single tick indicator */}
         {message.senderId === user.uid && (
           <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
             {isSeenByRecipient ? '✓' : ''}
@@ -1292,8 +1179,6 @@ function Chat({ user, friend, onBack }) {
         )}
       </div>
     );
-
-    // Reply indicator component
     const renderReplyIndicator = () => (
       message.isReply && message.originalMessageText && (
         <div className="reply-indicator">
@@ -1304,11 +1189,9 @@ function Chat({ user, friend, onBack }) {
         </div>
       )
     );
-
     if (message.type === "image" && message.image) {
       return (
         <div className="chat-image-message">
-          {/* Reply indicator for image messages */}
           {renderReplyIndicator()}
           
           <img
@@ -1318,25 +1201,17 @@ function Chat({ user, friend, onBack }) {
             onClick={() => window.open(message.image.url, "_blank")}
           />
           
-          {/* Image caption */}
           {message.text && <p className="chat-image-caption">{message.text}</p>}
           
-          {/* Message status */}
           {renderMessageStatus()}
         </div>
       );
     }
 
-    // Text message or mixed content
     return (
       <>
-        {/* Reply indicator */}
         {renderReplyIndicator()}
-        
-        {/* Message text */}
         {message.text && <p className="chat-message-text">{message.text}</p>}
-        
-        {/* Image attachment (for text messages with images) */}
         {message.image && (
           <img 
             src={message.image.url} 
@@ -1344,14 +1219,11 @@ function Chat({ user, friend, onBack }) {
             className="message-image" 
           />
         )}
-        
-        {/* Message status */}
         {renderMessageStatus()}
       </>
     );
   };
 
-  // Render menu options
   const renderMenuOptions = (message) => {
     if (message.type === "image") {
       return (
@@ -1410,7 +1282,6 @@ function Chat({ user, friend, onBack }) {
     );
   };
 
-  // Block user
   const handleBlockUser = async () => {
     if (!user?.uid || !friend?.uid) return;
     
@@ -1418,7 +1289,11 @@ function Chat({ user, friend, onBack }) {
       if (isBlocked) {
         await unblockUser(user.uid, friend.uid);
         setIsBlocked(false);
-        setBlockedUsers(prev => prev.filter(u => u.uid !== friend.uid));
+        
+        // Refresh blocked users list
+        const updatedBlockedList = await getBlockedUsers(user.uid);
+        setBlockedUsers(updatedBlockedList);
+        
         alert(`${friend.displayName} has been unblocked.`);
       } else {
         const confirmBlock = window.confirm(
@@ -1428,7 +1303,11 @@ function Chat({ user, friend, onBack }) {
         if (confirmBlock) {
           await blockUser(user.uid, friend.uid);
           setIsBlocked(true);
-          setBlockedUsers(prev => [...prev, friend]);
+          
+          // Refresh blocked users list
+          const updatedBlockedList = await getBlockedUsers(user.uid);
+          setBlockedUsers(updatedBlockedList);
+          
           alert(`${friend.displayName} has been blocked.`);
         }
       }
@@ -1439,34 +1318,47 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
-  // Delete chat
+  const handleUnblockUser = async (userId) => {
+    try {
+      await unblockUser(user.uid, userId);
+      
+      // Refresh blocked users list
+      const updatedBlockedList = await getBlockedUsers(user.uid);
+      setBlockedUsers(updatedBlockedList);
+      
+      // If unblocking the current friend, update isBlocked state
+      if (userId === friend?.uid) {
+        setIsBlocked(false);
+      }
+      
+      alert("User unblocked successfully");
+    } catch (error) {
+      console.error("Error unblocking user:", error);
+      alert("Error: " + error.message);
+    }
+  };
+
   const handleDeleteChat = async () => {
     if (!chatId || !user?.uid) return;
     
     const confirmDelete = window.confirm(
       "Delete this chat? This will remove all messages and cannot be undone."
     );
-    
     if (!confirmDelete) return;
-    
     try {
       await deleteChat(chatId, user.uid);
       alert("Chat deleted successfully.");
-      onBack(); // Go back to friends list
+      onBack();
     } catch (error) {
       console.error("Error deleting chat:", error);
       alert("Error: " + error.message);
     }
     setShowUserMenu(false);
   };
-
-  // Start reply
   const handleStartReply = (message) => {
     setReplyingTo(message);
     inputRef.current?.focus();
   };
-
-  // Cancel reply
   const handleCancelReply = () => {
     setReplyingTo(null);
     setReplyText('');
@@ -1487,7 +1379,6 @@ function Chat({ user, friend, onBack }) {
 
   return (
     <div className={`chat-container ${isBlocked ? 'blocked' : ''}`}>
-      {/* Chat Header */}
       <div className="chat-header">
         <button onClick={onBack} className="chat-back-button">
           <svg aria-label="Close" className="x1lliihq x1n2onr6 x9bdzbf" fill="currentColor" height="18" role="img" viewBox="0 0 24 24" width="18"><title>Close</title><polyline fill="none" points="20.643 3.357 12 12 3.353 20.647" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3"></polyline><line fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" x1="20.649" x2="3.354" y1="20.649" y2="3.354"></line></svg>
@@ -1497,19 +1388,20 @@ function Chat({ user, friend, onBack }) {
             <img
               src={friend.photoURL}
               alt={friend.displayName}
-              className="chat-user-avatar"
+              className={`chat-user-avatar ${isBlocked ? 'blocked-user' : ''}`}
             />
-            <div className={`chat-online-indicator ${isFriendOnline ? 'online' : 'offline'}`}></div>
+            <div className={`chat-online-indicator ${isFriendOnline ? 'online' : 'offline'} ${isBlocked ? 'blocked' : ''}`}></div>
           </div>
           <div>
-            <h3 className="chat-user-name">{friend.displayName}</h3>
-            <p className={`user-status ${isFriendOnline ? 'online' : 'offline'}`}>
-              {isFriendOnline ? 'Online' : getLastSeenText()}
+            <h3 className="chat-user-name">
+              {friend.displayName}
+              {isBlocked && <span className="blocked-badge"> (Blocked)</span>}
+            </h3>
+            <p className={`user-status ${isFriendOnline ? 'online' : 'offline'} ${isBlocked ? 'blocked' : ''}`}>
+              {isBlocked ? 'Blocked' : (isFriendOnline ? 'Online' : getLastSeenText())}
             </p>
           </div>
         </div>
-
-        {/* User Menu Button*/}
         <div className="chat-header-actions">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
@@ -1518,7 +1410,6 @@ function Chat({ user, friend, onBack }) {
           >
             <svg aria-label="More options" className="x1lliihq x1n2onr6 x9bdzbf" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><title>More options</title><circle cx="12" cy="12" r="1.5"></circle><circle cx="6" cy="12" r="1.5"></circle><circle cx="18" cy="12" r="1.5"></circle></svg>
           </button>
-          
           {showUserMenu && (
             <div className="chat-user-dropdown-menu">
               <button
@@ -1536,7 +1427,6 @@ function Chat({ user, friend, onBack }) {
             </div>
           )}
         </div>
-
         <button
           onClick={() => setShowMusicPlayer(true)}
           className="chat-music-button"
@@ -1544,8 +1434,6 @@ function Chat({ user, friend, onBack }) {
         >
           <svg aria-label="Reels" className="x1lliihq x1n2onr6 x5n08af" height="24" viewBox="0 0 24 24" width="24"><title>Music</title><path d="M22.935 7.468c-.063-1.36-.307-2.142-.512-2.67a5.341 5.341 0 0 0-1.27-1.95 5.345 5.345 0 0 0-1.95-1.27c-.53-.206-1.311-.45-2.672-.513C15.333 1.012 14.976 1 12 1s-3.333.012-4.532.065c-1.36.063-2.142.307-2.67.512-.77.298-1.371.69-1.95 1.27a5.36 5.36 0 0 0-1.27 1.95c-.206.53-.45 1.311-.513 2.672C1.012 8.667 1 9.024 1 12s.012 3.333.065 4.532c.063 1.36.307 2.142.512 2.67.297.77.69 1.372 1.27 1.95.58.581 1.181.974 1.95 1.27.53.206 1.311.45 2.672.513C8.667 22.988 9.024 23 12 23s3.333-.012 4.532-.065c1.36-.063 2.142-.307 2.67-.512a5.33 5.33 0 0 0 1.95-1.27a5.356 5.356 0 0 0 1.27-1.95c.206-.53.45-1.311.513-2.672.053-1.198.065-1.555.065-4.531s-.012-3.333-.065-4.532Zm-1.998 8.972c-.05 1.07-.228 1.652-.38 2.04-.197.51-.434.874-.82 1.258a3.362 3.362 0 0 1-1.258.82c-.387.151-.97.33-2.038.379-1.162.052-1.51.063-4.441.063s-3.28-.01-4.44-.063c-1.07-.05-1.652-.228-2.04-.38a3.354 3.354 0 0 1-1.258-.82 3.362 3.362 0 0 1-.82-1.258c-.151-.387-.33-.97-.379-2.038C3.011 15.28 3 14.931 3 12s.01-3.28.063-4.44c.05-1.07.228-1.652.38-2.04.197-.51.434-.875.82-1.26a3.372 3.372 0 0 1 1.258-.819c.387-.15.97-.329 2.038-.378C8.72 3.011 9.069 3 12 3s3.28.01 4.44.063c1.07.05 1.652.228 2.04.38.51.197.874.433 1.258.82.385.382.622.747.82 1.258.151.387.33.97.379 2.038C20.989 8.72 21 9.069 21 12s-.01 3.28-.063 4.44Zm-4.584-6.828-5.25-3a2.725 2.725 0 0 0-2.745.01A2.722 2.722 0 0 0 6.988 9v6c0 .992.512 1.88 1.37 2.379.432.25.906.376 1.38.376.468 0 .937-.123 1.365-.367l5.25-3c.868-.496 1.385-1.389 1.385-2.388s-.517-1.892-1.385-2.388Zm-.993 3.04-5.25 3a.74.74 0 0 1-.748-.003.74.74 0 0 1-.374-.649V9a.74.74 0 0 1 .374-.65.737.737 0 0 1 .748-.002l5.25 3c.341.196.378.521.378.652s-.037.456-.378.651Z"></path></svg>
         </button>
-
-        {/* Audio Call Button */}
         <button
           onClick={initiateAudioCall}
           className="chat-call-button"
@@ -1555,8 +1443,6 @@ function Chat({ user, friend, onBack }) {
           <svg aria-label="Audio call" fill="currentColor" height="24" width="24" viewBox="0 0 24 24"><path d="M18.227 22.912c-4.913 0-9.286-3.627-11.486-5.828C4.486 14.83.731 10.291.921 5.231a3.289 3.289 0 0 1 .908-2.138 17.116 17.116 0 0 1 1.865-1.71a2.307 2.307 0 0 1 3.004.174 13.283 13.283 0 0 1 3.658 5.325 2.551 2.551 0 0 1-.19 1.941l-.455.853a.463.463 0 0 0-.024.387 7.57 7.57 0 0 0 4.077 4.075.455.455 0 0 0 .386-.024l.853-.455a2.548 2.548 0 0 1 1.94-.19 13.278 13.278 0 0 1 5.326 3.658 2.309 2.309 0 0 1 .174 3.003 17.319 17.319 0 0 1-1.71 1.866 3.29 3.29 0 0 1-2.138.91 10.27 10.27 0 0 1-.368.006Zm-13.144-20a.27.27 0 0 0-.167.054A15.121 15.121 0 0 0 3.28 4.47a1.289 1.289 0 0 0-.36.836c-.161 4.301 3.21 8.34 5.235 10.364s6.06 5.403 10.366 5.236a1.284 1.284 0 0 0 .835-.36 15.217 15.217 0 0 0 1.504-1.637.324.324 0 0 0-.047-.41 11.62 11.62 0 0 0-4.457-3.119.545.545 0 0 0-.411.044l-.854.455a2.452 2.452 0 0 1-2.071.116 9.571 9.571 0 0 1-5.189-5.188 2.457 2.457 0 0 1 .115-2.071l.456-.855a.544.544 0 0 0 .043-.41 11.629 11.629 0 0 0-3.118-4.458.36.36 0 0 0-.244-.1Z"></path></svg>
         </button>
       </div>
-
-      {/* Messages Area */}
       <div className="chat-messages-container">
         {messages.length === 0 ? (
           <div className="chat-no-messages">
@@ -1566,7 +1452,6 @@ function Chat({ user, friend, onBack }) {
           messages.map((message, index) => {
             const prev = index > 0 ? messages[index - 1] : null;
             const showDateSeparator = !prev || !isSameDay(prev.timestamp, message.timestamp);
-
             return (
               <React.Fragment key={message.id}>
                 {showDateSeparator && (
@@ -1574,7 +1459,6 @@ function Chat({ user, friend, onBack }) {
                     {formatDateHeader(message.timestamp)}
                   </div>
                 )}
-
                 <div
                   className={`chat-message-wrapper ${
                     message.senderId === user.uid
@@ -1584,7 +1468,6 @@ function Chat({ user, friend, onBack }) {
                   onMouseEnter={() => handleMessageHover(message)}
                   onMouseLeave={handleMessageLeave}
                 >
-                  {/* Menu Arrow - Left side */}
                   {hoveredMessage?.id === message.id && (
                     <div className="chat-menu-arrow-container">
                       <button
@@ -1596,8 +1479,6 @@ function Chat({ user, friend, onBack }) {
                       </button>
                     </div>
                   )}
-
-                  {/* Message Bubble */}
                   <div
                     className={`chat-message-bubble ${
                       message.senderId === user.uid
@@ -1635,8 +1516,6 @@ function Chat({ user, friend, onBack }) {
                         renderMessageContent(message)
                       )}
                     </div>
-
-                    {/* REPLY BUTTON - Add this inside the message bubble */}
                     {message.senderId !== user?.uid && hoveredMessage?.id === message.id && (
                       <button 
                         className="reply-button"
@@ -1647,8 +1526,6 @@ function Chat({ user, friend, onBack }) {
                       </button>
                     )}
                   </div>
-
-                  {/* Dropdown Menu - UPDATED: Uses renderMenuOptions function */}
                   {showMessageMenu && selectedMessage?.id === message.id && (
                     <div className="chat-dropdown-menu">
                       {renderMenuOptions(message)}
@@ -1661,8 +1538,6 @@ function Chat({ user, friend, onBack }) {
         )}
         <div ref={messagesEndRef} />
       </div>
-
-      {/* Forward Popup */}
       {showForwardPopup && (
         <div className="forward-popup-overlay">
           <div className="forward-popup">
@@ -1720,8 +1595,6 @@ function Chat({ user, friend, onBack }) {
           </div>
         </div>
       )}
-
-      {/* REPLY PREVIEW - Add this right after the chat header */}
       {replyingTo && (
         <div className="reply-preview">
           <div className="reply-info">
@@ -1733,17 +1606,15 @@ function Chat({ user, friend, onBack }) {
           </div>
         </div>
       )}
-
-      {/* Message Input */}
       <form onSubmit={handleSendMessage} className="chat-input-container">
         <button
           type="button"
           onClick={handleImageUploadClick}
-          disabled={uploadingImage || loading || !cloudinaryLoaded}
+          disabled={uploadingImage || loading || !cloudinaryLoaded || isBlocked}
           className="chat-image-upload-button"
-          title={cloudinaryLoaded ? "Upload image" : "Loading image upload..."}
+          title={isBlocked ? "You have blocked this user" : (cloudinaryLoaded ? "Upload image" : "Loading image upload...")}
         >
-          <svg viewBox="0 0 24 24" width="44" height="44" fill="currentColor" className="x14ctfv xbudbmw x10l6tqk xwa60dl x11lhmoz"><path d="M12 9.652a3.54 3.54 0 1 0 3.54 3.539A3.543 3.543 0 0 0 12 9.65zm6.59-5.187h-.52a1.107 1.107 0 0 1-1.032-.762 3.103 3.103 0 0 0-3.127-1.961H10.09a3.103 3.103 0 0 0-3.127 1.96 1.107 1.107 0 0 1-1.032.763h-.52A4.414 4.414 0 0 0 1 8.874v9.092a4.413 4.413 0 0 0 4.408 4.408h13.184A4.413 4.413 0 0 0 23 17.966V8.874a4.414 4.414 0 0 0-4.41-4.41zM12 18.73a5.54 5.54 0 1 1 5.54-5.54A5.545 5.545 0 0 1 12 18.73z"></path></svg>
+          {/* ... */}
         </button>
 
         <input
@@ -1751,27 +1622,27 @@ function Chat({ user, friend, onBack }) {
           type="text"
           value={replyingTo ? replyText : newMessage}
           onChange={(e) => {
+            if (isBlocked) return; // Prevent typing when blocked
             if (replyingTo) {
               setReplyText(e.target.value);
             } else {
               setNewMessage(e.target.value);
             }
           }}
-          placeholder={replyingTo ? "Type your reply..." : "Type here..."}
-          className="chat-message-input"
-          disabled={loading}
+          placeholder={isBlocked ? "You have blocked this user" : (replyingTo ? "Type your reply..." : "Type here...")}
+          className={`chat-message-input ${isBlocked ? 'disabled' : ''}`}
+          disabled={loading || isBlocked}
         />
 
         <button
           type="submit"
-          disabled={loading || (!newMessage.trim() && !replyText.trim() && !selectedImage)}
-          className="chat-send-button"
+          disabled={loading || (!newMessage.trim() && !replyText.trim() && !selectedImage) || isBlocked}
+          className={`chat-send-button ${isBlocked ? 'disabled' : ''}`}
+          title={isBlocked ? "You have blocked this user" : "Send message"}
         >
-          <svg aria-label="Send" className="x1lliihq x1n2onr6 x9bdzbf" fill="currentColor" height="18" role="img" viewBox="0 0 24 24" width="18"><title>Send</title><path d="M22.513 3.576C21.826 2.552 20.617 2 19.384 2H4.621c-1.474 0-2.878.818-3.46 2.173-.6 1.398-.297 2.935.784 3.997l3.359 3.295a1 1 0 0 0 1.195.156l8.522-4.849a1 1 0 1 1 .988 1.738l-8.526 4.851a1 1 0 0 0-.477 1.104l1.218 5.038c.343 1.418 1.487 2.534 2.927 2.766.208.034.412.051.616.051 1.26 0 2.401-.644 3.066-1.763l7.796-13.118a3.572 3.572 0 0 0-.116-3.863Z"></path></svg>
+          {/* ... */}
         </button>
       </form>
-
-      {/* Music Player (pinned under the auto-delete banner) */}
       <MusicPlayer
         chatId={chatId}
         user={user}
@@ -1779,8 +1650,6 @@ function Chat({ user, friend, onBack }) {
         pinned={true}
         onClose={() => setShowMusicPlayer(false)}
       />
-
-      {/* Incoming Call Modal */}
       {incomingCall && (
         <IncomingCallModal
           callerName={incomingCall.callerName}
@@ -1791,8 +1660,6 @@ function Chat({ user, friend, onBack }) {
           ringtonePlaying={true}
         />
       )}
-
-      {/* Active Call Screen */}
       {isInCall && friend && (
         <CallScreen
           friend={friend}
@@ -1801,11 +1668,9 @@ function Chat({ user, friend, onBack }) {
           onEndCall={handleEndCall}
           onToggleMute={handleToggleMute}
           onToggleSpeaker={handleToggleSpeaker}
-          isInitiator={!incomingCall} // true if we initiated, false if we received
+          isInitiator={!incomingCall}
         />
       )}
-
-      {/* Hidden audio element for remote stream */}
       <audio className="remote-audio" autoPlay playsInline />
     </div>
   );

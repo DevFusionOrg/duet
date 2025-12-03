@@ -238,17 +238,17 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   if (!isVisible) return null;
 
   return (
+    <div className="musicPlayerWrapper">
+    {currentlyPlaying && (
+      <div className="nowPlayingBar">
+        <span className="nowPlayingText">Now Playing: </span>
+        <span className="songNameText">{currentlyPlaying}</span>
+      </div>
+    )}
     <div className={`musicPlayer ${pinned ? 'pinned' : 'floating'}`}>
       <div className="header">
         <button onClick={onClose} className="closeButton">×</button>
       </div>
-
-      {currentlyPlaying && (
-        <div className="currentSong">
-          <p className="nowPlaying">Now Playing:</p>
-          <p className="songTitle">{currentlyPlaying}</p>
-        </div>
-      )}
 
       <div className="searchSection">
         <div className="searchBox">
@@ -292,6 +292,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
 
       <div id="youtube-player"></div>
     </div>
+  </div>
   );
 }
 
