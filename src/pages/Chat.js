@@ -564,7 +564,6 @@ function Chat({ user, friend, onBack }) {
       WebRTCService.setOnDisconnect(() => {
         console.log('WebRTC disconnected, attempting to reconnect...');
         });
-      WebRTCService.createPeerConnection(stream);
       listenForSignaling(callData.callId);
       listenForCallAcceptance(callData.callId);
       listenForWebRTCProgress(callData.callId);
@@ -820,16 +819,13 @@ function Chat({ user, friend, onBack }) {
       
       // Clear all timeouts
       if (callTimeoutRef.current) {
-        if (callTimeoutRef.current) {
           clearTimeout(callTimeoutRef.current);
           callTimeoutRef.current = null;
         } 
         // Unsubscribe call acceptance listener
-        if (callAcceptanceListenerRef.current) {
-          callAcceptanceListenerRef.current();
-          callAcceptanceListenerRef.current = null;
-        }
-
+      if (callAcceptanceListenerRef.current) {
+        callAcceptanceListenerRef.current();
+        callAcceptanceListenerRef.current = null;
       }
 
       // End WebRTC connection
