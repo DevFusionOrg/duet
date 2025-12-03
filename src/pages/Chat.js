@@ -65,6 +65,7 @@ function Chat({ user, friend, onBack }) {
   const inputRef = useRef(null);
   const [selectedImage, setSelectedImage] = useState(null); 
   const callTimeoutRef = useRef(null);
+  const callAcceptanceListenerRef = useRef(null); // 🔹 NEW
   const ringtoneAudioRef = useRef(null);
   const incomingCallRef = useRef(null);
   const callIdRef = useRef(null);
@@ -366,6 +367,11 @@ function Chat({ user, friend, onBack }) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
       }
+      if (callAcceptanceListenerRef.current) {
+      callAcceptanceListenerRef.current();
+      callAcceptanceListenerRef.current = null;
+    }
+
       stopRingtone();
       if (callStateRef.current !== 'idle' && callStateRef.current !== 'ended') {
         console.log('Ending call on unmount');
@@ -586,34 +592,48 @@ function Chat({ user, friend, onBack }) {
   const listenForCallAcceptance = (callId) => {
     console.log('Listening for call acceptance:', callId);
     const callRef = ref(database, `activeCalls/${callId}`);
+    
+    // Clean previous listener if any
+    if (callAcceptanceListenerRef.current) {
+      callAcceptanceListenerRef.current(); // unsubscribe
+      callAcceptanceListenerRef.current = null;
+    }
+    
     const unsubscribe = onValue(callRef, (snapshot) => {
-      const callData = snapshot.val();
-      if (callData) {
-        console.log('Call status update:', callData.status);
-        if (callData.status === 'accepted') {
-          setCallState('connecting');
-          callStateRef.current = 'connecting';
-          console.log('Call accepted by receiver');
-          if (callTimeoutRef.current) {
-            clearTimeout(callTimeoutRef.current);
-            callTimeoutRef.current = null;
-          }
-        } else if (callData.status === 'declined') {
-          console.log('Call was declined by receiver');
-          handleCallDeclined();
-        } else if (callData.status === 'ended' || callData.status === 'missed') {
-          console.log('Call ended or missed remotely');
-          setTimeout(() => {
-          handleEndCall();
-          }, 2000); // Wait 2 seconds
+    const callData = snapshot.val();
+    if (callData) {
+      console.log('Call status update:', callData.status);
+
+      if (callData.status === 'accepted') {
+        setCallState('connecting');
+        callStateRef.current = 'connecting';
+        console.log('Call accepted by receiver');
+
+        // 🔹 Properly clear the 60s timeout when accepted
+        if (callTimeoutRef.current) {
+          clearTimeout(callTimeoutRef.current);
+          callTimeoutRef.current = null;
         }
-      } else {
-        console.log('Call data removed');
-        return;
+      
+      } else if (callData.status === 'declined') {
+        console.log('Call was declined by receiver');
+        handleCallDeclined();
+
+      } else if (callData.status === 'ended' || callData.status === 'missed') {
+        console.log('Call ended or missed remotely');
+        setTimeout(() => {
+          handleEndCall();
+        }, 2000);
       }
-    });
-    callTimeoutRef.current = { unsubscribe, isListener: true };
-  };
+    } else {
+      console.log('Call data removed');
+      return;
+    }
+  });
+  // 🔹 store the *listener* here, not in callTimeoutRef
+  callAcceptanceListenerRef.current = unsubscribe;
+};
+
 
   const handleCallDeclined = () => {
     setCallState('ended');
@@ -621,15 +641,26 @@ function Chat({ user, friend, onBack }) {
     callStateRef.current = 'ended';
     alert('Call declined');
     WebRTCService.endCall();
-    if (callTimeoutRef.current && !callTimeoutRef.current.isListener) {
+    // 🔹 clear timeout + listener
+    if (callTimeoutRef.current) {
       clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
     }
-    callTimeoutRef.current = null;
+    if (callAcceptanceListenerRef.current) {
+      callAcceptanceListenerRef.current();
+      callAcceptanceListenerRef.current = null;
+    }
     callIdRef.current = null;
   };
 
   const handleCallTimeout = async (callId) => {
     if (!callId || !user) return;
+    // 🔹 Only treat as missed if still ringing
+    if (callStateRef.current !== 'ringing') {
+      console.log('Call timeout fired but call state is', callStateRef.current, '- ignoring');
+      return;
+    }
+
     try {
       await CallService.endCall(callId, user.uid, 0, 'missed');
       if (chatId && friend) {
@@ -647,9 +678,13 @@ function Chat({ user, friend, onBack }) {
       callStateRef.current = 'ended';
       WebRTCService.endCall();
       callIdRef.current = null;
-      if (callTimeoutRef.current && !callTimeoutRef.current.isListener) {
+      if (callTimeoutRef.current) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
+      }
+      if (callAcceptanceListenerRef.current) {
+        callAcceptanceListenerRef.current();
+        callAcceptanceListenerRef.current = null;
       }
     }
   };
@@ -706,7 +741,7 @@ function Chat({ user, friend, onBack }) {
         console.log('WebRTC connection closed (receiver)');
         handleEndCall();
       });
-      WebRTCService.createPeerConnection(stream);
+    
       listenForSignaling(incomingCall.callId);
       listenForWebRTCProgress(incomingCall.callId);
       setIncomingCall(null);
@@ -785,12 +820,16 @@ function Chat({ user, friend, onBack }) {
       
       // Clear all timeouts
       if (callTimeoutRef.current) {
-        if (callTimeoutRef.current.isListener && callTimeoutRef.current.unsubscribe) {
-          callTimeoutRef.current.unsubscribe();
-        } else {
+        if (callTimeoutRef.current) {
           clearTimeout(callTimeoutRef.current);
+          callTimeoutRef.current = null;
+        } 
+        // Unsubscribe call acceptance listener
+        if (callAcceptanceListenerRef.current) {
+          callAcceptanceListenerRef.current();
+          callAcceptanceListenerRef.current = null;
         }
-        callTimeoutRef.current = null;
+
       }
 
       // End WebRTC connection
