@@ -575,6 +575,11 @@ function Chat({ user, friend, onBack }) {
         handleEndCall();
       });
 
+      WebRTCService.setOnDisconnect(() => {
+        console.log('WebRTC disconnected, attempting to reconnect...');
+        // Don't end call immediately on disconnect
+        });
+
       // Create peer connection
       WebRTCService.createPeerConnection(stream);
 

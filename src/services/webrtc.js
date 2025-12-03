@@ -320,9 +320,10 @@ class WebRTCService {
       if (this.isInitiator) {
         setTimeout(() => {
           if (this.peer && !this.isNegotiating && !this.isEnded) {
+            console.log('Starting offer creation after delay...');
             this.createOffer();
           }
-        }, 1000);
+        }, 2000);
       }
 
     } catch (error) {
@@ -333,8 +334,17 @@ class WebRTCService {
   }
 
   async createOffer() {
-    if (this.isNegotiating || this.isEnded) {
-      console.log('Cannot create offer - already negotiating or ended');
+    if (this.isEnded) {
+      console.log('Cannot create offer - call ended');
+      return;
+    }
+    if (this.isNegotiating) {
+      console.log('Already negotiating, will retry in 500ms');
+      setTimeout(() => {
+        if (!this.isEnded && !this.isNegotiating) {
+          this.createOffer();
+        }
+      }, 500);
       return;
     }
     
