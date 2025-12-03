@@ -80,7 +80,7 @@ const CallScreen = ({
           {getRingAnimation()}
           
           {/* Only show timer when call is active */}
-          {callState === 'active' && isInCall && <CallTimer duration={callDuration} />}
+          {callState === 'active' && <CallTimer duration={callDuration} />}
         </div>
 
         {/* Audio elements */}
