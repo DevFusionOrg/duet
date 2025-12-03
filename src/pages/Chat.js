@@ -443,12 +443,27 @@ function Chat({ user, friend, onBack }) {
       callTimeoutRef.current = null;
     }
   };
+  
+  const checkMicrophonePermissions = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (error) {
+      console.error('Microphone permission denied:', error);
+      alert('Please allow microphone access to make calls');
+      return false;
+    }
+  };
 
   const initiateAudioCall = async () => {
     if (!user || !friend || !chatId) {
       console.error('Cannot initiate call: Missing user, friend, or chatId');
       return;
     }
+    const hasPermission = await checkMicrophonePermissions();
+    if (!hasPermission) return;
+
     if (isBlocked) {
       alert("You cannot call a blocked user");
       return;
@@ -521,11 +536,27 @@ function Chat({ user, friend, onBack }) {
         console.log('WebRTC disconnected, attempting to reconnect...');
         });
       WebRTCService.createPeerConnection(stream);
+      listenForSignaling(callData.callId);
       listenForCallAcceptance(callData.callId);
     } catch (error) {
       console.error('Error initiating call:', error);
       handleCallError(error);
     }
+  };
+
+  const listenForSignaling = (callId) => {
+    console.log('👂 Setting up signaling listener for call:', callId);
+     // Listen for WebRTC signals
+     WebRTCService.setOnDisconnect(() => {
+      console.log('⚠️ WebRTC disconnected, attempting reconnect...');
+      // Attempt to reconnect
+      setTimeout(() => {
+        if (callStateRef.current === 'connecting' || callStateRef.current === 'active') {
+          console.log('Attempting to restart ICE...');
+          WebRTCService.restartIce();
+        }
+      }, 2000);
+    });
   };
 
   const listenForCallAcceptance = (callId) => {
@@ -650,6 +681,7 @@ function Chat({ user, friend, onBack }) {
         handleEndCall();
       });
       WebRTCService.createPeerConnection(stream);
+      listenForSignaling(incomingCall.callId);
       setIncomingCall(null);
       incomingCallRef.current = null;
       setIsInCall(true);

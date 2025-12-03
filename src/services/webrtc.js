@@ -122,7 +122,13 @@ class WebRTCService {
           { urls: 'stun:stun1.l.google.com:19302' },
           { urls: 'stun:stun2.l.google.com:19302' },
           { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' }
+          { urls: 'stun:stun4.l.google.com:19302' },
+           // Add Microsoft-specific STUN servers for Edge
+          { urls: 'stun:stun.ekiga.net' },
+          { urls: 'stun:stun.ideasip.com' },
+          { urls: 'stun:stun.rixtelecom.se' },
+          { urls: 'stun:stun.schlund.de' },
+          { urls: 'stun:stun.stunprotocol.org:3478' }
         ],
         iceCandidatePoolSize: 10,
         iceTransportPolicy: 'all',
@@ -132,6 +138,25 @@ class WebRTCService {
 
       this.peer = new RTCPeerConnection(configuration);
       this.connectionState = 'new';
+
+      // Debug browser-specific issues
+      if (navigator.userAgent.includes('Edg')) {
+        console.log('🔍 Microsoft Edge detected, adding debug handlers');
+        
+        // Enable error logging for Edge
+        this.peer.onicecandidateerror = (event) => {
+          console.error('ICE candidate error (Edge):', event);
+        };
+        // Log Edge version for debugging
+        console.log('Edge User Agent:', navigator.userAgent);
+      } else if (navigator.userAgent.includes('Chrome')) {
+        console.log('🔍 Chrome detected');
+      }
+      console.log('WebRTC Support:');
+      console.log('- RTCPeerConnection:', typeof RTCPeerConnection);
+      console.log('- RTCSessionDescription:', typeof RTCSessionDescription);
+      console.log('- RTCIceCandidate:', typeof RTCIceCandidate);
+
       
       // Reset negotiation state
       this.isNegotiating = false;
@@ -217,10 +242,10 @@ class WebRTCService {
           return;
         }
         
-        if (!this.isInitiator) {
-          console.log('Not initiator, skipping negotiation');
-          return;
-        }
+        // if (!this.isInitiator) {
+        //   console.log('Not initiator, skipping negotiation');
+        //   return;
+        // }
         
         if (this.connectionState === 'closed' || this.isEnded) {
           console.log('Connection closed, skipping negotiation');
@@ -560,9 +585,9 @@ class WebRTCService {
   // Send multiple signals at once
   async sendSignals(signals) {
     try {
-      const signalRef = ref(database, `calls/${this.callId}/signals/${Date.now()}_batch`);
+      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_${signal.type}`);
       await set(signalRef, {
-        signals: signals,
+        ...signal,
         timestamp: Date.now(),
         senderId: this.isInitiator ? 'caller' : 'callee'
       });
@@ -574,9 +599,9 @@ class WebRTCService {
   // Send single signal
   async sendSignal(signal) {
     try {
-      const signalRef = ref(database, `calls/${this.callId}/signals/${Date.now()}_${signal.type}`);
+      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_batch`);
       await set(signalRef, {
-        ...signal,
+        signals: signals,
         timestamp: Date.now(),
         senderId: this.isInitiator ? 'caller' : 'callee'
       });
@@ -588,7 +613,7 @@ class WebRTCService {
   // Send end call signal
   async sendEndCallSignal() {
     try {
-      const signalRef = ref(database, `calls/${this.callId}/signals/${Date.now()}_end`);
+      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_end`);
       await set(signalRef, {
         type: 'end-call',
         timestamp: Date.now(),
