@@ -576,7 +576,7 @@ function Chat({ user, friend, onBack }) {
       });
 
       // Create peer connection
-      WebRTCService.createPeer(stream);
+      WebRTCService.createPeerConnection(stream);
 
       // Listen for call acceptance
       listenForCallAcceptance(callData.callId);
@@ -759,7 +759,7 @@ function Chat({ user, friend, onBack }) {
       });
 
       // Create peer connection
-      WebRTCService.createPeer(stream);
+      WebRTCService.createPeerConnection(stream);
 
       // Clear incoming call states
       setIncomingCall(null);

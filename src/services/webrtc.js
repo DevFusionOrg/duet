@@ -15,6 +15,7 @@ class WebRTCService {
     this.onConnectCallback = null;
     this.onErrorCallback = null;
     this.onCloseCallback = null;
+    this.onDisconnectCallback = null;
     
     // Enhanced state tracking
     this.isNegotiating = false;
@@ -30,6 +31,15 @@ class WebRTCService {
     // Offer/Answer tracking
     this.lastOffer = null;
     this.lastAnswer = null;
+    
+    // Reconnection attempts
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 3;
+    this.reconnectTimer = null;
+    
+    // Signal queue for batching
+    this.signalQueue = [];
+    this.signalQueueTimer = null;
   }
 
   async initializeCall(callId, isInitiator, userId, friendId) {
@@ -39,11 +49,13 @@ class WebRTCService {
       await this.endCall();
     }
     
+    // Reset all states
     this.isEnded = false;
     this.callId = callId;
     this.isInitiator = isInitiator;
     this.remoteUserId = isInitiator ? friendId : userId;
     this.connectionState = 'initializing';
+    this.reconnectAttempts = 0;
     
     // Setup signaling with structured paths
     this.signalingRef = ref(database, `calls/${callId}/signals`);
@@ -74,18 +86,30 @@ class WebRTCService {
           console.log('Local track ended:', track.kind);
           this.handleTrackEnded();
         };
+        
+        track.onmute = () => console.log('Local track muted:', track.kind);
+        track.onunmute = () => console.log('Local track unmuted:', track.kind);
       });
+      
+      // Create peer connection with stream
+      this.createPeerConnection(this.localStream);
+      
+      // Listen for signals
+      this.listenForSignals();
       
       return this.localStream;
     } catch (error) {
       console.error("Error accessing microphone:", error);
       this.connectionState = 'failed';
+      if (this.onErrorCallback) {
+        this.onErrorCallback(error);
+      }
       throw error;
     }
   }
 
   // Enhanced peer connection creation with proper state management
-  createPeer(stream) {
+  createPeerConnection(stream) {
     try {
       // Close existing peer if any
       if (this.peer && this.peer.connectionState !== 'closed') {
@@ -161,7 +185,7 @@ class WebRTCService {
               type: 'candidate',
               candidate: {
                 candidate: candidate.candidate,
-                sdpMid: candidate.sdpMid || '0', // Default values
+                sdpMid: candidate.sdpMid || '0',
                 sdpMLineIndex: candidate.sdpMLineIndex || 0,
                 usernameFragment: candidate.usernameFragment || ''
               },
@@ -229,20 +253,22 @@ class WebRTCService {
         switch (state) {
           case 'connected':
             console.log('WebRTC connection established');
+            this.reconnectAttempts = 0; // Reset reconnect attempts
             if (this.onConnectCallback) {
               this.onConnectCallback();
             }
             break;
           case 'disconnected':
-            console.log('WebRTC disconnected, attempting to reconnect...');
-            setTimeout(() => {
-              if (this.peer && this.peer.connectionState === 'disconnected') {
-                this.restartIce();
-              }
-            }, 2000);
+            console.log('WebRTC disconnected');
+            if (this.onDisconnectCallback) {
+              this.onDisconnectCallback();
+            }
+            // Attempt reconnection
+            this.attemptReconnection();
             break;
           case 'failed':
             console.error('WebRTC connection failed');
+            this.reconnectAttempts = 0;
             if (this.onErrorCallback) {
               this.onErrorCallback(new Error('Connection failed'));
             }
@@ -290,9 +316,6 @@ class WebRTCService {
         }
       };
 
-      // Listen for signals
-      this.listenForSignals();
-
       // Create offer if initiator (with delay to ensure everything is set up)
       if (this.isInitiator) {
         setTimeout(() => {
@@ -320,7 +343,7 @@ class WebRTCService {
       const offer = await this.peer.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: false,
-        iceRestart: true // Allow ICE restart
+        iceRestart: true
       });
       
       this.lastOffer = offer;
@@ -369,7 +392,8 @@ class WebRTCService {
       }
       
       // Only set remote description if we haven't already
-      if (!this.peer.remoteDescription) {
+      const currentRemoteDesc = this.peer.remoteDescription;
+      if (!currentRemoteDesc || currentRemoteDesc.type !== 'offer') {
         await this.peer.setRemoteDescription(new RTCSessionDescription({
           type: 'offer',
           sdp: offer.sdp
@@ -434,7 +458,7 @@ class WebRTCService {
     }
     
     try {
-      console.log('Processing signal:', signal.type);
+      console.log('Processing signal:', signal.type, 'from:', signal.senderId);
       
       if (signal.type === 'offer' && !this.isInitiator) {
         // Prevent duplicate offers
@@ -443,6 +467,7 @@ class WebRTCService {
           return;
         }
         
+        this.lastOffer = signal;
         await this.createAnswer(signal);
       } 
       else if (signal.type === 'answer' && this.isInitiator) {
@@ -452,8 +477,10 @@ class WebRTCService {
           return;
         }
         
-        // Only set if we don't have remote description
-        if (!this.peer.remoteDescription || this.peer.remoteDescription.type !== 'answer') {
+        this.lastAnswer = signal;
+        // Only set if we don't have remote description or it's not an answer
+        const currentRemoteDesc = this.peer.remoteDescription;
+        if (!currentRemoteDesc || currentRemoteDesc.type !== 'answer') {
           await this.peer.setRemoteDescription(new RTCSessionDescription({
             type: 'answer',
             sdp: signal.sdp
@@ -500,6 +527,10 @@ class WebRTCService {
           }
         }
       }
+      else if (signal.type === 'end-call') {
+        console.log('Received end call signal');
+        this.endCall();
+      }
     } catch (error) {
       console.error('Error handling signal:', error);
       
@@ -516,10 +547,11 @@ class WebRTCService {
   // Send multiple signals at once
   async sendSignals(signals) {
     try {
-      const signalRef = ref(database, `calls/${this.callId}/signals/${Date.now()}`);
+      const signalRef = ref(database, `calls/${this.callId}/signals/${Date.now()}_batch`);
       await set(signalRef, {
         signals: signals,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        senderId: this.isInitiator ? 'caller' : 'callee'
       });
     } catch (error) {
       console.error('Error sending signals:', error);
@@ -532,10 +564,25 @@ class WebRTCService {
       const signalRef = ref(database, `calls/${this.callId}/signals/${Date.now()}_${signal.type}`);
       await set(signalRef, {
         ...signal,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        senderId: this.isInitiator ? 'caller' : 'callee'
       });
     } catch (error) {
       console.error('Error sending signal:', error);
+    }
+  }
+
+  // Send end call signal
+  async sendEndCallSignal() {
+    try {
+      const signalRef = ref(database, `calls/${this.callId}/signals/${Date.now()}_end`);
+      await set(signalRef, {
+        type: 'end-call',
+        timestamp: Date.now(),
+        senderId: this.isInitiator ? 'caller' : 'callee'
+      });
+    } catch (error) {
+      console.error('Error sending end call signal:', error);
     }
   }
 
@@ -563,6 +610,8 @@ class WebRTCService {
           }
         });
       }
+    }, (error) => {
+      console.error('Error listening for signals:', error);
     });
   }
 
@@ -592,6 +641,31 @@ class WebRTCService {
     }
   }
 
+  // Attempt reconnection
+  async attemptReconnection() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts || this.isEnded) {
+      console.log('Max reconnection attempts reached or call ended');
+      return;
+    }
+    
+    this.reconnectAttempts++;
+    console.log(`Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+    
+    // Clear any existing timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    
+    // Schedule reconnection
+    this.reconnectTimer = setTimeout(async () => {
+      if (this.peer && this.peer.connectionState === 'disconnected' && !this.isEnded) {
+        console.log('Attempting to reconnect...');
+        await this.restartIce();
+      }
+    }, 2000 * this.reconnectAttempts); // Exponential backoff
+  }
+
   // Handle track ended
   handleTrackEnded() {
     console.log('Track ended, checking connection...');
@@ -618,6 +692,9 @@ class WebRTCService {
     
     console.log('Ending call with cleanup...');
     
+    // Send end call signal to other peer
+    await this.sendEndCallSignal();
+    
     try {
       // Stop all tracks
       if (this.localStream) {
@@ -625,6 +702,8 @@ class WebRTCService {
           try {
             track.stop();
             track.onended = null;
+            track.onmute = null;
+            track.onunmute = null;
           } catch (error) {
             console.warn('Error stopping local track:', error);
           }
@@ -639,6 +718,12 @@ class WebRTCService {
             // Ignore
           }
         });
+      }
+      
+      // Clear reconnect timer
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
       }
       
       // Close peer connection
@@ -661,7 +746,7 @@ class WebRTCService {
       }
       
       // Remove signaling listener
-      if (this.signalingListener) {
+      if (this.signalingListener && this.signalingRef) {
         off(this.signalingRef, 'value', this.signalingListener);
         this.signalingListener = null;
       }
@@ -701,6 +786,16 @@ class WebRTCService {
     this.isIceGatheringComplete = false;
     this.lastOffer = null;
     this.lastAnswer = null;
+    this.reconnectAttempts = 0;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.signalQueue = [];
+    if (this.signalQueueTimer) {
+      clearTimeout(this.signalQueueTimer);
+      this.signalQueueTimer = null;
+    }
   }
 
   // Toggle mute
@@ -713,6 +808,25 @@ class WebRTCService {
       return !audioTrack.enabled; // Return true if muted
     }
     return false;
+  }
+
+  // Get connection stats
+  async getConnectionStats() {
+    if (!this.peer) return null;
+    
+    try {
+      const stats = await this.peer.getStats();
+      const result = {};
+      
+      stats.forEach(report => {
+        result[report.type] = report;
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('Error getting stats:', error);
+      return null;
+    }
   }
 
   // Set callbacks
@@ -730,6 +844,10 @@ class WebRTCService {
 
   setOnClose(callback) {
     this.onCloseCallback = callback;
+  }
+
+  setOnDisconnect(callback) {
+    this.onDisconnectCallback = callback;
   }
 }
 
