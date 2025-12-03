@@ -1305,8 +1305,6 @@
   .welcome-title { font-size: 1.6rem; }
 
   .friend-card {
-    flex-direction: column;
-    text-align: center;
     gap: 15px;
   }
 
