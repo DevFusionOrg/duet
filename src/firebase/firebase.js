@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getDatabase } from "firebase/database";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 const firebaseConfig = {
@@ -11,12 +12,14 @@ const firebaseConfig = {
   messagingSenderId: "802645032363",
   appId: "1:802645032363:web:d15288ea6900cb1a5d66ee",
   measurementId: "G-XCLFMX66ZM",
+  databaseURL: "https://vibechat-f87fe-default-rtdb.asia-southeast1.firebasedatabase.app/"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
+const database = getDatabase(app); // ADD THIS - Realtime Database instance
 export const messaging = getMessaging(app);
 
 export const requestNotificationPermission = async () => {
@@ -60,4 +63,4 @@ enableIndexedDbPersistence(db).catch((err) => {
   }
 });
 
-export { auth, googleProvider, db };
+export { auth, googleProvider, db, database };
