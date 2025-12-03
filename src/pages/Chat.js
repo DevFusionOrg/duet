@@ -64,11 +64,13 @@ function Chat({ user, friend, onBack }) {
   const inputRef = useRef(null);
   const [selectedImage, setSelectedImage] = useState(null);
   
-  // Refs for call management
+  // Refs for call management - UPDATED
   const callTimeoutRef = useRef(null);
   const ringtoneAudioRef = useRef(null);
   const incomingCallRef = useRef(null);
-  const callIdRef = useRef(null); // Store the current call ID
+  const callIdRef = useRef(null);
+  const callStateRef = useRef('idle'); // Track call state in ref for callbacks
+  const activeCallListenerRef = useRef(null); // Store active call listener
 
   // Initialize notifications
   useEffect(() => {
@@ -107,23 +109,58 @@ function Chat({ user, friend, onBack }) {
     setupForegroundMessages();
   }, []);
 
-  // Listen for incoming calls
+  // FIXED: Listen for incoming calls with user validation
   useEffect(() => {
-    if (!user || !friend) return;
+    if (!user?.uid || !friend?.uid) return;
+
+    console.log('Setting up call listener for user:', user.uid, 'friend:', friend?.uid);
+    
+    // Clean up previous listener
+    if (activeCallListenerRef.current) {
+      activeCallListenerRef.current();
+      activeCallListenerRef.current = null;
+    }
 
     const unsubscribe = CallService.listenForIncomingCalls(user.uid, (calls) => {
       console.log('Incoming calls received:', calls);
       
-      // Filter out calls that are already ended
-      const activeCalls = calls.filter(call => call.status !== 'ended' && call.status !== 'missed');
+      // CRITICAL FIX: Filter calls for the current friend only
+      const relevantCalls = calls.filter(call => {
+        // Only show calls from the current chat friend
+        const isFromCurrentFriend = call.callerId === friend.uid;
+        const isForCurrentUser = call.receiverId === user.uid;
+        const isActive = call.status === 'ringing';
+        
+        console.log('Call check:', {
+          callId: call.callId,
+          isFromCurrentFriend,
+          isForCurrentUser,
+          isActive,
+          currentFriendId: friend.uid,
+          callerId: call.callerId,
+          receiverId: call.receiverId
+        });
+        
+        return isFromCurrentFriend && isForCurrentUser && isActive;
+      });
       
-      if (activeCalls.length > 0 && !incomingCall) {
-        const newIncomingCall = activeCalls[0];
-        console.log('Setting incoming call:', newIncomingCall);
+      console.log('Relevant calls for current friend:', relevantCalls);
+      
+      // Don't process if we're already in a call or have an incoming call
+      if (relevantCalls.length > 0 && !incomingCall && callStateRef.current === 'idle') {
+        const newIncomingCall = relevantCalls[0];
+        console.log('Setting incoming call from current friend:', newIncomingCall);
+        
+        // Validate this is really for us
+        if (newIncomingCall.receiverId !== user.uid) {
+          console.error('Wrong user! This call is for:', newIncomingCall.receiverId, 'but we are:', user.uid);
+          return;
+        }
         
         setIncomingCall(newIncomingCall);
         incomingCallRef.current = newIncomingCall;
         callIdRef.current = newIncomingCall.callId;
+        callStateRef.current = 'ringing';
         
         // Play ringtone for incoming call
         playRingtone();
@@ -138,12 +175,26 @@ function Chat({ user, friend, onBack }) {
           handleAutoDeclineCall(newIncomingCall.callId);
         }, 60000); // 1 minute
       }
+      
+      // Clean up stale calls not from current friend
+      calls.filter(call => call.callerId !== friend.uid && call.receiverId === user.uid)
+        .forEach(staleCall => {
+          console.log('Cleaning up stale call not from current friend:', staleCall.callId);
+          if (staleCall.status === 'ringing') {
+            CallService.declineCall(staleCall.callId, user.uid);
+          }
+        });
     });
 
+    activeCallListenerRef.current = unsubscribe;
+
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+        activeCallListenerRef.current = null;
+      }
     };
-  }, [user, friend, incomingCall]);
+  }, [user?.uid, friend?.uid, incomingCall]);
 
   // Listen for friend's online status
   useEffect(() => {
@@ -317,17 +368,32 @@ function Chat({ user, friend, onBack }) {
     };
   }, [showUserMenu]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount - FIXED
   useEffect(() => {
     return () => {
+      console.log('Chat component unmounting, cleaning up...');
+      
       // Cleanup timeouts and audio
       if (callTimeoutRef.current) {
         clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
       }
+      
       stopRingtone();
-      if (isInCall) {
+      
+      // End call if active
+      if (callStateRef.current !== 'idle' && callStateRef.current !== 'ended') {
+        console.log('Ending call on unmount');
         handleEndCall();
       }
+      
+      // Clean up listeners
+      if (activeCallListenerRef.current) {
+        activeCallListenerRef.current();
+        activeCallListenerRef.current = null;
+      }
+      
+      WebRTCService.endCall();
     };
   }, []);
 
@@ -341,9 +407,12 @@ function Chat({ user, friend, onBack }) {
       ringtoneAudioRef.current.volume = 0.7;
       
       // Play with error handling
-      ringtoneAudioRef.current.play().catch(error => {
-        console.warn('Ringtone play failed:', error);
-      });
+      const playPromise = ringtoneAudioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.warn('Ringtone play failed:', error);
+        });
+      }
     } catch (error) {
       console.error('Error playing ringtone:', error);
     }
@@ -355,10 +424,10 @@ function Chat({ user, friend, onBack }) {
       try {
         ringtoneAudioRef.current.pause();
         ringtoneAudioRef.current.currentTime = 0;
+        ringtoneAudioRef.current = null;
       } catch (error) {
         console.error('Error stopping ringtone:', error);
       }
-      ringtoneAudioRef.current = null;
     }
   };
 
@@ -376,7 +445,7 @@ function Chat({ user, friend, onBack }) {
       await CallService.endCall(callId, user.uid, 0, 'missed');
       
       // Send missed call notification
-      if (incomingCallRef.current) {
+      if (incomingCallRef.current && chatId) {
         CallService.sendCallNotification(chatId, user.uid, incomingCallRef.current.callerId, 'missed');
       }
       
@@ -392,15 +461,21 @@ function Chat({ user, friend, onBack }) {
       console.error('Error auto declining call:', error);
     } finally {
       // Cleanup
-      setIncomingCall(null);
-      incomingCallRef.current = null;
-      callIdRef.current = null;
-      stopRingtone();
-      
-      if (callTimeoutRef.current) {
-        clearTimeout(callTimeoutRef.current);
-        callTimeoutRef.current = null;
-      }
+      cleanupIncomingCall();
+    }
+  };
+
+  // Cleanup incoming call state
+  const cleanupIncomingCall = () => {
+    setIncomingCall(null);
+    incomingCallRef.current = null;
+    callIdRef.current = null;
+    callStateRef.current = 'idle';
+    stopRingtone();
+    
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
     }
   };
 
@@ -416,10 +491,19 @@ function Chat({ user, friend, onBack }) {
       return;
     }
 
+    // Check if already in a call
+    if (callStateRef.current !== 'idle') {
+      alert("You are already in a call");
+      return;
+    }
+
     try {
+      console.log('Initiating audio call to:', friend.displayName);
+      
       // Set call state to ringing
       setCallState('ringing');
       setIsInCall(true);
+      callStateRef.current = 'ringing';
       
       // Create call in database
       const callData = await CallService.createCall(
@@ -429,6 +513,8 @@ function Chat({ user, friend, onBack }) {
         friend.displayName
       );
 
+      console.log('Call created:', callData);
+      
       // Store call ID
       callIdRef.current = callData.callId;
 
@@ -451,10 +537,12 @@ function Chat({ user, friend, onBack }) {
 
       // Setup callbacks
       WebRTCService.setOnRemoteStream((remoteStream) => {
+        console.log('Remote stream received');
         // Handle remote audio stream
         const audioElement = document.querySelector('.remote-audio');
         if (audioElement) {
           audioElement.srcObject = remoteStream;
+          audioElement.play().catch(e => console.log('Remote audio play failed:', e));
         }
       });
 
@@ -462,6 +550,7 @@ function Chat({ user, friend, onBack }) {
         console.log('WebRTC connected');
         setCallState('active');
         setCallStartTime(Date.now());
+        callStateRef.current = 'active';
         
         // Clear timeout since call was accepted
         if (callTimeoutRef.current) {
@@ -471,6 +560,9 @@ function Chat({ user, friend, onBack }) {
         
         // Send call started notification
         CallService.sendCallNotification(chatId, user.uid, friend.uid, 'started');
+        
+        // Log call start
+        console.log('Call started with', friend.displayName);
       });
 
       WebRTCService.setOnError((error) => {
@@ -495,17 +587,19 @@ function Chat({ user, friend, onBack }) {
     }
   };
 
-  // Listen for call acceptance
+  // Listen for call acceptance - FIXED
   const listenForCallAcceptance = (callId) => {
+    console.log('Listening for call acceptance:', callId);
     const callRef = ref(database, `activeCalls/${callId}`);
     
-    onValue(callRef, (snapshot) => {
+    const unsubscribe = onValue(callRef, (snapshot) => {
       const callData = snapshot.val();
       if (callData) {
         console.log('Call status update:', callData.status);
         
         if (callData.status === 'accepted') {
           setCallState('connecting');
+          callStateRef.current = 'connecting';
           console.log('Call accepted by receiver');
           
           // Clear timeout since call was accepted
@@ -515,30 +609,48 @@ function Chat({ user, friend, onBack }) {
           }
         } else if (callData.status === 'declined') {
           console.log('Call was declined by receiver');
-          setCallState('ended');
-          setIsInCall(false);
-          alert('Call declined');
-          WebRTCService.endCall();
-          
-          // Clear timeout
-          if (callTimeoutRef.current) {
-            clearTimeout(callTimeoutRef.current);
-            callTimeoutRef.current = null;
-          }
+          handleCallDeclined();
         } else if (callData.status === 'ended' || callData.status === 'missed') {
+          console.log('Call ended or missed remotely');
           handleEndCall();
         }
+      } else {
+        console.log('Call data removed');
+        handleEndCall();
       }
     });
+
+    // Store unsubscribe function
+    callTimeoutRef.current = { unsubscribe, isListener: true };
+  };
+
+  // Handle call declined
+  const handleCallDeclined = () => {
+    setCallState('ended');
+    setIsInCall(false);
+    callStateRef.current = 'ended';
+    alert('Call declined');
+    
+    // End WebRTC
+    WebRTCService.endCall();
+    
+    // Clear timeout
+    if (callTimeoutRef.current && !callTimeoutRef.current.isListener) {
+      clearTimeout(callTimeoutRef.current);
+    }
+    callTimeoutRef.current = null;
+    
+    // Reset call ID
+    callIdRef.current = null;
   };
 
   // Handle call timeout (1 minute) - FIXED VERSION
   const handleCallTimeout = async (callId) => {
     if (!callId || !user) return;
 
+    console.log('Call timeout for call ID:', callId);
+    
     try {
-      console.log('Call timeout for call ID:', callId);
-      
       // End call in database as missed
       await CallService.endCall(callId, user.uid, 0, 'missed');
       
@@ -559,8 +671,14 @@ function Chat({ user, friend, onBack }) {
       // Cleanup
       setCallState('ended');
       setIsInCall(false);
+      callStateRef.current = 'ended';
       WebRTCService.endCall();
       callIdRef.current = null;
+      
+      if (callTimeoutRef.current && !callTimeoutRef.current.isListener) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
     }
   };
 
@@ -571,9 +689,17 @@ function Chat({ user, friend, onBack }) {
       return;
     }
 
+    // Validate this is really for us
+    if (incomingCall.receiverId !== user.uid) {
+      console.error('Wrong user trying to accept call!');
+      alert('This call is not for you');
+      cleanupIncomingCall();
+      return;
+    }
+
+    console.log('Accepting call from:', incomingCall.callerName);
+    
     try {
-      console.log('Accepting call:', incomingCall.callId);
-      
       // Stop ringtone
       stopRingtone();
       
@@ -585,6 +711,7 @@ function Chat({ user, friend, onBack }) {
 
       // Set call state to connecting
       setCallState('connecting');
+      callStateRef.current = 'connecting';
       
       // Accept call in database
       await CallService.acceptCall(incomingCall.callId, user.uid);
@@ -602,35 +729,44 @@ function Chat({ user, friend, onBack }) {
 
       // Setup callbacks
       WebRTCService.setOnRemoteStream((remoteStream) => {
+        console.log('Remote stream received (as receiver)');
         const audioElement = document.querySelector('.remote-audio');
         if (audioElement) {
           audioElement.srcObject = remoteStream;
+          audioElement.play().catch(e => console.log('Remote audio play failed:', e));
         }
       });
 
       WebRTCService.setOnConnect(() => {
-        console.log('Call connected');
+        console.log('Call connected as receiver');
         setCallState('active');
         setCallStartTime(Date.now());
-        CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'started');
+        callStateRef.current = 'active';
+        
+        if (chatId) {
+          CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'started');
+        }
       });
 
       WebRTCService.setOnError((error) => {
-        console.error('WebRTC error:', error);
+        console.error('WebRTC error (receiver):', error);
         handleCallError(error);
       });
 
       WebRTCService.setOnClose(() => {
-        console.log('WebRTC connection closed');
+        console.log('WebRTC connection closed (receiver)');
         handleEndCall();
       });
 
       // Create peer connection
       WebRTCService.createPeer(stream);
 
+      // Clear incoming call states
       setIncomingCall(null);
       incomingCallRef.current = null;
       setIsInCall(true);
+      
+      console.log('Call accepted successfully');
       
     } catch (error) {
       console.error('Error accepting call:', error);
@@ -645,9 +781,9 @@ function Chat({ user, friend, onBack }) {
       return;
     }
 
+    console.log('Declining call from:', incomingCall.callerName);
+    
     try {
-      console.log('Declining call:', incomingCall.callId);
-      
       // Stop ringtone
       stopRingtone();
       
@@ -660,15 +796,21 @@ function Chat({ user, friend, onBack }) {
       await CallService.declineCall(incomingCall.callId, user.uid);
       
       // Send missed call notification
-      CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'missed');
+      if (chatId) {
+        CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'missed');
+      }
+      
+      // Show notification
+      notificationService.showNotification('Call Declined', {
+        body: `Declined call from ${incomingCall.callerName}`,
+        icon: friend?.photoURL || '/default-avatar.png'
+      });
       
     } catch (error) {
       console.error('Error declining call:', error);
     } finally {
       // Cleanup states
-      setIncomingCall(null);
-      incomingCallRef.current = null;
-      callIdRef.current = null;
+      cleanupIncomingCall();
     }
   };
 
@@ -677,6 +819,7 @@ function Chat({ user, friend, onBack }) {
     console.error('Call error:', error);
     setCallState('ended');
     setIsInCall(false);
+    callStateRef.current = 'ended';
     
     // Show user-friendly error message
     let errorMessage = 'Call failed. Please try again.';
@@ -690,9 +833,17 @@ function Chat({ user, friend, onBack }) {
     handleEndCall();
   };
 
-  // Handle end call - FIXED VERSION
+  // Handle end call - FIXED VERSION (Centralized cleanup)
   const handleEndCall = async () => {
-    console.log('handleEndCall called');
+    console.log('handleEndCall called, current state:', callStateRef.current);
+    
+    // Prevent multiple calls
+    if (callStateRef.current === 'ended' || callStateRef.current === 'idle') {
+      console.log('Call already ended, skipping');
+      return;
+    }
+    
+    callStateRef.current = 'ending';
     
     try {
       const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
@@ -700,9 +851,13 @@ function Chat({ user, friend, onBack }) {
       // Stop ringtone if playing
       stopRingtone();
       
-      // Clear timeout
+      // Clear all timeouts
       if (callTimeoutRef.current) {
-        clearTimeout(callTimeoutRef.current);
+        if (callTimeoutRef.current.isListener && callTimeoutRef.current.unsubscribe) {
+          callTimeoutRef.current.unsubscribe();
+        } else {
+          clearTimeout(callTimeoutRef.current);
+        }
         callTimeoutRef.current = null;
       }
 
@@ -710,21 +865,26 @@ function Chat({ user, friend, onBack }) {
       WebRTCService.endCall();
       
       // Get the current call ID to end
-      const callIdToEnd = callIdRef.current || 
-                         (incomingCall?.callId) || 
-                         (friend ? `${user.uid}_${friend.uid}_*` : null);
+      const callIdToEnd = callIdRef.current || incomingCallRef.current?.callId;
       
-      console.log('Ending call with ID:', callIdToEnd);
+      console.log('Ending call with ID:', callIdToEnd, 'duration:', duration);
       
       // End call in database only if we have a call ID
       if (callIdToEnd && user) {
-        await CallService.endCall(callIdToEnd, user.uid, duration);
+        await CallService.endCall(callIdToEnd, user.uid, duration, 'ended');
       }
 
       // Send call ended notification if call was active
       if (callState === 'active' && chatId && friend) {
         CallService.sendCallNotification(chatId, user.uid, friend.uid, 'ended', duration);
       }
+
+      // Log call end
+      console.log('Call ended successfully', {
+        duration,
+        with: friend?.displayName,
+        callId: callIdToEnd
+      });
 
     } catch (error) {
       console.error('Error ending call:', error);
@@ -737,6 +897,7 @@ function Chat({ user, friend, onBack }) {
       callIdRef.current = null;
       setCallDuration(0);
       setCallStartTime(null);
+      callStateRef.current = 'idle';
     }
   };
 
@@ -1384,9 +1545,9 @@ function Chat({ user, friend, onBack }) {
           onClick={initiateAudioCall}
           className="chat-call-button"
           title="Audio call"
-          disabled={isBlocked || loading || isInCall}
+          disabled={isBlocked || loading || isInCall || callState !== 'idle'}
         >
-          <svg aria-label="Audio call" fill="currentColor" height="24" width="24" viewBox="0 0 24 24"><path d="M18.227 22.912c-4.913 0-9.286-3.627-11.486-5.828C4.486 14.83.731 10.291.921 5.231a3.289 3.289 0 0 1 .908-2.138 17.116 17.116 0 0 1 1.865-1.71 2.307 2.307 0 0 1 3.004.174 13.283 13.283 0 0 1 3.658 5.325 2.551 2.551 0 0 1-.19 1.941l-.455.853a.463.463 0 0 0-.024.387 7.57 7.57 0 0 0 4.077 4.075.455.455 0 0 0 .386-.024l.853-.455a2.548 2.548 0 0 1 1.94-.19 13.278 13.278 0 0 1 5.326 3.658 2.309 2.309 0 0 1 .174 3.003 17.319 17.319 0 0 1-1.71 1.866 3.29 3.29 0 0 1-2.138.91 10.27 10.27 0 0 1-.368.006Zm-13.144-20a.27.27 0 0 0-.167.054A15.121 15.121 0 0 0 3.28 4.47a1.289 1.289 0 0 0-.36.836c-.161 4.301 3.21 8.34 5.235 10.364s6.06 5.403 10.366 5.236a1.284 1.284 0 0 0 .835-.36 15.217 15.217 0 0 0 1.504-1.637.324.324 0 0 0-.047-.41 11.62 11.62 0 0 0-4.457-3.119.545.545 0 0 0-.411.044l-.854.455a2.452 2.452 0 0 1-2.071.116 9.571 9.571 0 0 1-5.189-5.188 2.457 2.457 0 0 1 .115-2.071l.456-.855a.544.544 0 0 0 .043-.41 11.629 11.629 0 0 0-3.118-4.458.36.36 0 0 0-.244-.1Z"></path></svg>
+          <svg aria-label="Audio call" fill="currentColor" height="24" width="24" viewBox="0 0 24 24"><path d="M18.227 22.912c-4.913 0-9.286-3.627-11.486-5.828C4.486 14.83.731 10.291.921 5.231a3.289 3.289 0 0 1 .908-2.138 17.116 17.116 0 0 1 1.865-1.71a2.307 2.307 0 0 1 3.004.174 13.283 13.283 0 0 1 3.658 5.325 2.551 2.551 0 0 1-.19 1.941l-.455.853a.463.463 0 0 0-.024.387 7.57 7.57 0 0 0 4.077 4.075.455.455 0 0 0 .386-.024l.853-.455a2.548 2.548 0 0 1 1.94-.19 13.278 13.278 0 0 1 5.326 3.658 2.309 2.309 0 0 1 .174 3.003 17.319 17.319 0 0 1-1.71 1.866 3.29 3.29 0 0 1-2.138.91 10.27 10.27 0 0 1-.368.006Zm-13.144-20a.27.27 0 0 0-.167.054A15.121 15.121 0 0 0 3.28 4.47a1.289 1.289 0 0 0-.36.836c-.161 4.301 3.21 8.34 5.235 10.364s6.06 5.403 10.366 5.236a1.284 1.284 0 0 0 .835-.36 15.217 15.217 0 0 0 1.504-1.637.324.324 0 0 0-.047-.41 11.62 11.62 0 0 0-4.457-3.119.545.545 0 0 0-.411.044l-.854.455a2.452 2.452 0 0 1-2.071.116 9.571 9.571 0 0 1-5.189-5.188 2.457 2.457 0 0 1 .115-2.071l.456-.855a.544.544 0 0 0 .043-.41 11.629 11.629 0 0 0-3.118-4.458.36.36 0 0 0-.244-.1Z"></path></svg>
         </button>
       </div>
 
