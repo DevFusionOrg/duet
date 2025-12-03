@@ -9,7 +9,8 @@ const CallScreen = ({
   onEndCall, 
   onToggleMute, 
   onToggleSpeaker,
-  callDuration = 0
+  callDuration = 0,
+  isInitiator = true // Add this prop
 }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(false);
@@ -27,6 +28,15 @@ const CallScreen = ({
     }
   }, []);
 
+  // Handle end call with confirmation if call just started
+  const handleEndCallWithConfirm = () => {
+    if (callState === 'active' && callDuration < 10) {
+      const confirm = window.confirm('End the call?');
+      if (!confirm) return;
+    }
+    onEndCall();
+  };
+
   const handleMuteToggle = () => {
     const muted = onToggleMute();
     setIsMuted(muted);
@@ -40,7 +50,7 @@ const CallScreen = ({
   const getStatusText = () => {
     switch(callState) {
       case 'ringing':
-        return 'Ringing...';
+        return isInitiator ? 'Calling...' : 'Incoming call...';
       case 'connecting':
         return 'Connecting...';
       case 'active':
@@ -72,15 +82,23 @@ const CallScreen = ({
         <div className="call-info">
           <div className="call-avatar">
             <img src={friend.photoURL} alt={friend.displayName} />
+            {getRingAnimation()}
           </div>
           <h2 className="call-friend-name">{friend.displayName}</h2>
           <p className="call-status">
             {getStatusText()}
           </p>
-          {getRingAnimation()}
           
           {/* Only show timer when call is active */}
           {callState === 'active' && <CallTimer duration={callDuration} />}
+          
+          {/* Show call quality indicator */}
+          {callState === 'active' && (
+            <div className="call-quality-indicator">
+              <span className="quality-dot good"></span>
+              <span>Good connection</span>
+            </div>
+          )}
         </div>
 
         {/* Audio elements */}
@@ -93,8 +111,9 @@ const CallScreen = ({
           isSpeaker={isSpeaker}
           onMuteToggle={handleMuteToggle}
           onSpeakerToggle={handleSpeakerToggle}
-          onEndCall={onEndCall}
+          onEndCall={handleEndCallWithConfirm} // Use the new function
           showAllControls={callState === 'active'}
+          showEndButton={true} // Always show end button
         />
       </div>
     </div>
