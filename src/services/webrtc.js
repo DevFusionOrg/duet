@@ -494,7 +494,7 @@ class WebRTCService {
     console.log('🔍 isEnded?', this.isEnded);
     console.log('🔍 Connection state:', this.connectionState);
   
-    if (!this.peer || this.isEnded) {
+    if (!this.peer) {
       console.log('Peer not ready or call ended, ignoring signal');
       return;
     }
