@@ -485,3 +485,425 @@
     max-width: 200px;
   }
 }
+
+/* Blocked Users Section */
+.profile-blocked-section {
+  margin-top: 25px;
+  padding: 20px;
+  background: #fff8f8;
+  border: 1px solid #ffebee;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.1);
+}
+
+.profile-blocked-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.profile-blocked-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #c62828;
+}
+
+.profile-blocked-count {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e53935;
+  background: #ffebee;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.profile-blocked-description {
+  margin-bottom: 15px;
+}
+
+.profile-blocked-description p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.profile-manage-blocked-button {
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.profile-manage-blocked-button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.2);
+}
+
+.profile-manage-blocked-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Blocked Users Modal Overlay */
+.blocked-users-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Blocked Users Modal */
+.blocked-users-modal {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Blocked Users Modal Header */
+.blocked-users-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffebee 100%);
+  border-radius: 16px 16px 0 0;
+}
+
+.blocked-users-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #c62828;
+}
+
+.blocked-users-close-button {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.blocked-users-close-button:hover {
+  background: #ffebee;
+  color: #c62828;
+}
+
+/* Blocked Users Modal Content */
+.blocked-users-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: #fafafa;
+}
+
+.blocked-users-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.blocked-users-loading p {
+  margin: 0;
+  font-size: 16px;
+}
+
+.no-blocked-users {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.no-blocked-users p {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.no-blocked-users-description {
+  font-size: 14px !important;
+  color: #999 !important;
+  line-height: 1.4;
+}
+
+/* Blocked Users List */
+.blocked-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.blocked-user-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.blocked-user-item:hover {
+  border-color: #ffcdd2;
+  box-shadow: 0 4px 8px rgba(255, 107, 107, 0.1);
+  transform: translateY(-1px);
+}
+
+.blocked-user-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ffebee;
+}
+
+.blocked-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.blocked-user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.blocked-user-username {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unblock-user-button {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #34a853 0%, #2d9448 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.unblock-user-button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(52, 168, 83, 0.2);
+}
+
+.unblock-user-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Blocked Users Modal Footer */
+.blocked-users-modal-footer {
+  padding: 20px 24px;
+  border-top: 1px solid #f0f0f0;
+  text-align: center;
+  background: white;
+  border-radius: 0 0 16px 16px;
+}
+
+.blocked-users-close-footer-button {
+  padding: 10px 24px;
+  background: #f8f9fa;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.blocked-users-close-footer-button:hover {
+  background: #e9ecef;
+  border-color: #999;
+}
+
+/* Responsive Design for Blocked Users */
+@media (max-width: 768px) {
+  .blocked-users-modal {
+    max-height: 90vh;
+    margin: 10px;
+  }
+  
+  .blocked-users-modal-header {
+    padding: 16px 20px;
+  }
+  
+  .blocked-users-modal-content {
+    padding: 20px;
+  }
+  
+  .blocked-user-item {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  .blocked-user-avatar {
+    width: 45px;
+    height: 45px;
+  }
+  
+  .blocked-user-name {
+    font-size: 15px;
+  }
+  
+  .blocked-user-username {
+    font-size: 13px;
+  }
+  
+  .unblock-user-button {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  
+  .profile-blocked-section {
+    padding: 16px;
+  }
+  
+  .profile-blocked-title {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .blocked-users-modal-header h3 {
+    font-size: 18px;
+  }
+  
+  .blocked-users-modal-content {
+    padding: 16px;
+  }
+  
+  .blocked-user-item {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+  
+  .blocked-user-info {
+    width: 100%;
+  }
+  
+  .unblock-user-button {
+    width: 100%;
+    padding: 10px;
+  }
+  
+  .profile-blocked-section {
+    padding: 12px;
+  }
+  
+  .profile-blocked-header {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  
+  .profile-blocked-count {
+    align-self: flex-start;
+  }
+}
+
+/* Focus styles for accessibility */
+.profile-manage-blocked-button:focus-visible,
+.unblock-user-button:focus-visible,
+.blocked-users-close-button:focus-visible,
+.blocked-users-close-footer-button:focus-visible {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .blocked-users-modal-overlay {
+    animation: none;
+  }
+  
+  .blocked-users-modal {
+    animation: none;
+  }
+  
+  .blocked-user-item:hover {
+    transform: none;
+  }
+  
+  .profile-manage-blocked-button:hover:not(:disabled),
+  .unblock-user-button:hover:not(:disabled) {
+    transform: none;
+  }
+}
