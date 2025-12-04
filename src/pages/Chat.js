@@ -550,8 +550,8 @@ function Chat({ user, friend, onBack }) {
           callState={callState}
           callDuration={callDuration}
           onEndCall={handleEndCall}
-          onToggleMute={() => {handleToggleMute}}
-          onToggleSpeaker={() => {handleToggleSpeaker}}
+          onToggleMute={handleToggleMute}
+          onToggleSpeaker={handleToggleSpeaker}
           isInitiator={!incomingCall}
         />
       )}
