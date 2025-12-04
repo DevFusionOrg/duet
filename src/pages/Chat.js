@@ -184,6 +184,12 @@ function Chat({ user, friend, onBack }) {
     }, 300);
   };
 
+  useEffect(() => {
+    if (messages.length > 0 && !loading) {
+      scrollToBottom();
+    }
+  }, [messages, loading]);
+
   const handleImageUploadClick = async () => {
     if (!cloudinaryLoaded) {
       alert("Image upload is still loading. Please try again in a moment.");
