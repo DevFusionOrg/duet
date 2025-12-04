@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { listenToFriendsOnlineStatus } from "../firebase/firestore";
 
-export function useOnlineStatus(user, friends) {
+export function useFriendsOnlineStatus(user, friends) {
   const [friendsOnlineStatus, setFriendsOnlineStatus] = useState({});
 
   useEffect(() => {

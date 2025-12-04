@@ -13,7 +13,7 @@ import ProfilePopup from '../Components/Home/ProfilePopup';
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
 import { useProfile } from "../hooks/useProfile";
-import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import { useFriendsOnlineStatus } from "../hooks/useFriendsOnlineStatus";
 import { useUnreadCount } from "../hooks/useUnreadCount";
 
 function Home({ user }) {
@@ -21,7 +21,7 @@ function Home({ user }) {
   const { friends, loading: friendsLoading } = useFriends(user);
   const { chats, loading: chatsLoading } = useChats(user);
   const { userProfile } = useProfile(user);
-  const { friendsOnlineStatus } = useOnlineStatus(user, friends);
+  const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
   const { unreadFriendsCount } = useUnreadCount(user);
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [activeView, setActiveView] = useState('friends');
