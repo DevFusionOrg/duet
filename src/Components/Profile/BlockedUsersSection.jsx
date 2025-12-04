@@ -1,0 +1,35 @@
+import React from "react";
+
+function BlockedUsersSection({ 
+  blockedUsers, 
+  loadingBlockedUsers, 
+  onShowBlockedUsers,
+  isOwnProfile 
+}) {
+  if (!isOwnProfile) return null;
+
+  return (
+    <div className="profile-blocked-section">
+      <div className="profile-blocked-header">
+        <h4 className="profile-blocked-title">Blocked Users</h4>
+        <div className="profile-blocked-count">
+          {blockedUsers.length} user{blockedUsers.length !== 1 ? 's' : ''} blocked
+        </div>
+      </div>
+      
+      <div className="profile-blocked-description">
+        <p>Blocked users cannot message you, call you, or see your profile.</p>
+      </div>
+      
+      <button
+        onClick={onShowBlockedUsers}
+        className="profile-manage-blocked-button"
+        disabled={loadingBlockedUsers}
+      >
+        {loadingBlockedUsers ? "Loading..." : "Manage Blocked Users"}
+      </button>
+    </div>
+  );
+}
+
+export default BlockedUsersSection;
