@@ -15,14 +15,14 @@ const CallControls = ({
       {showAllControls && (
         <>
           <button 
-            className={`call-control-button ${isMuted ? 'call-control-active' : ''}`}
+            className={`call-control-button ${isMuted ? 'call-control-unmute-mic' : 'call-control-mute-mic'}`}
             onClick={onMuteToggle}
             aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
           >
             <svg class="x14rh7hd x1lliihq x1tzjh5l x1k90msu x2h7rmj x1qfuztq" viewBox="6 6 36 36"><path class="x1labep9 x19991ni x9lcvmn" d="M20 34h8a1 1 0 0 1 0 2h-8a1 1 0 0 1 0-2m4-5.5a5 5 0 0 1-5-5V17a5 5 0 0 1 10 0v6.5a5 5 0 0 1-5 5m0 4a9 9 0 0 1-9-9 1 1 0 0 1 2 0 7 7 0 1 0 14 0 1 1 0 0 1 2 0 9 9 0 0 1-9 9" fill="url(#gradientFill)"></path><defs><linearGradient id="gradientFill" x1="0" x2="0" y1="0" y2="100%"><stop offset="100%" stop-color="var(--always-white)"></stop><stop offset="0%" stop-color="var(--primary-button-background)"></stop></linearGradient></defs></svg>
           </button>
           <button 
-            className={`call-control-button ${isSpeaker ? 'call-control-active' : ''}`}
+            className={`call-control-button ${isSpeaker ? 'call-control-speaker-active' : 'call-control-speaker-inactive'}`}
             onClick={onSpeakerToggle}
             aria-label={isSpeaker ? "Switch to earpiece" : "Switch to speaker"}
           >
