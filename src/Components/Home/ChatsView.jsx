@@ -1,6 +1,6 @@
-import React from "react";
+import React from 'react';
 
-function ChatsView({ chats, loading, onStartChat }) {
+function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
   if (loading) {
     return (
       <div className="loading-state">
@@ -10,7 +10,7 @@ function ChatsView({ chats, loading, onStartChat }) {
     );
   }
 
-  if (!chats || chats.length === 0) {
+  if (chats.length === 0) {
     return (
       <div className="empty-state">
         <div className="empty-icon">💬</div>
@@ -22,32 +22,38 @@ function ChatsView({ chats, loading, onStartChat }) {
 
   return (
     <div className="chats-list">
-      {chats.map((chat) => (
-        <div
-          key={chat.id}
+      {chats.map(chat => (
+        <div 
+          key={chat.id} 
           className="chat-item"
           onClick={() => onStartChat(chat.otherParticipant)}
         >
           <div className="chat-avatar-section">
-            <img
-              src={chat.otherParticipant.photoURL}
+            <img 
+              src={chat.otherParticipant.photoURL} 
               alt={chat.otherParticipant.displayName}
               className="chat-avatar"
             />
-            <div className="online-indicator"></div>
+            <div className={`online-indicator ${friendsOnlineStatus[chat.otherParticipant.uid] ? 'online' : 'offline'}`}></div>
           </div>
-
+          
           <div className="chat-info">
             <div className="chat-header">
               <h4 className="chat-name">{chat.otherParticipant.displayName}</h4>
               <span className="chat-time">
-                {chat.lastMessageAt?.toDate?.()?.toLocaleDateString() || "New"}
+                {chat.lastMessageAt?.toDate?.()?.toLocaleDateString() || 'New'}
               </span>
             </div>
-            <p className="last-message">{chat.lastMessage || "Start a conversation..."}</p>
+            <p className="last-message">
+              {chat.lastMessage || 'Start a conversation...'}
+            </p>
           </div>
-
-          {chat.unreadCount > 0 && <div className="unread-badge">{chat.unreadCount}</div>}
+          
+          {chat.unreadCount > 0 && (
+            <div className="unread-badge">
+              {chat.unreadCount}
+            </div>
+          )}
         </div>
       ))}
     </div>
