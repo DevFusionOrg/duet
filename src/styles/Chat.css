@@ -38,7 +38,7 @@
 .chat-user-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
   flex: 1;
   justify-content: left;
   padding-left: 20px;
@@ -68,7 +68,6 @@
 }
 
 .chat-music-button {
-  padding: 8px 16px;
   color: rgb(0, 0, 0);
   border: none;
   border-radius: 20px;

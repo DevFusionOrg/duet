@@ -48,7 +48,9 @@ function Chat({ user, friend, onBack }) {
     handleAcceptCall,
     handleDeclineCall,
     handleEndCall,
-    cleanupIncomingCall
+    cleanupIncomingCall,
+    handleToggleMute,
+    handleToggleSpeaker,
   } = useCall(user, friend, chatId);
 
   const [newMessage, setNewMessage] = useState("");
@@ -548,8 +550,8 @@ function Chat({ user, friend, onBack }) {
           callState={callState}
           callDuration={callDuration}
           onEndCall={handleEndCall}
-          onToggleMute={() => {/* Toggle mute logic */}}
-          onToggleSpeaker={() => {/* Toggle speaker logic */}}
+          onToggleMute={handleToggleMute}
+          onToggleSpeaker={handleToggleSpeaker}
           isInitiator={!incomingCall}
         />
       )}

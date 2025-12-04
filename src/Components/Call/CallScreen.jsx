@@ -80,14 +80,7 @@ const CallScreen = ({
       <div className="call-screen">
         {/* Call info */}
         <div className="call-info">
-          <div className="call-avatar">
-            <img src={friend.photoURL} alt={friend.displayName} />
-            {getRingAnimation()}
-          </div>
           <h2 className="call-friend-name">{friend.displayName}</h2>
-          <p className="call-status">
-            {getStatusText()}
-          </p>
           
           {/* Only show timer when call is active */}
           {callState === 'active' && <CallTimer duration={callDuration} />}
@@ -96,7 +89,6 @@ const CallScreen = ({
           {callState === 'active' && (
             <div className="call-quality-indicator">
               <span className="quality-dot good"></span>
-              <span>Good connection</span>
             </div>
           )}
         </div>
