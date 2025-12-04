@@ -75,17 +75,17 @@
   transition: all 0.2s ease;
 }
 
-.call-control-button:hover {
-  transform: scale(1.1);
-  background: #e0e0e0;
-}
-
 .call-control-button svg {
   width: 24px;
   height: 24px;
 }
 
-.call-control-active {
+.call-control-unmute-mic {
+  background: #0070F6;
+  color: white;
+}
+
+.call-control-speaker-active {
   background: #0070F6;
   color: white;
 }
@@ -93,10 +93,6 @@
 .call-end-button {
   background: #FF3B30;
   color: white;
-}
-
-.call-end-button:hover {
-  background: #D70015;
 }
 
 .incoming-call-overlay {
@@ -195,11 +191,6 @@
   align-items: center;
   justify-content: center;
   transition: transform 0.2s ease;
-}
-
-.accept-call-button:hover,
-.decline-call-button:hover {
-  transform: scale(1.1);
 }
 
 .accept-call-button {
