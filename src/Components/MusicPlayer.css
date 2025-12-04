@@ -1,14 +1,14 @@
 .musicPlayer {
-  position: fixed;
-  top: 56px;
+  position: relative;
+  top: 0;
   right: 0;
   left: 0;
   width: 100%;
   background: #fff;
   border-bottom: 1px solid #e0e0e0;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  z-index: 999;
-  padding: 8px 8px 8px 8px;
+  z-index: 998;
+  padding: 8px;
   box-sizing: border-box;
   transition: all 200ms ease;
   display: flex;
@@ -183,7 +183,7 @@
 }
 
 .chat-messages-container {
-  padding-top: 116px;
+  padding-top: 152px;
 }
 
 @media (max-width: 768px) {
@@ -249,7 +249,7 @@
   }
   
   .chat-messages-container {
-    padding-top: 110px;
+    padding-top: 152px;
   }
 }
 
@@ -309,28 +309,4 @@
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* Update the musicPlayer positioning */
-.musicPlayer {
-  position: relative; /* Change from fixed to relative */
-  top: 0; /* Remove the top positioning */
-  right: 0;
-  left: 0;
-  width: 100%;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  z-index: 998;
-  padding: 8px;
-  box-sizing: border-box;
-  transition: all 200ms ease;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* Update the chat messages padding to account for the extra height */
-.chat-messages-container {
-  padding-top: 152px; /* Increased from 116px to account for nowPlayingBar */
 }

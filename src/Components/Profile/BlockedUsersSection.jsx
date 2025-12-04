@@ -17,10 +17,6 @@ function BlockedUsersSection({
         </div>
       </div>
       
-      <div className="profile-blocked-description">
-        <p>Blocked users cannot message you, call you, or see your profile.</p>
-      </div>
-      
       <button
         onClick={onShowBlockedUsers}
         className="profile-manage-blocked-button"
