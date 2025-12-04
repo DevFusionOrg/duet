@@ -623,7 +623,6 @@ export function useCall(user, friend, chatId) {
         setIsInCall(false);
         callStateRef.current = 'ended';
         
-        // Show user-friendly error message
         let errorMessage = 'Call failed. Please try again.';
         if (error.message.includes('permission') || error.name === 'NotAllowedError') {
         errorMessage = 'Microphone permission denied. Please allow microphone access.';
@@ -638,7 +637,6 @@ export function useCall(user, friend, chatId) {
     const handleEndCall = async () => {
     console.log('handleEndCall called, current state:', callStateRef.current);
     
-    // Prevent multiple calls to this function
     if (callStateRef.current === 'ended' || callStateRef.current === 'idle' || callStateRef.current === 'ending') {
         console.log('Call already ended, skipping');
         return;
@@ -649,16 +647,13 @@ export function useCall(user, friend, chatId) {
     try {
         const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
         
-        // Stop ringtone if playing
         stopRingtone();
         
-        // Clear all timeouts
         if (callTimeoutRef.current) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
         }
         
-        // Unsubscribe all listeners
         if (callAcceptanceListenerRef.current) {
         callAcceptanceListenerRef.current();
         callAcceptanceListenerRef.current = null;
@@ -669,27 +664,20 @@ export function useCall(user, friend, chatId) {
         callEndListenerRef.current = null;
         }
         
-        // End WebRTC connection
         WebRTCService.endCall();
         
-        // Get the current call ID to end
         const callIdToEnd = callIdRef.current || incomingCallRef.current?.callId;
         
         console.log('Ending call with ID:', callIdToEnd, 'duration:', duration);
-        
-        // End call in database only if we have a call ID AND we're the one initiating the end
-        // (to prevent infinite loops when both users try to end)
+
         if (callIdToEnd && user && callStateRef.current === 'ending') {
-        // Update the call status to ended so other user knows
         await CallService.endCall(callIdToEnd, user.uid, duration, 'ended');
         }
 
-        // Send call ended notification if call was active
         if (callState === 'active' && chatId && friend) {
         CallService.sendCallNotification(chatId, user.uid, friend.uid, 'ended', duration);
         }
 
-        // Log call end
         console.log('Call ended successfully', {
         duration,
         with: friend?.displayName,
@@ -699,7 +687,6 @@ export function useCall(user, friend, chatId) {
     } catch (error) {
         console.error('Error ending call:', error);
     } finally {
-        // Always reset states
         setCallState('idle');
         setIsInCall(false);
         setIncomingCall(null);
@@ -715,18 +702,32 @@ export function useCall(user, friend, chatId) {
         return WebRTCService.toggleMute();
     };
 
-    const handleToggleSpeaker = () => {
-        const audioElement = document.querySelector('.remote-audio');
-        if (audioElement) {
-        if (audioElement.muted) {
-            audioElement.muted = false;
-            return true;
-        } else {
-            audioElement.muted = true;
+    const handleToggleSpeaker = async () => {
+        try {
+            const audioElement = document.querySelector('.remote-audio');
+            if (!audioElement || !audioElement.srcObject) return false;
+            
+            const audioTrack = audioElement.srcObject.getAudioTracks()[0];
+            if (!audioTrack) return false;
+            
+            if (audioElement.setSinkId) {
+                const currentSink = await audioElement.sinkId;
+                
+                if (currentSink === '') {
+                    await audioElement.setSinkId('speaker');
+                    return true;
+                } else {
+                    await audioElement.setSinkId('');
+                    return false;
+                }
+            } else {
+                audioElement.muted = !audioElement.muted;
+                return !audioElement.muted;
+            }
+        } catch (error) {
+            console.error('Error toggling speaker:', error);
             return false;
         }
-        }
-        return false;
     };
 
     return {

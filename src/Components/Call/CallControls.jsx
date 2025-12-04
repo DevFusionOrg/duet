@@ -19,20 +19,8 @@ const CallControls = ({
             onClick={onMuteToggle}
             aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
           >
-            <svg viewBox="0 0 36 36" width="32" height="32">
-              <mask id="mute-mask">
-                <svg viewBox="0 0 36 36" fill="currentColor" width="100%" height="100%">
-                  <path d="M14 11a4 4 0 0 1 8 0v5.5a4 4 0 0 1-8 0V11z"></path>
-                  <path d="M12.5 27.5a1 1 0 0 1 1-1h2.75a.5.5 0 0 0 .5-.5v-.66a.522.522 0 0 0-.425-.505A8.503 8.503 0 0 1 9.5 16.5V16a1 1 0 0 1 1-1h.5a1 1 0 0 1 1 1v.5a6 6 0 0 0 12 0V16a1 1 0 0 1 1-1h.5a1 1 0 0 1 1 1v.5a8.503 8.503 0 0 1-6.825 8.335.522.522 0 0 0-.425.505V26a.5.5 0 0 0 .5.5h2.75a1 1 0 0 1 1 1v.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-.5z"></path>
-                </svg>
-              </mask>
-              <g mask="url(#mute-mask)">
-                <rect fill="var(--always-white)" height="100%" width="100%"></rect>
-                <rect fill="var(--primary-button-background)" height="100%" width="100%"></rect>
-              </g>
-            </svg>
+            <svg class="x14rh7hd x1lliihq x1tzjh5l x1k90msu x2h7rmj x1qfuztq" viewBox="6 6 36 36"><path class="x1labep9 x19991ni x9lcvmn" d="M20 34h8a1 1 0 0 1 0 2h-8a1 1 0 0 1 0-2m4-5.5a5 5 0 0 1-5-5V17a5 5 0 0 1 10 0v6.5a5 5 0 0 1-5 5m0 4a9 9 0 0 1-9-9 1 1 0 0 1 2 0 7 7 0 1 0 14 0 1 1 0 0 1 2 0 9 9 0 0 1-9 9" fill="url(#gradientFill)"></path><defs><linearGradient id="gradientFill" x1="0" x2="0" y1="0" y2="100%"><stop offset="100%" stop-color="var(--always-white)"></stop><stop offset="0%" stop-color="var(--primary-button-background)"></stop></linearGradient></defs></svg>
           </button>
-
           <button 
             className={`call-control-button ${isSpeaker ? 'call-control-active' : ''}`}
             onClick={onSpeakerToggle}
