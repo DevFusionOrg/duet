@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Duet</string>
+    <string name="title_activity_main">Duet</string>
+    <string name="package_name">com.devfusion.duet</string>
+    <string name="custom_url_scheme">com.devfusion.duet</string>
+</resources>
