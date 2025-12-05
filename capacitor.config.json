@@ -5,5 +5,16 @@
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https"
+  },
+  "plugins": {
+    "FirebaseMessaging": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  },
+  "android": {
+    "allowMixedContent": true
   }
 }
