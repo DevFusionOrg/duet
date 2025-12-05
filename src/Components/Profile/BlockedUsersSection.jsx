@@ -11,9 +11,9 @@ function BlockedUsersSection({
   return (
     <div className="profile-blocked-section">
       <div className="profile-blocked-header">
-        <h4 className="profile-blocked-title">Blocked Users</h4>
+        <h4 className="profile-blocked-title">Blocklist</h4>
         <div className="profile-blocked-count">
-          {blockedUsers.length} user{blockedUsers.length !== 1 ? 's' : ''} blocked
+          {blockedUsers.length} user{blockedUsers.length !== 1 ? 's' : ''}
         </div>
       </div>
       
@@ -22,7 +22,7 @@ function BlockedUsersSection({
         className="profile-manage-blocked-button"
         disabled={loadingBlockedUsers}
       >
-        {loadingBlockedUsers ? "Loading..." : "Manage Blocked Users"}
+        {loadingBlockedUsers ? "Loading..." : "Manage"}
       </button>
     </div>
   );
