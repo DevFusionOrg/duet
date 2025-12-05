@@ -14,7 +14,7 @@ function BlockedUsersModal({
     <div className="blocked-users-modal-overlay">
       <div className="blocked-users-modal">
         <div className="blocked-users-modal-header">
-          <h3>Blocked Users ({blockedUsers.length})</h3>
+          <h3>Blocklist ({blockedUsers.length})</h3>
           <button 
             onClick={onClose}
             className="blocked-users-close-button"
@@ -30,10 +30,7 @@ function BlockedUsersModal({
             </div>
           ) : blockedUsers.length === 0 ? (
             <div className="no-blocked-users">
-              <p>No blocked users</p>
-              <p className="no-blocked-users-description">
-                When you block someone, they won't be able to message you or see your profile.
-              </p>
+              <p>No user blocked</p>
             </div>
           ) : (
             <div className="blocked-users-list">

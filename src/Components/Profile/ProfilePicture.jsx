@@ -33,7 +33,7 @@ function ProfilePicture({
             disabled={uploadingImage}
             className="profile-picture-upload-button"
           >
-            {uploadingImage ? "Uploading..." : "Change Picture"}
+            {uploadingImage ? "Uploading..." : "Update"}
           </button>
           
           {(isCloudinaryPicture() || userHasPhotoURL) && (
@@ -42,7 +42,7 @@ function ProfilePicture({
               disabled={loading}
               className="profile-picture-remove-button"
             >
-              Remove Picture
+              Remove
             </button>
           )}
         </div>

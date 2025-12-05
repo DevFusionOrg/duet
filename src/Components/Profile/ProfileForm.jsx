@@ -9,7 +9,7 @@ function ProfileForm({
   return (
     <form onSubmit={onSubmit} className="profile-form">
       <div className="profile-form-group">
-        <label className="profile-label">Display Name:</label>
+        <label className="profile-label">Name:</label>
         <input
           type="text"
           value={formData.displayName}
