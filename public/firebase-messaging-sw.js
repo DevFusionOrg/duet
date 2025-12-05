@@ -1,74 +1,63 @@
-// IMPORTANT: Capacitor WebView CANNOT load external importScripts.
-// So we inline the minimal Firebase Messaging logic manually.
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-self.addEventListener("push", function (event) {
-  if (!event.data) return;
-
-  const payload = event.data.json();
-  console.log("[SW] PUSH RECEIVED:", payload);
-
-  const data = payload.data || {};
-  const title = data.title || "New Notification";
-  const body = data.body || "You have a new message";
-
-  const options = {
-    body,
-    icon: data.senderPhoto || "/logo1921.png",
-    badge: "/logo1921.png",
-    data,
-    vibrate:
-      data.type === "call_notification"
-        ? [300, 200, 300, 200, 300]
-        : [200, 100, 200],
-    requireInteraction: data.type === "call_notification", // keeps ringing
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
-
-  // Also forward to UI
-  self.clients.matchAll().then((clients) => {
-    clients.forEach((client) =>
-      client.postMessage({
-        type: "FIREBASE_MESSAGE",
-        payload,
-      })
-    );
-  });
+firebase.initializeApp({
+  apiKey: process.env.REACT_APP_API_KEY,
+  authDomain: "vibechat-f87fe.firebaseapp.com",
+  projectId: "vibechat-f87fe",
+  storageBucket: "vibechat-f87fe.firebasestorage.app",
+  messagingSenderId: "802645032363",
+  appId: "1:802645032363:web:d15288ea6900cb1a5d66ee",
+  measurementId: "G-XCLFMX66ZM",
 });
 
-// CLICK HANDLER
-self.addEventListener("notificationclick", (event) => {
-  const data = event.notification.data;
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+  console.log('[firebase-messaging-sw.js] Received background message:', payload);
+  
+  const notificationTitle = payload.notification?.title || 'New Message';
+  const notificationOptions = {
+    body: payload.notification?.body,
+    icon: payload.notification?.icon || '/icon-192x192.png',
+    badge: '/badge.png',
+    data: payload.data,
+    tag: payload.data?.chatId ? `chat-${payload.data.chatId}` : 'chat-notification',
+    requireInteraction: false,
+    actions: [
+      {
+        action: 'open',
+        title: 'Open Chat'
+      },
+      {
+        action: 'dismiss',
+        title: 'Dismiss'
+      }
+    ]
+  };
+
+  self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
-  console.log("[SW] Notification clicked:", data);
-
-  if (!data) return;
-
-  // CALL NOTIFICATION
-  if (data.type === "call_notification") {
+  
+  const chatId = event.notification.data?.chatId;
+  const senderId = event.notification.data?.senderId;
+  
+  if (event.action === 'open' || !event.action) {
     event.waitUntil(
-      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsList) => {
-        if (clientsList.length > 0) {
-          clientsList[0].focus();
-          clientsList[0].postMessage({
-            type: "INCOMING_CALL",
-            data,
-          });
-        } else {
-          self.clients.openWindow("/");
-        }
-      })
+      clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clientList) => {
+          for (const client of clientList) {
+            if (client.url.includes('/chat') && 'focus' in client) {
+              return client.focus();
+            }
+          }
+          if (clients.openWindow) {
+            return clients.openWindow(`/chat?chatId=${chatId}&senderId=${senderId}`);
+          }
+        })
     );
-    return;
   }
-
-  // CHAT MESSAGE
-  if (data.chatId) {
-    event.waitUntil(self.clients.openWindow(`/chat/${data.chatId}`));
-    return;
-  }
-
-  // DEFAULT → Open app
-  event.waitUntil(self.clients.openWindow("/"));
 });
