@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import WebRTCService from '../services/webrtc';
 import CallService from '../services/callService';
-import { notificationService } from "../services/notificationService";
+import { notificationService } from "../services/notifications";
 import { ref, onValue } from "firebase/database";
 import { database } from "../firebase/firebase";
 import { getUserProfile } from "../firebase/firestore";

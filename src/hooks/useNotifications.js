@@ -1,76 +1,99 @@
 import { useState, useEffect } from "react";
-import { notificationService } from '../services/notificationService';
+import { notificationService } from "../services/notifications";
+import { requestNotificationPermission, onMessageListener } from "../firebase/firebase";
+import { saveUserNotificationToken } from "../firebase/firestore";
 
 export function useNotifications(user, chatId) {
-  const [hasPermission, setHasPermission] = useState(false);
-  const [incomingCall, setIncomingCall] = useState(null);
+  const [notificationToken, setNotificationToken] = useState(null);
+  const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
 
   useEffect(() => {
-    // Initialize notification service
-    notificationService.initialize();
+    const initializeNotifications = async () => {
+      if (Notification.permission === 'granted') {
+        setHasNotificationPermission(true);
+        const token = await requestNotificationPermission();
+        setNotificationToken(token);
+        if (token && user) {
+          await saveUserNotificationToken(user.uid, token);
+        }
+      } else {
+        const hasPermission = await notificationService.requestPermission();
+        setHasNotificationPermission(hasPermission);
+        if (hasPermission) {
+          const token = await requestNotificationPermission();
+          setNotificationToken(token);
+          if (token && user) {
+            await saveUserNotificationToken(user.uid, token);
+          }
+        }
+      }
+    };
     
-    // Check initial permission
-    const checkPermission = async () => {
-      const permission = (typeof Notification !== 'undefined') ? Notification.permission : 'default';
-      setHasPermission(permission === 'granted');
-    };
-    checkPermission();
+    if (user?.uid) {
+      initializeNotifications();
+    }
+  }, [user]);
 
-    // Listen for incoming calls
-    const removeCallListener = notificationService.addCallListener((callData) => {
-      if (callData.type === 'incoming_call') {
-        setIncomingCall(callData);
+  useEffect(() => {
+    const setupForegroundMessages = async () => {
+      const payload = await onMessageListener();
+      if (payload) {
+        const { title, body, data } = payload.notification || payload;
+        
+        const isFromCurrentChat = data?.chatId === chatId;
+        const isAppInFocus = document.visibilityState === 'visible';
+        
+        if (!isFromCurrentChat && !isAppInFocus) {
+          notificationService.showNotification(title || 'New Message', {
+            body,
+            data,
+            icon: data?.senderPhoto || '/default-avatar.png',
+            tag: `fcm-${Date.now()}`
+          });
+        }
       }
-    });
-
-    // Listen for new messages
-    const removeMessageListener = notificationService.addMessageListener((messageData) => {
-      // Handle message notifications if needed
-      console.log('New message notification:', messageData);
-    });
-
-    // Cleanup
-    return () => {
-      removeCallListener();
-      removeMessageListener();
     };
-  }, []);
+    
+    if (hasNotificationPermission) {
+      setupForegroundMessages();
+    }
+  }, [hasNotificationPermission, chatId]);
 
-  // Handle call acceptance
-  const acceptCall = async () => {
-    if (!incomingCall) return;
-    await notificationService.acceptCall(incomingCall.callId);
-    setIncomingCall(null);
-  };
-
-  // Handle call rejection
-  const rejectCall = async () => {
-    if (!incomingCall) return;
-    await notificationService.rejectCall(incomingCall.callId);
-    setIncomingCall(null);
-  };
-
-  // Show chat message notification
-  const showChatNotification = (message, sender) => {
-    notificationService.showLocalNotification(
-      sender.displayName,
-      message.text || 'New message',
-      {
-        channelId: 'chat_channel',
+  const showNewMessageNotification = (message, friend) => {
+    if (!hasNotificationPermission || document.visibilityState === 'visible') return;
+    
+    const notificationTitle = friend.displayName;
+    let notificationBody = '';
+    
+    if (message.type === 'image') {
+      notificationBody = message.text ? `📷 ${message.text}` : '📷 Sent a photo';
+    } else if (message.isReply && message.originalMessageText) {
+      notificationBody = `↪️ Reply: ${message.text || 'Replied to a message'}`;
+    } else {
+      notificationBody = message.text || 'Sent a message';
+    }
+    
+    if (notificationBody.length > 100) {
+      notificationBody = notificationBody.substring(0, 97) + '...';
+    }
+    
+    notificationService.showNotification(notificationTitle, {
+      body: notificationBody,
+      icon: friend.photoURL || '/default-avatar.png',
+      badge: '/badge.png',
+      data: {
         chatId,
-        senderId: sender.uid,
-        senderPhoto: sender.photoURL,
-        smallIcon: 'ic_notification',
-        largeIcon: sender.photoURL
-      }
-    );
+        senderId: friend.uid,
+        messageId: message.id,
+        type: 'new-message'
+      },
+      vibrate: [200, 100, 200],
+      tag: `chat-${chatId}-${message.id}`,
+      renotify: true,
+      requireInteraction: false,
+      silent: false
+    });
   };
 
-  return {
-    hasPermission,
-    incomingCall,
-    acceptCall,
-    rejectCall,
-    showChatNotification
-  };
+  return { hasNotificationPermission, showNewMessageNotification };
 }
