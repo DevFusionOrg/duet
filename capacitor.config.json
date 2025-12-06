@@ -1,9 +1,15 @@
 {
-  "appId": "com.devfusion.duet",
-  "appName": "Duet",
-  "webDir": "build",
-  "bundledWebRuntime": false,
-  "server": {
+    "appId": "com.devfusion.duet",
+    "appName": "Duet",
+    "webDir": "build",
+    "bundledWebRuntime": false,
+    "server": {
     "androidScheme": "https"
+    },
+    "plugins": {
+        "FirebaseAuthentication": {
+            "skipNativeAuth": false,
+            "providers": ["google.com"]
+    }
   }
 }
