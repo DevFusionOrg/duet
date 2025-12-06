@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { auth } from "./firebase/firebase";
 import { createUserProfile, setUserOnlineStatus } from "./firebase/firestore";
 import Auth from "./pages/Auth";
@@ -6,11 +6,14 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import "./App.css";
+import { initPushNotifications } from "./push-init";
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
+
+  const pushInitCalledRef = useRef(false);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -18,7 +21,6 @@ function App() {
         if (currentUser) {
           await createUserProfile(currentUser);
           setAuthError(null);
-          
           await setUserOnlineStatus(currentUser.uid, true);
         }
 
@@ -57,13 +59,33 @@ function App() {
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      
+
       if (user) {
-        setUserOnlineStatus(user.uid, false).catch(error => {
+        setUserOnlineStatus(user.uid, false).catch((error) => {
           console.error("Error setting offline status on cleanup:", error);
         });
       }
     };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (pushInitCalledRef.current) return;
+
+    pushInitCalledRef.current = true;
+
+    initPushNotifications();
+
+    if ("serviceWorker" in navigator && !window.Capacitor) {
+      navigator.serviceWorker
+        .register("/firebase-messaging-sw.js")
+        .then((registration) => {
+          console.log("Service Worker registered with scope:", registration.scope);
+        })
+        .catch((error) => {
+          console.error("Service Worker registration failed:", error);
+        });
+    }
   }, [user]);
 
   if (loading) {
@@ -101,16 +123,6 @@ function App() {
 
   if (!user) {
     return <Auth />;
-  }
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/firebase-messaging-sw.js')
-      .then((registration) => {
-        console.log('Service Worker registered with scope:', registration.scope);
-      })
-      .catch((error) => {
-        console.error('Service Worker registration failed:', error);
-      });
   }
 
   return (

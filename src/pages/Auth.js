@@ -4,6 +4,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
+  GoogleAuthProvider,
+  signInWithCredential,
 } from "firebase/auth";
 import { auth, googleProvider } from "../firebase/firebase";
 import { 
@@ -12,6 +14,8 @@ import {
   validateUsername,
   getUsernameSuggestions 
 } from "../firebase/firestore";
+import { Capacitor } from "@capacitor/core";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import "../styles/Auth.css";
 
 function Auth() {
@@ -25,6 +29,7 @@ function Auth() {
   const [usernameError, setUsernameError] = useState("");
   const [usernameSuggestions, setUsernameSuggestions] = useState([]);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState("idle");
   const [usernameValidation, setUsernameValidation] = useState({
     isValid: false,
     errors: []
@@ -32,63 +37,106 @@ function Auth() {
 
   // Check username availability when it changes (with debounce)
   useEffect(() => {
+    let isCancelled = false;
+
     const checkUsernameAvailability = async () => {
       if (!username || username.length < 3) {
         setUsernameError("");
         setUsernameValidation({ isValid: false, errors: [] });
         setUsernameSuggestions([]);
+        setUsernameStatus("idle");
         return;
       }
 
-      // Validate format first
+      // 1) Validate format first
       const validation = validateUsername(username);
       setUsernameValidation(validation);
-      
+
       if (!validation.isValid) {
-        setUsernameError(validation.errors[0]);
-        setUsernameSuggestions([]);
+        if (!isCancelled) {
+          setUsernameError(validation.errors[0]);
+          setUsernameSuggestions([]);
+          setUsernameStatus("invalid");
+        }
         return;
       }
 
+      // 2) If format is valid, now check Firestore
       setIsCheckingUsername(true);
       setUsernameError("");
-      
+      setUsernameStatus("checking");
+
       try {
         const isTaken = await checkUsernameTaken(username);
-        
+        if (isCancelled) return;
+
         if (isTaken) {
           setUsernameError("Username is already taken");
-          
-          // Get suggestions for similar usernames
+          setUsernameStatus("taken");
+
           const suggestions = await getUsernameSuggestions(username);
-          setUsernameSuggestions(suggestions);
+          if (!isCancelled) {
+            setUsernameSuggestions(suggestions);
+          }
         } else {
           setUsernameError("");
           setUsernameSuggestions([]);
+          setUsernameStatus("available");
         }
       } catch (error) {
         console.error("Error checking username:", error);
-        setUsernameError("Error checking username availability");
+        if (!isCancelled) {
+          setUsernameError("Error checking username availability");
+          setUsernameStatus("error");
+        }
       } finally {
-        setIsCheckingUsername(false);
+        if (!isCancelled) {
+          setIsCheckingUsername(false);
+        }
       }
     };
 
     const debounceTimer = setTimeout(() => {
       checkUsernameAvailability();
-    }, 500); // 500ms debounce
+    }, 500);
 
-    return () => clearTimeout(debounceTimer);
+    return () => {
+      isCancelled = true;
+      clearTimeout(debounceTimer);
+    };
   }, [username]);
 
   const signInWithGoogle = async () => {
+    const platform = Capacitor.getPlatform();
+    const isNative = platform === "android" || platform === "ios";
+
+    setLoading(true);
+    setError("");
+
     try {
-      setLoading(true);
-      setError("");
-      const result = await signInWithPopup(auth, googleProvider);
-      
-      // Create user profile after Google sign in
-      await createUserProfile(result.user);
+      if (isNative) {
+        // 🔹 1) Native Google sign-in (Capacitor plugin)
+        console.log("[Auth] Native Google sign-in…");
+        const result = await FirebaseAuthentication.signInWithGoogle();
+
+        console.log("[Auth] Native Google sign-in result:", result);
+
+        if (!result || !result.credential || !result.credential.idToken) {
+          throw new Error("No ID token returned from native Google sign-in");
+        }
+
+        // 🔹 2) Use ID token to sign in JS Firebase Auth
+        const credential = GoogleAuthProvider.credential(result.credential.idToken);
+        const userCredential = await signInWithCredential(auth, credential);
+
+        // 🔹 3) Use JS user for Firestore (rules see request.auth.uid)
+        await createUserProfile(userCredential.user);
+      } else {
+        // 🌐 Web: normal popup flow
+        console.log("[Auth] Web Google sign-in…");
+        const result = await signInWithPopup(auth, googleProvider);
+        await createUserProfile(result.user);
+      }
     } catch (error) {
       console.error("Error signing in with Google:", error);
       setError("Error signing in with Google: " + error.message);
@@ -236,33 +284,39 @@ function Auth() {
                 <label className="auth-label">
                   Username
                   <span className="auth-required">*</span>
-                  {isCheckingUsername && (
+                  {usernameStatus === "checking" && (
                     <span className="auth-checking">Checking...</span>
                   )}
                 </label>
+
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value.toLowerCase())}
                   placeholder="Enter a unique username"
-                  className={`auth-input ${usernameError ? "auth-input-error" : usernameValidation.isValid ? "auth-input-valid" : ""}`}
+                  className={`auth-input ${
+                    usernameError
+                      ? "auth-input-error"
+                      : usernameStatus === "available"
+                      ? "auth-input-valid"
+                      : ""
+                  }`}
                   required={!isLogin}
-                  disabled={loading || isCheckingUsername}
+                  disabled={loading /* maybe remove isCheckingUsername here so typing feels smoother */}
                   pattern="[a-zA-Z0-9_.-]+"
                   title="Only letters, numbers, dots, underscores, and hyphens allowed"
                 />
-                
+
                 {usernameError && (
                   <div className="auth-input-error-message">{usernameError}</div>
                 )}
-                
-                {!usernameError && usernameValidation.isValid && (
+
+                {!usernameError && usernameStatus === "available" && (
                   <div className="auth-input-success-message">
                     ✓ Username is available
                   </div>
                 )}
 
-                {/* Username format hints */}
                 <div className="auth-input-hint">
                   Must be 3-30 characters. Only letters, numbers, ., _, - allowed.
                 </div>
