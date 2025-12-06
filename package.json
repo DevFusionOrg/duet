@@ -3,13 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@capacitor-community/media": "^8.0.1",
     "@capacitor/android": "^7.4.4",
     "@capacitor/camera": "^7.0.2",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
-    "@capacitor/push-notifications": "^7.0.3",
-    "@capacitor/share": "^7.0.2",
-    "@capacitor/toast": "^7.0.2",
+    "@capacitor/filesystem": "^7.1.5",
     "@cloudinary/html": "^1.13.4",
     "@cloudinary/react": "^1.14.3",
     "@cloudinary/url-gen": "^1.22.0",
@@ -19,6 +18,7 @@
     "@testing-library/user-event": "^13.5.0",
     "assert": "^2.1.0",
     "buffer": "^6.0.3",
+    "capacitor-voice-recorder": "^7.0.6",
     "cloudinary": "^2.8.0",
     "crypto-browserify": "^3.12.1",
     "dotenv": "^17.2.3",
@@ -50,8 +50,7 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "cleanup": "node scripts/cleanupCloudinary.js",
-    "cleanup-old": "node -e \"require('./scripts/cleanupCloudinary.js').cleanupOldCloudinaryAssets(30).then(() => console.log('Done')).catch(console.error)\"",
-    "cap:android": "npm run build && npx cap copy && npx cap open android"
+    "cleanup-old": "node -e \"require('./scripts/cleanupCloudinary.js').cleanupOldCloudinaryAssets(30).then(() => console.log('Done')).catch(console.error)\""
   },
   "eslintConfig": {
     "extends": [
