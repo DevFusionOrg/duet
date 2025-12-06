@@ -13,10 +13,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
-  // To avoid initializing push multiple times
   const pushInitCalledRef = useRef(false);
 
-  // 🔑 Auth state listener
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       try {
@@ -38,7 +36,6 @@ function App() {
     return unsubscribe;
   }, []);
 
-  // 🌐 Online / offline visibility tracking
   useEffect(() => {
     if (!user) return;
 
@@ -71,17 +68,14 @@ function App() {
     };
   }, [user]);
 
-  // 🔔 Initialize push notifications AFTER user is available
   useEffect(() => {
     if (!user) return;
-    if (pushInitCalledRef.current) return; // avoid double init
+    if (pushInitCalledRef.current) return;
 
     pushInitCalledRef.current = true;
 
-    // Native (Capacitor) push init
     initPushNotifications();
 
-    // Web push (service worker) – only in browser, not in Capacitor native app
     if ("serviceWorker" in navigator && !window.Capacitor) {
       navigator.serviceWorker
         .register("/firebase-messaging-sw.js")

@@ -4,60 +4,91 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
-// 🔔 Trigger on new message documents
-exports.onNewMessage = functions.firestore
-  .document("chats/{chatId}/messages/{messageId}")
+const messaging = admin.messaging();
+
+// ✅ CHAT NOTIFICATION
+exports.sendChatMessageNotification = functions
+  .region("us-central1")
+  .firestore.document("chats/{chatId}/messages/{messageId}")
   .onCreate(async (snap, context) => {
     const message = snap.data();
     const chatId = context.params.chatId;
 
-    const toId = message.toId;     // recipient
-    const fromId = message.fromId; // sender
+    const senderId = message.senderId;
     const text = message.text || "";
 
-    console.log("New message created:", { chatId, fromId, toId, text });
+    console.log("New chat message:", { chatId, senderId, text });
 
-    if (!toId) {
-      console.log("No toId on message, skipping notification");
+    // Get chat
+    const chatRef = admin.firestore().collection("chats").doc(chatId);
+    const chatDoc = await chatRef.get();
+    if (!chatDoc.exists) {
+      console.log("Chat doc not found");
       return null;
     }
 
-    // 1. Get recipient user document
-    const userRef = admin.firestore().collection("users").doc(toId);
-    const userSnap = await userRef.get();
-
-    if (!userSnap.exists) {
-      console.log("Recipient user doc not found, skipping");
+    const data = chatDoc.data();
+    const participants = data.participants || [];
+    if (participants.length < 2) {
+      console.log("Not enough participants");
       return null;
     }
 
-    const userData = userSnap.data();
-    const fcmToken = userData.fcmToken; // or userData.tokens if you store array
+    // All other participants except sender
+    const receiverIds = participants.filter((id) => id !== senderId);
 
-    if (!fcmToken) {
-      console.log("No FCM token for user", toId);
-      return null;
-    }
+    const title = message.senderName || "New message";
+    const body = text || "You have a new message";
 
-    // 2. Build notification payload
-    const payload = {
-      notification: {
-        title: message.fromName || "New message",
-        body: text.substring(0, 80) || "You have a new message",
-      },
-      data: {
-        type: "message",
-        chatId: chatId,
-        senderId: fromId || "",
-      },
-    };
+    for (const receiverId of receiverIds) {
+      console.log("Processing receiver:", receiverId);
 
-    try {
-      // 3. Send push notification
-      const response = await admin.messaging().sendToDevice(fcmToken, payload);
-      console.log("Notification sent:", response);
-    } catch (err) {
-      console.error("Error sending FCM notification:", err);
+      // 🔑 Read tokens subcollection - doc ID is the token
+      const tokensSnap = await admin
+        .firestore()
+        .collection("users")
+        .doc(receiverId)
+        .collection("tokens")
+        .get();
+
+      if (tokensSnap.empty) {
+        console.log("No tokens for receiver", receiverId);
+        continue;
+      }
+
+      const tokens = tokensSnap.docs.map((doc) => doc.id);
+      console.log("Sending notification to tokens:", tokens);
+
+      const multicast = {
+        tokens,
+        notification: {
+          title,
+          body,
+        },
+        data: {
+          type: "chat_message",
+          chatId,
+          senderId,
+          senderName: message.senderName || "",
+          senderPhoto: message.senderPhoto || "",
+          message: text,
+          timestamp: Date.now().toString(),
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "duet_default_channel",
+            sound: "default",
+          },
+        },
+      };
+
+      try {
+        const res = await messaging.sendEachForMulticast(multicast);
+        console.log("Notification sent result:", JSON.stringify(res));
+      } catch (err) {
+        console.error("Error sending notification to", receiverId, err);
+      }
     }
 
     return null;

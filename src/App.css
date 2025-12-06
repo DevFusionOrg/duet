@@ -1,4 +1,3 @@
-/* App.css */
 .app-loading {
   display: flex;
   justify-content: center;
@@ -54,7 +53,6 @@
   background-color: #3367d6;
 }
 
-/* Loading Animation */
 .app-loading {
   display: flex;
   justify-content: center;
@@ -78,14 +76,14 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: pulse 2s infinite;
-  margin-bottom: 20px; /* Add space between logo and dots */
+  margin-bottom: 20px;
 }
 
 .loading-dots {
   display: flex;
   gap: 8px;
-  justify-content: center; /* Ensure dots are centered */
-  width: 100%; /* Take full width to center properly */
+  justify-content: center;
+  width: 100%;
 }
 
 .loading-dots span {
@@ -126,7 +124,6 @@
   }
 }
 
-/* Navigation Styles */
 .app-nav {
   padding: 15px 20px;
   border-bottom: 1px solid #e0e0e0;
