@@ -206,18 +206,18 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
           enablejsapi: 1
         },
         events: {
-          'onReady': (event) => {
-          },
-          'onStateChange': (event) => {
-            if (event.data === window.YT.PlayerState.PLAYING && !isPlaying) {
+          onReady: () => {},
+          onStateChange: (event) => {
+            if (event.data === window.YT.PlayerState.PLAYING) {
               setIsPlaying(true);
-            } else if (event.data === window.YT.PlayerState.PAUSED && isPlaying) {
-              setIsPlaying(false);
-            } else if (event.data === window.YT.PlayerState.ENDED) {
+            } else if (
+              event.data === window.YT.PlayerState.PAUSED ||
+              event.data === window.YT.PlayerState.ENDED
+            ) {
               setIsPlaying(false);
             }
           },
-          'onError': (event) => {
+          onError: () => {
             alert("Error playing song. Try a different version.");
           }
         }
