@@ -7,7 +7,9 @@ function ProfileDisplay({
   blockedUsers,
   loadingBlockedUsers,
   onShowBlockedUsers,
-  onTogglePasswordChange 
+  onTogglePasswordChange,
+  editing,
+  onToggleEdit
 }) {
   return (
     <div className="profile-display">
@@ -50,33 +52,22 @@ function ProfileDisplay({
         </div>
       </div>
 
-      {/* Blocked Users Section - Only show on own profile */}
       {isOwnProfile && (
-        <div className="profile-blocked-section">
-          <div className="profile-blocked-header">
-            <h4 className="profile-blocked-title">Blocked Users</h4>
-            <div className="profile-blocked-count">
-              {blockedUsers.length} user{blockedUsers.length !== 1 ? 's' : ''} blocked
-            </div>
-          </div>
-          
+        <div className="profile-actions-row">
           <button
-            onClick={onShowBlockedUsers}
-            className="profile-manage-blocked-button"
-            disabled={loadingBlockedUsers}
+            onClick={onToggleEdit}
+            className="profile-action-button profile-edit-inline-button"
           >
-            {loadingBlockedUsers ? "Loading..." : "Blocklist"}
+            {editing ? "Cancel Edit" : "Edit Profile"}
+          </button>
+
+          <button
+            onClick={onTogglePasswordChange}
+            className="profile-action-button profile-password-button"
+          >
+            Change Password
           </button>
         </div>
-      )}
-
-      {isOwnProfile && !onTogglePasswordChange && (
-        <button
-          onClick={onTogglePasswordChange}
-          className="profile-password-button"
-        >
-          Change Password
-        </button>
       )}
     </div>
   );

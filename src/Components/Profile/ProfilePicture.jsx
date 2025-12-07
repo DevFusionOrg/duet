@@ -17,14 +17,6 @@ function ProfilePicture({
         alt="Profile"
         className="profile-picture"
       />
-      <p className="profile-picture-note">
-        {isCloudinaryPicture() 
-          ? "Custom profile picture" 
-          : (userHasPhotoURL && isOwnProfile)
-            ? "Profile picture from Google" 
-            : "Profile picture"
-        }
-      </p>
       
       {isOwnProfile && (
         <div className="profile-picture-actions">

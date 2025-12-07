@@ -132,15 +132,6 @@
   margin-bottom: 20px;
 }
 
-.logout-btn {
-  color: #ff4757;
-}
-
-.logout-btn:hover {
-  background: rgba(255, 71, 87, 0.1);
-  color: #ff4757;
-}
-
 .main-content {
   flex: 1;
   display: flex;

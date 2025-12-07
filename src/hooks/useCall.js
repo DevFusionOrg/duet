@@ -41,6 +41,7 @@ export function useCall(user, friend, chatId) {
         };
     }, [user?.uid, friend?.uid]);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!user?.uid || !friend?.uid) return;
         if (activeCallListenerRef.current) {
@@ -105,6 +106,7 @@ export function useCall(user, friend, chatId) {
         };
     }, [isInCall, callState, callStartTime]);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
     return () => {
         if (callTimeoutRef.current) {
@@ -133,10 +135,9 @@ export function useCall(user, friend, chatId) {
     };
     }, []);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!callIdRef.current) return;
-
-        // Listen for call status changes (including remote ending)
         const callRef = ref(database, `activeCalls/${callIdRef.current}`);
         
         if (callEndListenerRef.current) {
@@ -147,26 +148,19 @@ export function useCall(user, friend, chatId) {
             const callData = snapshot.val();
             
             if (!callData) {
-            // Call was deleted/ended remotely
             if (callStateRef.current === 'active' || callStateRef.current === 'connecting') {
                 console.log('Call ended remotely by other user');
                 handleEndCall();
             }
             return;
             }
-
-            // Check if call was ended by other user
             if (callData.status === 'ended' || callData.status === 'missed') {
             if (callStateRef.current === 'active' || callStateRef.current === 'connecting') {
                 console.log('Call ended by other user with status:', callData.status);
-                
-                // Show notification
                 notificationService.showNotification('Call Ended', {
                 body: `Call ended by ${friend?.displayName || 'other user'}`,
                 icon: friend?.photoURL || '/default-avatar.png'
                 });
-                
-                // End the call locally
                 handleEndCall();
             }
             }
@@ -260,15 +254,12 @@ export function useCall(user, friend, chatId) {
 
     const listenForWebRTCProgress = (callId) => {
         console.log('👂 Setting up WebRTC progress listener for:', callId);
-        // Listen for ICE candidates
         const signalsRef = ref(database, `callSignals/${callId}`);
         const unsubscribe = onValue(signalsRef, (snapshot) => {
         const signals = snapshot.val();
         if (signals) {
             const signalCount = Object.keys(signals).length;
             console.log(`📡 WebRTC signals exchanged: ${signalCount}`);
-
-            // Check if we have both offer and answer
             const hasOffer = Object.values(signals).some(s => s.type === 'offer');
             const hasAnswer = Object.values(signals).some(s => s.type === 'answer');
             const hasCandidates = Object.values(signals).some(s => s.type === 'candidate');
@@ -283,10 +274,8 @@ export function useCall(user, friend, chatId) {
 
     const listenForSignaling = (callId) => {
         console.log('👂 Setting up signaling listener for call:', callId);
-        // Listen for WebRTC signals
         WebRTCService.setOnDisconnect(() => {
         console.log('⚠️ WebRTC disconnected, attempting reconnect...');
-        // Attempt to reconnect
         setTimeout(() => {
             if (callStateRef.current === 'connecting' || callStateRef.current === 'active') {
             console.log('Attempting to restart ICE...');
@@ -299,8 +288,6 @@ export function useCall(user, friend, chatId) {
     const listenForCallAcceptance = (callId) => {
     console.log('Listening for call acceptance:', callId);
     const callRef = ref(database, `activeCalls/${callId}`);
-    
-    // Clean previous listener if any
     if (callAcceptanceListenerRef.current) {
         callAcceptanceListenerRef.current();
         callAcceptanceListenerRef.current = null;
@@ -335,7 +322,6 @@ export function useCall(user, friend, chatId) {
         } else if (callData.status === 'ended' || callData.status === 'missed') {
         console.log('Call ended or missed remotely');
         
-        // Only handle if we're still in call
         if (callStateRef.current === 'active' || callStateRef.current === 'connecting' || callStateRef.current === 'ringing') {
             if (callData.status === 'ended') {
             notificationService.showNotification('Call Ended', {
@@ -360,7 +346,6 @@ export function useCall(user, friend, chatId) {
         callStateRef.current = 'ended';
         alert('Call declined');
         WebRTCService.endCall();
-        // 🔹 clear timeout + listener
         if (callTimeoutRef.current) {
         clearTimeout(callTimeoutRef.current);
         callTimeoutRef.current = null;
@@ -372,7 +357,6 @@ export function useCall(user, friend, chatId) {
         callIdRef.current = null;
     };
 
-    // ALL handler functions from original
     const handleAutoDeclineCall = async (callId) => {
         if (!callId || !user) {
         console.log('No call ID or user for auto decline');
@@ -399,7 +383,6 @@ export function useCall(user, friend, chatId) {
 
     const handleCallTimeout = async (callId) => {
         if (!callId || !user) return;
-        // 🔹 Only treat as missed if still ringing
         if (callStateRef.current !== 'ringing') {
         console.log('Call timeout fired but call state is', callStateRef.current, '- ignoring');
         return;
@@ -476,7 +459,7 @@ export function useCall(user, friend, chatId) {
         callTimeoutRef.current = setTimeout(() => {
             handleCallTimeout(callData.callId);
         }, 60000);
-        const stream = await WebRTCService.initializeCall(
+        await WebRTCService.initializeCall(
             callData.callId,
             true,
             user.uid,
@@ -544,7 +527,7 @@ export function useCall(user, friend, chatId) {
         callStateRef.current = 'connecting';
         await CallService.acceptCall(incomingCall.callId, user.uid);
         callIdRef.current = incomingCall.callId;
-        const stream = await WebRTCService.initializeCall(
+        await WebRTCService.initializeCall(
             incomingCall.callId,
             false,
             user.uid,

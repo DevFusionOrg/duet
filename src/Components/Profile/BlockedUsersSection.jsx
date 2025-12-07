@@ -19,7 +19,7 @@ function BlockedUsersSection({
       
       <button
         onClick={onShowBlockedUsers}
-        className="profile-manage-blocked-button"
+        className="profile-action-button profile-manage-blocked-button"
         disabled={loadingBlockedUsers}
       >
         {loadingBlockedUsers ? "Loading..." : "Manage"}
