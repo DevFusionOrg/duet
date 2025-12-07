@@ -8,11 +8,11 @@ import {
   signInWithCredential,
 } from "firebase/auth";
 import { auth, googleProvider } from "../firebase/firebase";
-import { 
-  createUserProfile, 
+import {
+  createUserProfile,
   checkUsernameTaken,
   validateUsername,
-  getUsernameSuggestions 
+  getUsernameSuggestions,
 } from "../firebase/firestore";
 import { Capacitor } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
@@ -28,14 +28,13 @@ function Auth() {
   const [error, setError] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [usernameSuggestions, setUsernameSuggestions] = useState([]);
-  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState("idle");
   const [usernameValidation, setUsernameValidation] = useState({
     isValid: false,
-    errors: []
+    errors: [],
   });
 
-  // Check username availability when it changes (with debounce)
+  // Live username validation + availability check
   useEffect(() => {
     let isCancelled = false;
 
@@ -48,7 +47,6 @@ function Auth() {
         return;
       }
 
-      // 1) Validate format first
       const validation = validateUsername(username);
       setUsernameValidation(validation);
 
@@ -61,8 +59,6 @@ function Auth() {
         return;
       }
 
-      // 2) If format is valid, now check Firestore
-      setIsCheckingUsername(true);
       setUsernameError("");
       setUsernameStatus("checking");
 
@@ -83,15 +79,11 @@ function Auth() {
           setUsernameSuggestions([]);
           setUsernameStatus("available");
         }
-      } catch (error) {
-        console.error("Error checking username:", error);
+      } catch (err) {
+        console.error("Error checking username:", err);
         if (!isCancelled) {
           setUsernameError("Error checking username availability");
           setUsernameStatus("error");
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsCheckingUsername(false);
         }
       }
     };
@@ -115,31 +107,24 @@ function Auth() {
 
     try {
       if (isNative) {
-        // 🔹 1) Native Google sign-in (Capacitor plugin)
-        console.log("[Auth] Native Google sign-in…");
         const result = await FirebaseAuthentication.signInWithGoogle();
-
-        console.log("[Auth] Native Google sign-in result:", result);
 
         if (!result || !result.credential || !result.credential.idToken) {
           throw new Error("No ID token returned from native Google sign-in");
         }
 
-        // 🔹 2) Use ID token to sign in JS Firebase Auth
-        const credential = GoogleAuthProvider.credential(result.credential.idToken);
+        const credential = GoogleAuthProvider.credential(
+          result.credential.idToken
+        );
         const userCredential = await signInWithCredential(auth, credential);
-
-        // 🔹 3) Use JS user for Firestore (rules see request.auth.uid)
         await createUserProfile(userCredential.user);
       } else {
-        // 🌐 Web: normal popup flow
-        console.log("[Auth] Web Google sign-in…");
         const result = await signInWithPopup(auth, googleProvider);
         await createUserProfile(result.user);
       }
-    } catch (error) {
-      console.error("Error signing in with Google:", error);
-      setError("Error signing in with Google: " + error.message);
+    } catch (err) {
+      console.error("Error signing in with Google:", err);
+      setError("Error signing in with Google: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -153,11 +138,8 @@ function Auth() {
 
     try {
       if (isLogin) {
-        // Login flow
         await signInWithEmailAndPassword(auth, email, password);
       } else {
-        // Signup flow
-        // Validate all fields
         if (!name.trim()) {
           throw new Error("Full name is required");
         }
@@ -166,36 +148,31 @@ function Auth() {
           throw new Error("Username is required");
         }
 
-        // Validate username format
         const validation = validateUsername(username);
         if (!validation.isValid) {
           throw new Error(validation.errors[0]);
         }
 
-        // Check if username is taken (final check)
         const isTaken = await checkUsernameTaken(username);
         if (isTaken) {
           throw new Error("Username is already taken. Please choose another one.");
         }
 
-        // Create user with email/password
         const userCredential = await createUserWithEmailAndPassword(
           auth,
           email,
-          password,
+          password
         );
 
-        // Update profile with display name
         await updateProfile(userCredential.user, {
           displayName: name,
         });
 
-        // Create user profile in Firestore with username
         await createUserProfile(userCredential.user, username);
       }
-    } catch (error) {
-      console.error("Authentication error:", error);
-      setError(error.message);
+    } catch (err) {
+      console.error("Authentication error:", err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -215,17 +192,18 @@ function Auth() {
     setError("");
     setUsernameError("");
     setUsernameSuggestions([]);
+    setUsernameStatus("idle");
+    setUsernameValidation({ isValid: false, errors: [] });
   };
 
   const toggleAuthMode = () => {
     resetForm();
-    setIsLogin(!isLogin);
+    setIsLogin((prev) => !prev);
   };
 
   return (
     <div className="auth-container">
       <div className="auth-card">
-        {/* Header */}
         <div className="auth-header">
           <h1 className="auth-title">Duet</h1>
           <p className="auth-subtitle">
@@ -233,34 +211,37 @@ function Auth() {
           </p>
         </div>
 
-        {/* Error Message */}
         {error && <div className="auth-error">{error}</div>}
 
-        {/* Toggle between Login and Signup */}
         <div className="auth-toggle-container">
           <button
             type="button"
-            className={`auth-toggle-button ${isLogin ? "auth-toggle-active" : ""}`}
+            className={`auth-toggle-button ${
+              isLogin ? "auth-toggle-active" : ""
+            }`}
             onClick={() => {
               resetForm();
               setIsLogin(true);
             }}
+            disabled={loading}
           >
             Sign In
           </button>
           <button
             type="button"
-            className={`auth-toggle-button ${!isLogin ? "auth-toggle-active" : ""}`}
+            className={`auth-toggle-button ${
+              !isLogin ? "auth-toggle-active" : ""
+            }`}
             onClick={() => {
               resetForm();
               setIsLogin(false);
             }}
+            disabled={loading}
           >
             Sign Up
           </button>
         </div>
 
-        {/* Email/Password Form */}
         <form onSubmit={handleEmailAuth} className="auth-form">
           {!isLogin && (
             <>
@@ -288,12 +269,11 @@ function Auth() {
                     <span className="auth-checking">Checking...</span>
                   )}
                 </label>
-
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                  placeholder="Enter a unique username"
+                  placeholder="Choose a username"
                   className={`auth-input ${
                     usernameError
                       ? "auth-input-error"
@@ -302,13 +282,15 @@ function Auth() {
                       : ""
                   }`}
                   required={!isLogin}
-                  disabled={loading /* maybe remove isCheckingUsername here so typing feels smoother */}
+                  disabled={loading}
                   pattern="[a-zA-Z0-9_.-]+"
-                  title="Only letters, numbers, dots, underscores, and hyphens allowed"
+                  title="Only letters, numbers, dots (.), underscores (_) and hyphens (-) allowed"
                 />
 
                 {usernameError && (
-                  <div className="auth-input-error-message">{usernameError}</div>
+                  <div className="auth-input-error-message">
+                    {usernameError}
+                  </div>
                 )}
 
                 {!usernameError && usernameStatus === "available" && (
@@ -318,15 +300,12 @@ function Auth() {
                 )}
 
                 <div className="auth-input-hint">
-                  Must be 3-30 characters. Only letters, numbers, ., _, - allowed.
+                  Must be 3–30 characters. Only letters, numbers, ., _, - allowed.
                 </div>
 
-                {/* Username suggestions */}
                 {usernameSuggestions.length > 0 && (
                   <div className="auth-suggestions-container">
-                    <div className="auth-suggestions-label">
-                      Suggestions:
-                    </div>
+                    <div className="auth-suggestions-label">Suggestions:</div>
                     <div className="auth-suggestions-list">
                       {usernameSuggestions.map((suggestion, index) => (
                         <button
@@ -378,27 +357,32 @@ function Auth() {
               disabled={loading}
             />
             <div className="auth-input-hint">
-              Must be at least 6 characters long
+              Must be at least 6 characters long.
             </div>
           </div>
 
           <button
             type="submit"
             className="auth-email-button"
-            disabled={loading || (!isLogin && (usernameError || !usernameValidation.isValid))}
+            disabled={
+              loading ||
+              (!isLogin && (usernameError || !usernameValidation.isValid))
+            }
           >
             {loading ? (
               <span className="auth-loading-spinner"></span>
-            ) : isLogin ? "Sign In" : "Create Account"}
+            ) : isLogin ? (
+              "Sign In"
+            ) : (
+              "Create Account"
+            )}
           </button>
         </form>
 
-        {/* Divider */}
         <div className="auth-divider">
           <span className="auth-divider-text">or continue with</span>
         </div>
 
-        {/* Google Sign In */}
         <button
           type="button"
           onClick={signInWithGoogle}
@@ -413,7 +397,6 @@ function Auth() {
           {loading ? "Loading..." : "Sign in with Google"}
         </button>
 
-        {/* Switch between Login and Signup */}
         <div className="auth-switch-container">
           <p className="auth-switch-text">
             {isLogin ? "Don't have an account? " : "Already have an account? "}

@@ -4,7 +4,6 @@ import { requestNotificationPermission, onMessageListener } from "../firebase/fi
 import { saveUserNotificationToken } from "../firebase/firestore";
 
 export function useNotifications(user, chatId) {
-  const [notificationToken, setNotificationToken] = useState(null);
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
 
   useEffect(() => {
@@ -12,7 +11,6 @@ export function useNotifications(user, chatId) {
       if (Notification.permission === 'granted') {
         setHasNotificationPermission(true);
         const token = await requestNotificationPermission();
-        setNotificationToken(token);
         if (token && user) {
           await saveUserNotificationToken(user.uid, token);
         }
@@ -21,7 +19,6 @@ export function useNotifications(user, chatId) {
         setHasNotificationPermission(hasPermission);
         if (hasPermission) {
           const token = await requestNotificationPermission();
-          setNotificationToken(token);
           if (token && user) {
             await saveUserNotificationToken(user.uid, token);
           }

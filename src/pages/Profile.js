@@ -4,9 +4,10 @@ import {
   updatePassword,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  signOut,
 } from "firebase/auth";
+import { auth } from "../firebase/firebase";
 
-// Components
 import ProfileHeader from '../Components/Profile/ProfileHeader';
 import ProfilePicture from '../Components/Profile/ProfilePicture';
 import ProfileForm from '../Components/Profile/ProfileForm';
@@ -15,18 +16,14 @@ import PasswordChange from '../Components/Profile/PasswordChange';
 import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
 
-// Hooks
 import { useProfiles } from "../hooks/useProfiles";
 import { useBlockedUsersProfile } from "../hooks/useBlockedUsersProfile";
 import { useProfilePicture } from "../hooks/useProfilePicture";
 
-// Styles
 import "../styles/Profile.css";
 
 export default function Profile({ user }) {
   const { uid } = useParams();
-  
-  // State
   const [editing, setEditing] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -36,7 +33,6 @@ export default function Profile({ user }) {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
 
-  // Hooks
   const {
     profile,
     formData,
@@ -45,7 +41,6 @@ export default function Profile({ user }) {
     isOwnProfile,
     setMessage,
     setProfile,
-    setFormData,
     handleFormChange,
     handleUpdate,
     getProfilePictureUrl,
@@ -58,7 +53,6 @@ export default function Profile({ user }) {
     showBlockedUsers,
     loadingBlockedUsers,
     setShowBlockedUsers,
-    loadBlockedUsers,
     handleUnblockUser
   } = useBlockedUsersProfile(user, isOwnProfile);
 
@@ -68,7 +62,6 @@ export default function Profile({ user }) {
     handleRemoveProfilePicture
   } = useProfilePicture(user, setProfile, setMessage);
 
-  // Handlers
   const handleToggleEdit = () => {
     setEditing(!editing);
     setChangingPassword(false);
@@ -100,7 +93,6 @@ export default function Profile({ user }) {
         passwordData.currentPassword,
       );
       await reauthenticateWithCredential(user, credential);
-
       await updatePassword(user, passwordData.newPassword);
 
       setMessage("Password updated successfully!");
@@ -155,7 +147,6 @@ export default function Profile({ user }) {
     }
   };
 
-  // Loading state
   if (!profile) {
     return (
       <div className="profile-container">
@@ -183,8 +174,7 @@ export default function Profile({ user }) {
     <div className="profile-container">
       <ProfileHeader
         isOwnProfile={isOwnProfile}
-        editing={editing}
-        onToggleEdit={handleToggleEdit}
+        // editing and onToggleEdit no longer used in header
       />
 
       <ProfilePicture
@@ -227,6 +217,8 @@ export default function Profile({ user }) {
             loadingBlockedUsers={loadingBlockedUsers}
             onShowBlockedUsers={() => setShowBlockedUsers(true)}
             onTogglePasswordChange={() => setChangingPassword(true)}
+            editing={editing}
+            onToggleEdit={handleToggleEdit}
           />
 
           {isOwnProfile && changingPassword && (
@@ -256,6 +248,22 @@ export default function Profile({ user }) {
         onClose={() => setShowBlockedUsers(false)}
         onUnblockUser={handleUnblockUserWithFeedback}
       />
+
+      {isOwnProfile && (
+        <button
+          onClick={async () => {
+            try {
+              await signOut(auth);
+              window.location.href = "/";
+            } catch (error) {
+              console.error("Error logging out:", error);
+            }
+          }}
+          className="profile-action-button profile-logout-button"
+        >
+          Logout
+        </button>
+      )}
     </div>
   );
 }

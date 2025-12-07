@@ -31,9 +31,6 @@ function PasswordChange({
             required
             className="profile-input"
           />
-          <p className="profile-password-requirements">
-            Password must be at least 6 characters long
-          </p>
         </div>
 
         <div className="profile-form-group">

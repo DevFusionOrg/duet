@@ -8,15 +8,12 @@ import CallScreen from '../Components/Call/CallScreen';
 import IncomingCallModal from '../Components/Call/IncomingCallModal';
 import MusicPlayer from "../Components/MusicPlayer";
 
-// Hooks
 import { useChatSetup } from "../hooks/useChatSetup";
 import { useChatMessages } from "../hooks/useChatMessages";
 import { useBlockedUsers } from "../hooks/useBlockedUsers";
-import { useNotifications } from "../hooks/useNotifications";
 import { useFriendOnlineStatus } from "../hooks/useFriendOnlineStatus";
 import { useCall } from "../hooks/useCall";
 
-// Services & Firebase
 import {
   sendMessage,
   markMessagesAsRead,
@@ -28,7 +25,6 @@ import {
   getBlockedUsers,
   deleteChat,
   replyToMessage,
-  getUserProfile,
 } from "../firebase/firestore";
 import { openUploadWidget, getOptimizedImageUrl } from "../services/cloudinary";
 import "../styles/Chat.css";
@@ -36,9 +32,8 @@ import "../styles/Chat.css";
 function Chat({ user, friend, onBack }) {
   const { chatId, friends, loading: setupLoading } = useChatSetup(user, friend);
   const { messages, loading: messagesLoading } = useChatMessages(chatId, user);
-  const { isBlocked, blockedUsers, setIsBlocked } = useBlockedUsers(user?.uid, friend?.uid);
-  const { hasNotificationPermission, showNewMessageNotification } = useNotifications(user, chatId);
-  const { isFriendOnline, lastSeen, getLastSeenText } = useFriendOnlineStatus(friend?.uid);
+  const { isBlocked, setIsBlocked } = useBlockedUsers(user?.uid, friend?.uid);
+  const { isFriendOnline, lastSeen } = useFriendOnlineStatus(friend?.uid);
   const {
     callState,
     isInCall,
@@ -70,14 +65,10 @@ function Chat({ user, friend, onBack }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  // Refs
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-
-  // Derived state
   const loading = setupLoading || messagesLoading;
 
-  // Effects
   useEffect(() => {
     const loadCloudinaryScript = () => {
       if (window.cloudinary) {
@@ -131,7 +122,6 @@ function Chat({ user, friend, onBack }) {
     return () => document.removeEventListener("click", handleClickOutside);
   }, [showUserMenu]);
 
-  // Helper functions
   const getMessageDate = (timestamp) => {
     if (!timestamp) return null;
     if (timestamp.toDate) return timestamp.toDate();
@@ -177,7 +167,6 @@ function Chat({ user, friend, onBack }) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  // Handlers
   const scrollToBottom = () => {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -339,7 +328,6 @@ function Chat({ user, friend, onBack }) {
     if (!selectedMessage || selectedFriends.length === 0) return;
     setForwarding(true);
     try {
-      // Forward logic here
       setShowForwardPopup(false);
       setSelectedFriends([]);
       setForwarding(false);
@@ -365,7 +353,7 @@ function Chat({ user, friend, onBack }) {
       if (isBlocked) {
         await unblockUser(user.uid, friend.uid);
         setIsBlocked(false);
-        const updatedBlockedList = await getBlockedUsers(user.uid);
+        await getBlockedUsers(user.uid);
         alert(`${friend.displayName} has been unblocked.`);
       } else {
         const confirmBlock = window.confirm(
@@ -374,7 +362,7 @@ function Chat({ user, friend, onBack }) {
         if (confirmBlock) {
           await blockUser(user.uid, friend.uid);
           setIsBlocked(true);
-          const updatedBlockedList = await getBlockedUsers(user.uid);
+          await getBlockedUsers(user.uid);
           alert(`${friend.displayName} has been blocked.`);
         }
       }
@@ -417,7 +405,6 @@ function Chat({ user, friend, onBack }) {
       <div className="chat-container">
         <div className="chat-placeholder">
           <h3>Select a friend to start chatting</h3>
-          <p>Choose a friend from your friends list to begin your conversation</p>
         </div>
       </div>
     );

@@ -24,39 +24,6 @@ function ChatMessage({
   renderMenuOptions,
   getOptimizedImageUrl
 }) {
-  
-  const isSameDay = (tsA, tsB) => {
-    if (!tsA || !tsB) return false;
-    const a = getMessageDate(tsA);
-    const b = getMessageDate(tsB);
-    return (
-      a.getFullYear() === b.getFullYear() &&
-      a.getMonth() === b.getMonth() &&
-      a.getDate() === b.getDate()
-    );
-  };
-
-  const getMessageDate = (timestamp) => {
-    if (!timestamp) return null;
-    if (timestamp.toDate) return timestamp.toDate();
-    if (timestamp instanceof Date) return timestamp;
-    return new Date(timestamp);
-  };
-
-  const canEditMessage = (message) => {
-    if (message.senderId !== user.uid) return false;
-    if (!message.canEditUntil) return false;
-
-    try {
-      const now = new Date();
-      const canEditUntil = message.canEditUntil.toDate
-        ? message.canEditUntil.toDate()
-        : new Date(message.canEditUntil);
-      return now <= canEditUntil;
-    } catch (error) {
-      return false;
-    }
-  };
 
   const renderMessageContent = (message) => {
     const isSeenByRecipient = message.senderId === user.uid && message.read === true;
