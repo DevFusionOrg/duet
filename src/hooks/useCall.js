@@ -15,7 +15,7 @@ export function useCall(user, friend, chatId) {
     const [callDuration, setCallDuration] = useState(0);
     const [callStartTime, setCallStartTime] = useState(null);
     const [isBlocked, setIsBlocked] = useState(false);
-    
+    const [isSpeaker, setIsSpeaker] = useState(false);
     const callTimeoutRef = useRef(null);
     const ringtoneAudioRef = useRef(null);
     const incomingCallRef = useRef(null);
@@ -686,30 +686,37 @@ export function useCall(user, friend, chatId) {
     };
 
     const handleToggleSpeaker = async () => {
+        console.log('🎛️ Speaker button clicked, current isSpeaker:', isSpeaker);  // Add this
         try {
             const audioElement = document.querySelector('.remote-audio');
-            if (!audioElement || !audioElement.srcObject) return false;
+            console.log('🔊 Audio element found:', !!audioElement);  // Add this
+            if (!audioElement) return false;
             
-            const audioTrack = audioElement.srcObject.getAudioTracks()[0];
-            if (!audioTrack) return false;
+            // Simply toggle mute instead of switching audio devices
+            const newSpeakerState = !isSpeaker;
+            console.log('🔄 New speaker state:', newSpeakerState);  // Add this
+            setIsSpeaker(newSpeakerState);
             
-            if (audioElement.setSinkId) {
-                const currentSink = await audioElement.sinkId;
-                
-                if (currentSink === '') {
-                    await audioElement.setSinkId('speaker');
-                    return true;
-                } else {
-                    await audioElement.setSinkId('');
-                    return false;
-                }
+            if (newSpeakerState) {
+                // Block audio (what you want when button is blue)
+                audioElement.muted = true;
+                audioElement.volume = 0;
+                console.log('🔇 Audio muted and volume 0');
             } else {
-                audioElement.muted = !audioElement.muted;
-                return !audioElement.muted;
+                // Unblock audio (what you want when button is white)
+                audioElement.muted = false;
+                audioElement.volume = 1;
+                console.log('🔊 Audio unmuted and volume 1');
             }
+            
+            console.log('✅ Speaker toggled to:', newSpeakerState ? 'BLOCKED (blue)' : 'UNBLOCKED (white)');
+            return newSpeakerState;
+            
         } catch (error) {
-            console.error('Error toggling speaker:', error);
-            return false;
+            console.error('❌ Error toggling speaker:', error);
+            // Revert state on error
+            setIsSpeaker(!isSpeaker);
+            return isSpeaker;
         }
     };
 
@@ -718,6 +725,7 @@ export function useCall(user, friend, chatId) {
         isInCall,
         incomingCall,
         callDuration,
+        isSpeaker,
         initiateAudioCall,
         handleAcceptCall,
         handleDeclineCall,

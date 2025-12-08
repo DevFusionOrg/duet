@@ -10,10 +10,10 @@ const CallScreen = ({
   onToggleMute, 
   onToggleSpeaker,
   callDuration = 0,
-  isInitiator = true
+  isInitiator = true,
+  isSpeaker
 }) => {
   const [isMuted, setIsMuted] = useState(false);
-  const [isSpeaker, setIsSpeaker] = useState(false);
   const localAudioRef = useRef(null);
   const remoteAudioRef = useRef(null);
 
@@ -41,8 +41,7 @@ const CallScreen = ({
   };
 
   const handleSpeakerToggle = () => {
-    const speakerEnabled = onToggleSpeaker();
-    setIsSpeaker(speakerEnabled);
+    onToggleSpeaker();
   };
 
   return (

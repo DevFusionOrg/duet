@@ -39,6 +39,7 @@ function Chat({ user, friend, onBack }) {
     isInCall,
     incomingCall,
     callDuration,
+    isSpeaker,
     initiateAudioCall,
     handleAcceptCall,
     handleDeclineCall,
@@ -542,6 +543,7 @@ function Chat({ user, friend, onBack }) {
           friend={friend}
           callState={callState}
           callDuration={callDuration}
+          isSpeaker={isSpeaker}
           onEndCall={handleEndCall}
           onToggleMute={handleToggleMute}
           onToggleSpeaker={handleToggleSpeaker}

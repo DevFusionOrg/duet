@@ -90,6 +90,13 @@
   color: white;
 }
 
+.call-control-speaker-inactive {
+    /* White styles for inactive speaker */
+    background-color: white;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
 .call-end-button {
   background: #FF3B30;
   color: white;
