@@ -177,7 +177,7 @@ class CallService {
   }
 
   // Send call notification to chat
-  async sendCallNotification(chatId, userId, friendId, type, duration = 0) {
+  async sendCallNotification(chatId, userId, friendId, type, duration = 0, callData = null) {
     try {
       if (!chatId) {
         console.log('No chatId for call notification');
@@ -187,25 +187,51 @@ class CallService {
       const messagesRef = collection(db, 'chats', chatId, 'messages');
       
       let messageText = '';
+      let senderId = '';
+      let callAction = '';
+      let callInitiatorId = ''; // NEW: Track who initiated the call
+      
       if (type === 'started') {
         messageText = 'Audio call started';
+        senderId = userId;
+        callAction = 'started';
+        callInitiatorId = userId; // User who started the call
       } else if (type === 'ended') {
-        messageText = duration > 0 
-          ? `Audio call ended (${this.formatDuration(duration)})` 
-          : 'Audio call ended';
+        if (duration > 0) {
+          messageText = `Audio call: ${this.formatDuration(duration)}`;
+          senderId = userId;
+          callAction = 'ended';
+        } else {
+          messageText = 'Audio call ended';
+          senderId = userId;
+          callAction = 'ended';
+        }
+        
+        // For ended calls, check if we have callData to determine initiator
+        if (callData && callData.callerId) {
+          callInitiatorId = callData.callerId;
+        } else {
+          callInitiatorId = userId; // Fallback
+        }
       } else if (type === 'missed') {
         messageText = 'Missed audio call';
+        senderId = friendId;
+        callAction = 'missed';
+        callInitiatorId = friendId; // The user who initiated (called)
       }
 
       await addDoc(messagesRef, {
-        senderId: 'system',
+        senderId: senderId,
         text: messageText,
         timestamp: new Date(),
         type: 'call',
         callType: type,
+        callAction: callAction,
         callDuration: duration,
+        callInitiatorId: callInitiatorId, // NEW: Store who initiated the call
         read: false,
-        deletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        deletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        isCallLog: true
       });
 
       // Update chat last message
@@ -215,7 +241,7 @@ class CallService {
         lastMessageAt: new Date()
       });
 
-      console.log('📢 Call notification sent:', type);
+      console.log('📢 Call notification sent:', type, 'initiator:', callInitiatorId);
 
     } catch (error) {
       console.error('❌ Error sending call notification:', error);
