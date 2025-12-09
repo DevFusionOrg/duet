@@ -25,27 +25,45 @@ function ChatMessage({
   getOptimizedImageUrl
 }) {
 
+  const isCallMessage = message.type === 'call';  const shouldShowOnRight = isCallMessage 
+    ? ((message.callInitiatorId || message.senderId) === user.uid)
+    : (message.senderId === user.uid);
+
+  const renderMessageStatus = (message, isSeenByRecipient) => (
+    <div className="chat-message-status">
+      <span className="chat-message-time">
+        {formatTime(message.timestamp)}
+      </span>
+      {isMessageEdited(message) && (
+        <span className="chat-edited-indicator">Edited</span>
+      )}
+      {isMessageSaved(message) && (
+        <span className="chat-saved-indicator">⭐</span>
+      )}
+      {message.senderId === user.uid && (
+        <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
+          {isSeenByRecipient ? '✓' : ''}
+        </span>
+      )}
+    </div>
+  );
+
   const renderMessageContent = (message) => {
+    const isCallMessage = message.type === 'call';
     const isSeenByRecipient = message.senderId === user.uid && message.read === true;
     
-    const renderMessageStatus = () => (
-      <div className="chat-message-status">
-        <span className="chat-message-time">
-          {formatTime(message.timestamp)}
-        </span>
-        {isMessageEdited(message) && (
-          <span className="chat-edited-indicator">Edited</span>
-        )}
-        {isMessageSaved(message) && (
-          <span className="chat-saved-indicator">⭐</span>
-        )}
-        {message.senderId === user.uid && (
-          <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
-            {isSeenByRecipient ? '✓' : ''}
-          </span>
-        )}
-      </div>
-    );
+    // Special rendering for call messages
+    if (isCallMessage) {
+      return (
+        <div className="call-message-content">
+          <div className="call-icon-time">
+            <span className="call-icon">📞</span>
+            <span className="call-message-text">{message.text}</span>
+          </div>
+          {renderMessageStatus(message, isSeenByRecipient)}
+        </div>
+      );
+    }
 
     const renderReplyIndicator = () => (
       message.isReply && message.originalMessageText && (
@@ -72,7 +90,7 @@ function ChatMessage({
           
           {message.text && <p className="chat-image-caption">{message.text}</p>}
           
-          {renderMessageStatus()}
+          {renderMessageStatus(message, isSeenByRecipient)}
         </div>
       );
     }
@@ -88,7 +106,7 @@ function ChatMessage({
             className="message-image" 
           />
         )}
-        {renderMessageStatus()}
+        {renderMessageStatus(message, isSeenByRecipient)}
       </>
     );
   };
@@ -103,7 +121,7 @@ function ChatMessage({
       
       <div
         className={`chat-message-wrapper ${
-          message.senderId === user.uid
+          shouldShowOnRight
             ? "chat-sent-wrapper"
             : "chat-received-wrapper"
         }`}
@@ -124,10 +142,12 @@ function ChatMessage({
         
         <div
           className={`chat-message-bubble ${
-            message.senderId === user.uid
+            shouldShowOnRight
               ? "chat-sent-message"
               : "chat-received-message"
-          } ${isMessageSaved(message) ? "chat-saved-message" : ""}`}
+          } ${isCallMessage ? "chat-call-message" : ""} ${
+            isMessageSaved(message) ? "chat-saved-message" : ""
+          }`}
         >
           <div className="chat-message-content">
             {editingMessageId === message.id ? (
@@ -159,7 +179,7 @@ function ChatMessage({
             )}
           </div>
           
-          {message.senderId !== user?.uid && hoveredMessage?.id === message.id && (
+          {message.senderId !== user?.uid && hoveredMessage?.id === message.id && !isCallMessage && (
             <button 
               className="reply-button"
               onClick={() => onStartReply(message)}
@@ -181,7 +201,7 @@ function ChatMessage({
           )}
         </div>
         
-        {showMessageMenu && selectedMessage?.id === message.id && (
+        {showMessageMenu && selectedMessage?.id === message.id && !isCallMessage && (
           <div className="chat-dropdown-menu">
             {renderMenuOptions(message)}
           </div>
