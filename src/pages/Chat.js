@@ -65,6 +65,7 @@ function Chat({ user, friend, onBack }) {
   const [replyText, setReplyText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -199,6 +200,20 @@ function Chat({ user, friend, onBack }) {
     }
     setUploadingImage(false);
   };
+
+  useEffect(() => {
+    const container = document.querySelector(".chat-messages-container");
+
+    const handleScroll = () => {
+      const isAtBottom =
+        container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+
+      setShowScrollButton(!isAtBottom);
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -493,6 +508,15 @@ function Chat({ user, friend, onBack }) {
           onClose={() => setShowForwardPopup(false)}
           forwarding={forwarding}
         />
+      )}
+
+      {showScrollButton && (
+        <button 
+          className="scroll-to-bottom-btn"
+          onClick={scrollToBottom}
+        >
+          ↓
+        </button>
       )}
 
       <ChatInput
