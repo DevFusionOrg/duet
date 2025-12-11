@@ -1,6 +1,35 @@
 import React from 'react';
 
 function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
+  // Simple timestamp display - just show time if today, date if older
+  const formatChatTimestamp = (timestamp) => {
+    if (!timestamp) return 'New';
+    
+    try {
+      const messageDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const messageDay = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+      
+      // If today, show time
+      if (messageDay.getTime() === today.getTime()) {
+        return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+      
+      // If yesterday, show "Yesterday"
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (messageDay.getTime() === yesterday.getTime()) {
+        return 'Yesterday';
+      }
+      
+      // Otherwise show date
+      return messageDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    } catch (error) {
+      return 'New';
+    }
+  };
+
   if (loading) {
     return (
       <div className="loading-state">
@@ -22,40 +51,47 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
 
   return (
     <div className="chats-list">
-      {chats.map(chat => (
-        <div 
-          key={chat.id} 
-          className="chat-item"
-          onClick={() => onStartChat(chat.otherParticipant)}
-        >
-          <div className="chat-avatar-section">
-            <img 
-              src={chat.otherParticipant.photoURL} 
-              alt={chat.otherParticipant.displayName}
-              className="chat-avatar"
-            />
-            <div className={`online-indicator ${friendsOnlineStatus[chat.otherParticipant.uid] ? 'online' : 'offline'}`}></div>
-          </div>
-          
-          <div className="chat-info">
-            <div className="chat-header">
-              <h4 className="chat-name">{chat.otherParticipant.displayName}</h4>
-              <span className="chat-time">
-                {chat.lastMessageAt?.toDate?.()?.toLocaleDateString() || 'New'}
-              </span>
+      {chats.map(chat => {
+        // Get the last message preview
+        const lastMessagePreview = chat.lastMessage || 'Start a conversation...';
+        
+        return (
+          <div 
+            key={chat.id} 
+            className="chat-item"
+            onClick={() => onStartChat(chat.otherParticipant)}
+          >
+            <div className="chat-avatar-section">
+              <img 
+                src={chat.otherParticipant.photoURL} 
+                alt={chat.otherParticipant.displayName}
+                className="chat-avatar"
+              />
+              <div className={`online-indicator ${friendsOnlineStatus[chat.otherParticipant.uid] ? 'online' : 'offline'}`}></div>
             </div>
-            <p className="last-message">
-              {chat.lastMessage || 'Start a conversation...'}
-            </p>
-          </div>
-          
-          {chat.unreadCount > 0 && (
-            <div className="unread-badge">
-              {chat.unreadCount}
+            
+            <div className="chat-info">
+              <div className="chat-header">
+                <h4 className="chat-name">{chat.otherParticipant.displayName}</h4>
+                <span className="chat-time">
+                  {formatChatTimestamp(chat.lastMessageAt)}
+                </span>
+              </div>
+              <p className="last-message">
+                {lastMessagePreview.length > 40 
+                  ? lastMessagePreview.substring(0, 40) + '...' 
+                  : lastMessagePreview}
+              </p>
             </div>
-          )}
-        </div>
-      ))}
+            
+            {chat.unreadCount > 0 && (
+              <div className="unread-badge">
+                {chat.unreadCount}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -639,9 +639,10 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     const messageRef = await addDoc(messagesRef, messageData);
 
     const chatRef = doc(db, "chats", chatId);
+    const now = new Date(); // Get current timestamp
     await updateDoc(chatRef, {
       lastMessage: text || "📷 Image",
-      lastMessageAt: new Date(),
+      lastMessageAt: now,
       lastMessageId: messageRef.id,
     });
 
@@ -1374,9 +1375,10 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     const messageRef = await addDoc(messagesRef, replyData);
     
     const chatRef = doc(db, "chats", chatId);
+    const now = new Date();
     await updateDoc(chatRef, {
       lastMessage: replyText || "📷 Image",
-      lastMessageAt: new Date(),
+      lastMessageAt: now,
       lastMessageId: messageRef.id,
     });
     
