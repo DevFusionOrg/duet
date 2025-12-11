@@ -393,6 +393,10 @@
   color: #999;
   white-space: nowrap;
   margin-left: 10px;
+  font-weight: 500; /* Make it slightly bolder */
+  background: rgba(102, 126, 234, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
 }
 
 .last-message {
@@ -406,7 +410,7 @@
 
 .unread-badge {
   position: absolute;
-  top: 15px;
+  top: 3px;
   right: 1px;
   background: #ff4757;
   color: white;
