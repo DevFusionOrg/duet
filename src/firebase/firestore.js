@@ -848,7 +848,7 @@ export const markMessagesAsRead = async (chatId, userId) => {
     querySnapshot.docs.forEach((doc) => {
       batch.update(doc.ref, { 
         read: true,
-        readAt: new Date()  // Add timestamp for better tracking
+        readAt: new Date()
       });
     });
 
@@ -1239,7 +1239,6 @@ export const blockUser = async (userId, userToBlockId) => {
       throw new Error("User is already blocked");
     }
     
-    // Remove from friends if they are friends
     const updates = {
       blockedUsers: arrayUnion(userToBlockId),
     };
