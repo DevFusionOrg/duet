@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import "./App.css";
 import { initPushNotifications } from "./push-init";
+import ChatWrapper from './pages/ChatWrapper';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -129,7 +130,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Home user={user} />} />
-        {/* Both profile routes */}
+        <Route path="/chat/:uid" element={<ChatWrapper user={user} />} />
         <Route path="/profile" element={<Profile user={user} />} />
         <Route path="/profile/:uid" element={<Profile user={user} />} />
       </Routes>
