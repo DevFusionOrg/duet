@@ -15,7 +15,7 @@ import ProfileDisplay from '../Components/Profile/ProfileDisplay';
 import PasswordChange from '../Components/Profile/PasswordChange';
 import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
-
+import UpdateChecker from "../Components/UpdateChecker";
 import { useProfiles } from "../hooks/useProfiles";
 import { useBlockedUsersProfile } from "../hooks/useBlockedUsersProfile";
 import { useProfilePicture } from "../hooks/useProfilePicture";
@@ -250,19 +250,22 @@ export default function Profile({ user }) {
       />
 
       {isOwnProfile && (
-        <button
-          onClick={async () => {
-            try {
-              await signOut(auth);
-              window.location.href = "/";
-            } catch (error) {
-              console.error("Error logging out:", error);
-            }
-          }}
-          className="profile-action-button profile-logout-button"
-        >
-          Logout
-        </button>
+        <>
+          <UpdateChecker className="profile-action-container" />
+          <button
+            onClick={async () => {
+              try {
+                await signOut(auth);
+                window.location.href = "/";
+              } catch (error) {
+                console.error("Error logging out:", error);
+              }
+            }}
+            className="profile-action-button profile-logout-button"
+          >
+            Logout
+          </button>
+        </>
       )}
     </div>
   );
