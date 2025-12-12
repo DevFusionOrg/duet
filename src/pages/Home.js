@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase/firebase";
 import Chat from "./Chat";
 import '../styles/Home.css';
 import FriendsView from '../Components/Home/FriendsView';
@@ -27,7 +25,6 @@ function Home({ user }) {
   const [activeView, setActiveView] = useState('friends');
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(null);
-  const [editingProfile, setEditingProfile] = useState(false);
   const loading = friendsLoading || chatsLoading;
   
   const handleFriendRequestUpdate = () => {};
@@ -50,15 +47,6 @@ function Home({ user }) {
   const handleCloseProfilePopup = () => {
     setShowProfilePopup(false);
     setSelectedProfile(null);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate('/');
-    } catch (error) {
-      console.error("Error logging out:", error);
-    }
   };
 
   const getDisplayName = () => {
@@ -127,7 +115,6 @@ function Home({ user }) {
             className={`nav-item ${activeView === 'profile' ? 'active' : ''}`}
             onClick={() => {
               setActiveView('profile');
-              setEditingProfile(false);
             }}
             title="View profile"
           >

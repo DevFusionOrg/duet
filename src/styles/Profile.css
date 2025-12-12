@@ -287,7 +287,7 @@
 }
 
 .profile-logout-button {
-  margin-top: 20px;
+  margin-top: 10px;
   background-color: #ff4b4b;
   color: #fff;
 }
@@ -919,3 +919,57 @@
   gap: 10px;
   margin-top: 20px;
 }
+
+.update-check-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  cursor: pointer;
+  margin-top: 10px;
+}
+.update-badge {
+  margin-left: 8px;
+  background: #ff3b30;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.update-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 3000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.update-modal {
+  background: #fff;
+  padding: 18px;
+  width: 92%;
+  max-width: 420px;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+.btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: #eee;
+  cursor: pointer;
+}
+.btn-primary {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #1e90ff;
+  color: #fff;
+  text-decoration: none;
+  display: inline-block;
+}
+.error { color: #c0392b; }
+.notes { color: #444; font-size: 13px; }
