@@ -30,7 +30,7 @@ function Home({ user }) {
   const handleFriendRequestUpdate = () => {};
 
   const handleStartChat = (friend) => {
-    setSelectedFriend(friend);
+    navigate(`/chat/${friend.uid}`, { state: { friend } });
   };
 
   const handleBackToFriends = () => {
