@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import PropTypes from "prop-types";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
@@ -17,6 +17,8 @@ function compareSemver(a = "0.0.0", b = "0.0.0") {
   return 0;
 }
 
+const DISMISSED_VERSION_KEY = "updateDismissedVersion";
+
 export default function UpdateChecker({ className }) {
   const [installedVersion, setInstalledVersion] = useState(null);
   const [latestInfo, setLatestInfo] = useState(null);
@@ -24,6 +26,7 @@ export default function UpdateChecker({ className }) {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -33,8 +36,10 @@ export default function UpdateChecker({ className }) {
           return;
         }
       } catch (e) {
+        // ignore and fallback to env var
       }
-      const envVersion = process.env.REACT_APP_VERSION || process.env.VITE_APP_VERSION || null;
+      const envVersion =
+        process.env.REACT_APP_VERSION || process.env.VITE_APP_VERSION || null;
       setInstalledVersion(envVersion || "0.0.0");
     })();
   }, []);
@@ -58,6 +63,7 @@ export default function UpdateChecker({ className }) {
 
       const cmp = compareSemver(installedVersion || "0.0.0", latestVersion);
       setUpdateAvailable(cmp === -1);
+
       setModalOpen(true);
     } catch (err) {
       console.error("Update check error:", err);
@@ -83,6 +89,25 @@ export default function UpdateChecker({ className }) {
     })();
   }, [installedVersion]);
 
+  useEffect(() => {
+    if (!updateAvailable || !latestInfo?.version) return;
+    const dismissed = localStorage.getItem(DISMISSED_VERSION_KEY);
+    if (dismissed === latestInfo.version) {
+      return;
+    }
+    setModalOpen(true);
+  }, [updateAvailable, latestInfo]);
+
+  const closeModal = useCallback(() => {
+    if (updateAvailable && latestInfo?.version) {
+      try {
+        localStorage.setItem(DISMISSED_VERSION_KEY, latestInfo.version);
+      } catch (e) {
+      }
+    }
+    setModalOpen(false);
+  }, [updateAvailable, latestInfo]);
+
   return (
     <>
       <div className={className ? className : "update-checker"}>
@@ -97,7 +122,7 @@ export default function UpdateChecker({ className }) {
       </div>
 
       {modalOpen && (
-        <div className="update-modal-overlay" onClick={() => setModalOpen(false)}>
+        <div className="update-modal-overlay" onClick={closeModal}>
           <div className="update-modal" onClick={(e) => e.stopPropagation()}>
             <h3>App Updates</h3>
 
@@ -108,7 +133,7 @@ export default function UpdateChecker({ className }) {
             {error ? (
               <>
                 <p className="error">Error: {error}</p>
-                <button onClick={() => setModalOpen(false)} className="btn">Close</button>
+                <button onClick={closeModal} className="btn">Close</button>
               </>
             ) : (
               <>
@@ -127,6 +152,11 @@ export default function UpdateChecker({ className }) {
                       rel="noopener noreferrer"
                       className="btn btn-primary"
                       onClick={() => {
+                        if (latestInfo?.version) {
+                          try {
+                            localStorage.setItem(DISMISSED_VERSION_KEY, latestInfo.version);
+                          } catch (e) {}
+                        }
                         setModalOpen(false);
                       }}
                     >
@@ -138,7 +168,7 @@ export default function UpdateChecker({ className }) {
                 )}
 
                 <div style={{ marginTop: 12 }}>
-                  <button onClick={() => setModalOpen(false)} className="btn">Close</button>
+                  <button onClick={closeModal} className="btn">Close</button>
                 </div>
               </>
             )}

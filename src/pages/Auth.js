@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   signInWithPopup,
   createUserWithEmailAndPassword,
@@ -8,12 +8,7 @@ import {
   signInWithCredential,
 } from "firebase/auth";
 import { auth, googleProvider } from "../firebase/firebase";
-import {
-  createUserProfile,
-  checkUsernameTaken,
-  validateUsername,
-  getUsernameSuggestions,
-} from "../firebase/firestore";
+import { createUserProfile } from "../firebase/firestore";
 import { Capacitor } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import "../styles/Auth.css";
@@ -23,80 +18,14 @@ function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [usernameError, setUsernameError] = useState("");
-  const [usernameSuggestions, setUsernameSuggestions] = useState([]);
-  const [usernameStatus, setUsernameStatus] = useState("idle");
-  const [usernameValidation, setUsernameValidation] = useState({
-    isValid: false,
-    errors: [],
-  });
 
-  // Live username validation + availability check
-  useEffect(() => {
-    let isCancelled = false;
-
-    const checkUsernameAvailability = async () => {
-      if (!username || username.length < 3) {
-        setUsernameError("");
-        setUsernameValidation({ isValid: false, errors: [] });
-        setUsernameSuggestions([]);
-        setUsernameStatus("idle");
-        return;
-      }
-
-      const validation = validateUsername(username);
-      setUsernameValidation(validation);
-
-      if (!validation.isValid) {
-        if (!isCancelled) {
-          setUsernameError(validation.errors[0]);
-          setUsernameSuggestions([]);
-          setUsernameStatus("invalid");
-        }
-        return;
-      }
-
-      setUsernameError("");
-      setUsernameStatus("checking");
-
-      try {
-        const isTaken = await checkUsernameTaken(username);
-        if (isCancelled) return;
-
-        if (isTaken) {
-          setUsernameError("Username is already taken");
-          setUsernameStatus("taken");
-
-          const suggestions = await getUsernameSuggestions(username);
-          if (!isCancelled) {
-            setUsernameSuggestions(suggestions);
-          }
-        } else {
-          setUsernameError("");
-          setUsernameSuggestions([]);
-          setUsernameStatus("available");
-        }
-      } catch (err) {
-        console.error("Error checking username:", err);
-        if (!isCancelled) {
-          setUsernameError("Error checking username availability");
-          setUsernameStatus("error");
-        }
-      }
-    };
-
-    const debounceTimer = setTimeout(() => {
-      checkUsernameAvailability();
-    }, 500);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(debounceTimer);
-    };
-  }, [username]);
+  const deriveUsernameFromEmail = (emailStr) => {
+    if (!emailStr) return "";
+    const local = emailStr.split("@")[0] || "";
+    return local.toLowerCase().trim().replace(/[^a-z0-9._-]/g, "").slice(0, 30);
+  };
 
   const signInWithGoogle = async () => {
     const platform = Capacitor.getPlatform();
@@ -117,14 +46,20 @@ function Auth() {
           result.credential.idToken
         );
         const userCredential = await signInWithCredential(auth, credential);
-        await createUserProfile(userCredential.user);
+
+        const derivedUsername = deriveUsernameFromEmail(
+          userCredential.user.email || ""
+        );
+        await createUserProfile(userCredential.user, derivedUsername);
       } else {
         const result = await signInWithPopup(auth, googleProvider);
-        await createUserProfile(result.user);
+
+        const derivedUsername = deriveUsernameFromEmail(result.user.email || "");
+        await createUserProfile(result.user, derivedUsername);
       }
     } catch (err) {
       console.error("Error signing in with Google:", err);
-      setError("Error signing in with Google: " + err.message);
+      setError("Error signing in with Google: " + (err.message || err));
     } finally {
       setLoading(false);
     }
@@ -134,7 +69,6 @@ function Auth() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setUsernameError("");
 
     try {
       if (isLogin) {
@@ -144,18 +78,8 @@ function Auth() {
           throw new Error("Full name is required");
         }
 
-        if (!username.trim()) {
-          throw new Error("Username is required");
-        }
-
-        const validation = validateUsername(username);
-        if (!validation.isValid) {
-          throw new Error(validation.errors[0]);
-        }
-
-        const isTaken = await checkUsernameTaken(username);
-        if (isTaken) {
-          throw new Error("Username is already taken. Please choose another one.");
+        if (!email.trim()) {
+          throw new Error("Email is required");
         }
 
         const userCredential = await createUserWithEmailAndPassword(
@@ -168,32 +92,22 @@ function Auth() {
           displayName: name,
         });
 
-        await createUserProfile(userCredential.user, username);
+        const derivedUsername = deriveUsernameFromEmail(email);
+        await createUserProfile(userCredential.user, derivedUsername);
       }
     } catch (err) {
       console.error("Authentication error:", err);
-      setError(err.message);
+      setError(err.message || String(err));
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSuggestionClick = (suggestion) => {
-    setUsername(suggestion);
-    setUsernameError("");
-    setUsernameSuggestions([]);
   };
 
   const resetForm = () => {
     setEmail("");
     setPassword("");
     setName("");
-    setUsername("");
     setError("");
-    setUsernameError("");
-    setUsernameSuggestions([]);
-    setUsernameStatus("idle");
-    setUsernameValidation({ isValid: false, errors: [] });
   };
 
   const toggleAuthMode = () => {
@@ -216,9 +130,7 @@ function Auth() {
         <div className="auth-toggle-container">
           <button
             type="button"
-            className={`auth-toggle-button ${
-              isLogin ? "auth-toggle-active" : ""
-            }`}
+            className={`auth-toggle-button ${isLogin ? "auth-toggle-active" : ""}`}
             onClick={() => {
               resetForm();
               setIsLogin(true);
@@ -229,9 +141,7 @@ function Auth() {
           </button>
           <button
             type="button"
-            className={`auth-toggle-button ${
-              !isLogin ? "auth-toggle-active" : ""
-            }`}
+            className={`auth-toggle-button ${!isLogin ? "auth-toggle-active" : ""}`}
             onClick={() => {
               resetForm();
               setIsLogin(false);
@@ -259,68 +169,6 @@ function Auth() {
                   required={!isLogin}
                   disabled={loading}
                 />
-              </div>
-
-              <div className="auth-input-group">
-                <label className="auth-label">
-                  Username
-                  <span className="auth-required">*</span>
-                  {usernameStatus === "checking" && (
-                    <span className="auth-checking">Checking...</span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                  placeholder="Choose a username"
-                  className={`auth-input ${
-                    usernameError
-                      ? "auth-input-error"
-                      : usernameStatus === "available"
-                      ? "auth-input-valid"
-                      : ""
-                  }`}
-                  required={!isLogin}
-                  disabled={loading}
-                  pattern="[a-zA-Z0-9_.-]+"
-                  title="Only letters, numbers, dots (.), underscores (_) and hyphens (-) allowed"
-                />
-
-                {usernameError && (
-                  <div className="auth-input-error-message">
-                    {usernameError}
-                  </div>
-                )}
-
-                {!usernameError && usernameStatus === "available" && (
-                  <div className="auth-input-success-message">
-                    ✓ Username is available
-                  </div>
-                )}
-
-                <div className="auth-input-hint">
-                  Must be 3–30 characters. Only letters, numbers, ., _, - allowed.
-                </div>
-
-                {usernameSuggestions.length > 0 && (
-                  <div className="auth-suggestions-container">
-                    <div className="auth-suggestions-label">Suggestions:</div>
-                    <div className="auth-suggestions-list">
-                      {usernameSuggestions.map((suggestion, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          className="auth-suggestion-button"
-                          onClick={() => handleSuggestionClick(suggestion)}
-                          disabled={loading}
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </>
           )}
@@ -356,18 +204,12 @@ function Auth() {
               minLength={6}
               disabled={loading}
             />
-            <div className="auth-input-hint">
-              Must be at least 6 characters long.
-            </div>
           </div>
 
           <button
             type="submit"
             className="auth-email-button"
-            disabled={
-              loading ||
-              (!isLogin && (usernameError || !usernameValidation.isValid))
-            }
+            disabled={loading}
           >
             {loading ? (
               <span className="auth-loading-spinner"></span>
