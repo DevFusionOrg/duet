@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import {
   updatePassword,
@@ -61,6 +61,19 @@ export default function Profile({ user }) {
     handleProfilePictureUpload,
     handleRemoveProfilePicture
   } = useProfilePicture(user, setProfile, setMessage);
+
+  useEffect(() => {
+    // Preload Cloudinary script when profile page loads
+    if (!window.cloudinary) {
+      const script = document.createElement("script");
+      script.src = "https://upload-widget.cloudinary.com/global/all.js";
+      script.type = "text/javascript";
+      script.async = true;
+      script.id = 'cloudinary-profile-script'; // Add ID to avoid duplicate scripts
+      document.head.appendChild(script);
+      console.log("Cloudinary script loading for profile...");
+    }
+  }, []);
 
   const handleToggleEdit = () => {
     setEditing(!editing);
