@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { updateProfile } from "firebase/auth";
 import { updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
-import { openUploadWidget } from "../services/cloudinary";
+import { openProfilePictureUploadWidget, getOptimizedProfilePictureUrl } from "../services/cloudinary";
 
 export function useProfilePicture(user, setProfile, setMessage) {
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -14,23 +14,31 @@ export function useProfilePicture(user, setProfile, setMessage) {
     setMessage("");
 
     try {
-      const result = await openUploadWidget();
+      // Use profile picture specific upload widget
+      const result = await openProfilePictureUploadWidget();
       
       if (result) {
+        // Generate optimized profile picture URL
+        const optimizedUrl = getOptimizedProfilePictureUrl(result.public_id, 200);
+        
+        // Update Firebase Auth profile
         await updateProfile(user, {
-          photoURL: result.secure_url
+          photoURL: optimizedUrl
         });
 
+        // Update Firestore user document
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, {
-          photoURL: result.secure_url,
-          cloudinaryPublicId: result.public_id
+          photoURL: optimizedUrl,
+          cloudinaryPublicId: result.public_id,
+          profilePictureUpdatedAt: new Date().toISOString()
         });
 
         setMessage("Profile picture updated successfully!");
         setProfile(prev => ({
           ...prev,
-          photoURL: result.secure_url
+          photoURL: optimizedUrl,
+          cloudinaryPublicId: result.public_id
         }));
       }
     } catch (error) {
@@ -57,13 +65,15 @@ export function useProfilePicture(user, setProfile, setMessage) {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         photoURL: originalPhotoURL,
-        cloudinaryPublicId: null
+        cloudinaryPublicId: null,
+        profilePictureUpdatedAt: null
       });
 
       setMessage("Profile picture removed successfully!");
       setProfile(prev => ({
         ...prev,
-        photoURL: originalPhotoURL
+        photoURL: originalPhotoURL,
+        cloudinaryPublicId: null
       }));
     } catch (error) {
       console.error("Error removing profile picture:", error);

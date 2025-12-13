@@ -30,6 +30,19 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // Preload Cloudinary widget globally when app starts
+    if (!window.cloudinary) {
+      const script = document.createElement("script");
+      script.src = "https://upload-widget.cloudinary.com/global/all.js";
+      script.type = "text/javascript";
+      script.async = true;
+      script.id = 'cloudinary-global-script';
+      document.head.appendChild(script);
+      console.log("Cloudinary script preloaded globally");
+    }
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
 
     const updateOnlineStatus = async (isOnline) => {
