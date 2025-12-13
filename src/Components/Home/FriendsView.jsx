@@ -33,16 +33,16 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
               src={friend.photoURL} 
               alt={friend.displayName}
               className="friend-avatar"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/default-avatar.png";
+              }}
             />
             <div className={`online-indicator ${friendsOnlineStatus[friend.uid] ? 'online' : 'offline'}`}></div>
           </div>
           
           <div className="friend-info">
             <h3 className="friend-name">{friend.displayName}</h3>
-            <p className="friend-username">@{friend.username}</p>
-            {friend.bio && (
-              <p className="friend-bio">{friend.bio}</p>
-            )}
           </div>
 
           <button 

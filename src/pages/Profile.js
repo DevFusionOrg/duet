@@ -186,6 +186,10 @@ export default function Profile({ user }) {
         loading={loading}
         onUploadPicture={handleProfilePictureUpload}
         onRemovePicture={handleRemoveProfilePicture}
+        onError={(e) => {
+          e.currentTarget.onerror = null;
+          e.currentTarget.src = "/default-avatar.png";
+        }}
       />
 
       {message && (

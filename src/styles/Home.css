@@ -1330,3 +1330,9 @@
   text-align: center;
   color: #764ba2;
 }
+
+.remove-friend-button{
+  color: red;
+  background: none;
+  border: none;
+}

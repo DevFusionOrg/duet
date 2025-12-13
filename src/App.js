@@ -16,20 +16,13 @@ function App() {
   const pushInitCalledRef = useRef(false);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
-      try {
-        if (currentUser) {
-          await createUserProfile(currentUser);
-          setAuthError(null);
-          await setUserOnlineStatus(currentUser.uid, true);
-        }
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
 
-        setUser(currentUser);
-      } catch (error) {
-        console.error("Error in auth state change:", error);
-        setAuthError(error.message);
-      } finally {
-        setLoading(false);
+      if (currentUser) {
+        createUserProfile(currentUser).catch(console.error);
+        setUserOnlineStatus(currentUser.uid, true).catch(console.error);
       }
     });
 

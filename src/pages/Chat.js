@@ -218,7 +218,7 @@ function Chat({ user, friend, onBack }) {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (isBlocked) {
-      alert("You cannot send messages to a user you have blocked. Unblock them first.");
+      alert("User is Blocked.");
       return;
     }
 
@@ -559,6 +559,10 @@ function Chat({ user, friend, onBack }) {
           onDecline={handleDeclineCall}
           onClose={cleanupIncomingCall}
           ringtonePlaying={true}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = "/default-avatar.png";
+          }}
         />
       )}
       

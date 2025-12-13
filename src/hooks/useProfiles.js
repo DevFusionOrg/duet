@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { updateProfile } from "firebase/auth";
-import { updateDoc, doc, setDoc } from "firebase/firestore";
+import { updateDoc, doc, setDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { 
   listenToUserProfile, 
@@ -110,12 +110,27 @@ export function useProfiles(user, uid) {
         bio: formData.bio,
       });
 
-      setMessage("Profile updated successfully!");
-      return true; // Success
+      const friendsSnap = await getDocs(
+        collection(db, "users", user.uid, "friends")
+      );
+
+      const previewUpdates = {
+        displayName: formData.displayName,
+      };
+
+      friendsSnap.forEach(friendDoc => {
+        updateDoc(
+          doc(db, "users", friendDoc.id, "friends", user.uid),
+          previewUpdates
+        );
+      });
+
+      setMessage("Profile updated!");
+      return true;
     } catch (error) {
-      console.error("Error updating profile:", error);
-      setMessage("Error updating profile: " + error.message);
-      return false; // Error
+      console.error("Error updating:", error);
+      setMessage("Error updating: " + error.message);
+      return false;
     } finally {
       setLoading(false);
     }
