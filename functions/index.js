@@ -93,3 +93,53 @@ exports.sendChatMessageNotification = functions
 
     return null;
   });
+
+  // exports.migrateAllUsersFriends = functions
+  // .region("us-central1")
+  // .https.onRequest(async (req, res) => {
+  //   try {
+  //     const db = admin.firestore();
+
+  //     console.log("Starting friends migration...");
+
+  //     const usersSnap = await db.collection("users").get();
+
+  //     for (const userDoc of usersSnap.docs) {
+  //       const uid = userDoc.id;
+  //       const userData = userDoc.data();
+
+  //       if (!Array.isArray(userData.friends) || userData.friends.length === 0) {
+  //         continue;
+  //       }
+
+  //       for (const friendId of userData.friends) {
+  //         const friendSnap = await db.collection("users").doc(friendId).get();
+  //         if (!friendSnap.exists) continue;
+
+  //         const friendData = friendSnap.data();
+
+  //         await db
+  //           .collection("users")
+  //           .doc(uid)
+  //           .collection("friends")
+  //           .doc(friendId)
+  //           .set(
+  //             {
+  //               displayName: friendData.displayName || "User",
+  //               photoURL: friendData.photoURL || null,
+  //               lastSeen: friendData.lastSeen || null,
+  //               online: friendData.online || false,
+  //               addedAt: admin.firestore.FieldValue.serverTimestamp(),
+  //             },
+  //             { merge: true } // 🔒 SAFE & IDEMPOTENT
+  //           );
+  //       }
+  //     }
+
+  //     console.log("Friends migration completed");
+  //     return res.status(200).send("Friends migration completed successfully");
+  //   } catch (error) {
+  //     console.error("Migration failed:", error);
+  //     return res.status(500).send("Migration failed");
+  //   }
+  // });

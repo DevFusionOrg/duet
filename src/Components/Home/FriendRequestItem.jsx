@@ -49,6 +49,10 @@ function FriendRequestItem({
               src={requesterProfile.photoURL || '/default-avatar.png'}
               alt={requesterProfile.displayName}
               className="request-avatar"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/default-avatar.png";
+              }}
             />
             <div className="request-details">
               <h4>{requesterProfile.displayName}</h4>
@@ -78,14 +82,14 @@ function FriendRequestItem({
           disabled={loading}
           className="accept-btn"
         >
-          {loading ? "..." : "✓ Accept"}
+          {loading ? "..." : "Accept"}
         </button>
         <button
           onClick={() => onReject(request.from, index, requesterName)}
           disabled={loading}
           className="reject-btn"
         >
-          {loading ? "..." : "✕ Reject"}
+          {loading ? "..." : "Reject"}
         </button>
       </div>
     </div>
