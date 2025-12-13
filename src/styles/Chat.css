@@ -98,6 +98,7 @@
 .chat-call-button {
   background: none;
   border: none;
+  margin-left: 8px;
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
@@ -174,6 +175,42 @@
 /* Hide menu arrow for call messages */
 .chat-call-message-container .chat-menu-arrow-container {
   display: none !important;
+}
+
+.video-call-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  color: #262626;
+  margin-left: 8px;
+}
+
+.video-call-button:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.05);
+  transform: scale(1.05);
+}
+
+.video-call-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.video-call-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.video-call-icon {
+  transition: transform 0.2s;
+}
+
+.video-call-button:hover:not(:disabled) .video-call-icon {
+  transform: scale(1.1);
 }
 
 .chat-message-wrapper {
@@ -649,11 +686,6 @@
     max-height: 250px;
   }
 
-  .chat-image-upload-button {
-    padding: 10px;
-    font-size: 16px;
-  }
-
   .chat-message-bubble {
     max-width: 85%;
   }
@@ -693,6 +725,20 @@
     font-size: 12px;
     padding: 8px 12px;
   }
+
+  .video-call-button,
+  .chat-call-button,
+  .chat-music-button {
+    padding: 6px;
+  }
+
+  .video-call-button svg,
+  .chat-call-button svg,
+  .chat-music-button svg {
+    width: 20px;
+    height: 20px;
+  }
+
 }
 
 @media (max-width: 480px) {
