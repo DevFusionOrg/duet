@@ -25,7 +25,7 @@ function Home({ user }) {
   const [activeView, setActiveView] = useState('friends');
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(null);
-  const loading = friendsLoading || chatsLoading;
+  const loading = friendsLoading;
   
   const handleFriendRequestUpdate = () => {};
 
