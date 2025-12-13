@@ -432,17 +432,20 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
     const userRef = doc(db, "users", userId);
     const fromUserRef = doc(db, "users", requestFromId);
 
-    const userSnap = await getDoc(userRef);
-    const fromUserSnap = await getDoc(fromUserRef);
+    const [userSnap, fromUserSnap] = await Promise.all([
+      getDoc(userRef),
+      getDoc(fromUserRef),
+    ]);
 
     if (!userSnap.exists() || !fromUserSnap.exists()) {
       throw new Error("User not found");
     }
 
     const userData = userSnap.data();
+    const fromUserData = fromUserSnap.data();
 
     const requestToRemove = userData.friendRequests?.find(
-      (req) => req.from === requestFromId && req.status === "pending",
+      (req) => req.from === requestFromId && req.status === "pending"
     );
 
     if (!requestToRemove) {
@@ -459,20 +462,34 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
       }),
     ];
 
+    const previewForUser = {
+      displayName: fromUserData.displayName,
+      photoURL: fromUserData.photoURL || null,
+      lastSeen: fromUserData.lastSeen || null,
+      online: fromUserData.online || false,
+      addedAt: serverTimestamp(),
+    };
+
+    const previewForFromUser = {
+      displayName: userData.displayName,
+      photoURL: userData.photoURL || null,
+      lastSeen: userData.lastSeen || null,
+      online: userData.online || false,
+      addedAt: serverTimestamp(),
+    };
+
+    batchUpdates.push(
+      setDoc(doc(db, "users", userId, "friends", requestFromId), previewForUser),
+      setDoc(doc(db, "users", requestFromId, "friends", userId), previewForFromUser),
+    );
+
     await Promise.all(batchUpdates);
   } catch (error) {
     console.error("Error accepting friend request:", error);
-    let errorMessage = "Error accepting friend request";
-
-    if (error.message.includes("not found")) {
-      errorMessage = error.message;
-    } else if (error.code === "permission-denied") {
-      errorMessage = "Permission denied. Please check Firestore rules.";
-    }
-
-    throw new Error(errorMessage);
+    throw new Error(error.message || "Error accepting friend request");
   }
 };
+
 
 export const rejectFriendRequest = async (userId, requestFromId) => {
   try {
@@ -511,20 +528,17 @@ export const rejectFriendRequest = async (userId, requestFromId) => {
   }
 };
 
-export const getUserFriends = async (userId) => {
-  try {
-    const user = await getUserProfile(userId);
-    if (!user || !user.friends) return [];
+export async function getUserFriends(uid) {
+  const snapshot = await getDocs(
+    collection(db, "users", uid, "friends")
+  );
 
-    const friendsPromises = user.friends.map((friendId) =>
-      getUserProfile(friendId),
-    );
-    return Promise.all(friendsPromises);
-  } catch (error) {
-    console.error("Error getting user friends:", error);
-    return [];
-  }
-};
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    uid: doc.id,
+    ...doc.data()
+  }));
+}
 
 export const getOrCreateChat = async (user1Id, user2Id) => {
   try {

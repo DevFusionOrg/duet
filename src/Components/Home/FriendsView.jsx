@@ -43,10 +43,6 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
           
           <div className="friend-info">
             <h3 className="friend-name">{friend.displayName}</h3>
-            <p className="friend-username">@{friend.username}</p>
-            {friend.bio && (
-              <p className="friend-bio">{friend.bio}</p>
-            )}
           </div>
 
           <button 

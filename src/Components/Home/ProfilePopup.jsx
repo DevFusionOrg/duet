@@ -1,18 +1,33 @@
-import React, { useState } from 'react';
-import { deleteFriend } from '../../firebase/firestore';
+import React, { useEffect, useState } from "react";
+import { deleteFriend, getUserProfile } from "../../firebase/firestore";
 
 function ProfilePopup({
   friend,
   currentUserId,
   isOwnProfile,
   onClose,
-  friendsOnlineStatus,
 }) {
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // 🔹 LOAD FULL PROFILE WHEN POPUP OPENS
+  useEffect(() => {
+    if (!friend?.uid) return;
+
+    let active = true;
+
+    getUserProfile(friend.uid).then((data) => {
+      if (active) setProfile(data);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [friend]);
 
   const handleRemoveFriend = async () => {
     const confirmed = window.confirm(
-      `Are you sure you want to remove ${friend.displayName} from your friends?`
+      `Are you sure you want to remove ${profile?.displayName || "this user"} from your friends?`
     );
 
     if (!confirmed) return;
@@ -20,13 +35,24 @@ function ProfilePopup({
     try {
       setLoading(true);
       await deleteFriend(currentUserId, friend.uid);
-      onClose(); // close popup after success
+      onClose();
     } catch (error) {
       alert(error.message || "Failed to remove friend");
     } finally {
       setLoading(false);
     }
   };
+
+  // 🔹 SIMPLE LOADING STATE
+  if (!profile) {
+    return (
+      <div className="profile-popup-overlay" onClick={onClose}>
+        <div className="profile-popup" onClick={(e) => e.stopPropagation()}>
+          <p style={{ padding: 20 }}>Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="profile-popup-overlay" onClick={onClose}>
@@ -39,37 +65,35 @@ function ProfilePopup({
         <div className="popup-content">
           <div className="profile-picture-section">
             <img
-              src={friend?.photoURL}
-              alt={friend?.displayName}
+              src={profile.photoURL || "/default-avatar.png"}
+              alt={profile.displayName}
               className="profile-picture-large"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = "/default-avatar.png";
-              }}
             />
           </div>
 
           <div className="profile-info">
             <div className="info-field">
               <label>Name:</label>
-              <span>{friend?.displayName}</span>
+              <span>{profile.displayName}</span>
             </div>
 
             <div className="info-field">
               <label>Username:</label>
-              <span>@{friend?.username}</span>
+              <span>@{profile.username}</span>
             </div>
 
-            {friend?.bio && (
+            {profile.bio && (
               <div className="info-field">
                 <label>Bio:</label>
-                <span className="bio-text">{friend?.bio}</span>
+                <span className="bio-text">{profile.bio}</span>
               </div>
             )}
 
             <div className="profile-stats">
               <div className="stat-item">
-                <span className="stat-number">{friend?.friends?.length || 0}</span>
+                <span className="stat-number">
+                  {profile.friends?.length || 0}
+                </span>
                 <span className="stat-label">Friends</span>
               </div>
             </div>
