@@ -1,4 +1,3 @@
-// src/push-init.js
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { db, auth } from "./firebase/firebase";
@@ -14,7 +13,6 @@ async function saveTokenToFirestore(token) {
   const uid = user.uid;
 
   try {
-    // 1) Optional: keep a top-level fcmToken field if you want
     const userRef = doc(db, "users", uid);
     await setDoc(
       userRef,
@@ -23,9 +21,6 @@ async function saveTokenToFirestore(token) {
       },
       { merge: true }
     );
-
-    // 2) IMPORTANT: match your old structure - tokens subcollection
-    // Doc ID is the token itself, just like the old working setup
     const tokenRef = doc(db, "users", uid, "tokens", token);
     await setDoc(
       tokenRef,
