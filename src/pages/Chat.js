@@ -7,12 +7,15 @@ import ForwardPopup from '../Components/Chat/ForwardPopup';
 import CallScreen from '../Components/Call/CallScreen';
 import IncomingCallModal from '../Components/Call/IncomingCallModal';
 import MusicPlayer from "../Components/MusicPlayer";
+import VideoCallScreen from '../Components/Call/VideoCallScreen'; // ADD THIS
+import PermissionsModal from '../Components/Call/PermissionsModal'; // ADD THIS
 
 import { useChatSetup } from "../hooks/useChatSetup";
 import { useChatMessages } from "../hooks/useChatMessages";
 import { useBlockedUsers } from "../hooks/useBlockedUsers";
 import { useFriendOnlineStatus } from "../hooks/useFriendOnlineStatus";
 import { useCall } from "../hooks/useCall";
+import { useVideoCall } from "../hooks/useVideoCall"; 
 
 import {
   sendMessage,
@@ -34,6 +37,8 @@ function Chat({ user, friend, onBack }) {
   const { messages, loading: messagesLoading } = useChatMessages(chatId, user);
   const { isBlocked, setIsBlocked } = useBlockedUsers(user?.uid, friend?.uid);
   const { isFriendOnline, lastSeen } = useFriendOnlineStatus(friend?.uid);
+  
+  // Existing audio call hook - NO CHANGES
   const {
     callState,
     isInCall,
@@ -48,6 +53,33 @@ function Chat({ user, friend, onBack }) {
     handleToggleMute,
     handleToggleSpeaker,
   } = useCall(user, friend, chatId);
+
+  // NEW: Video call hook - SEPARATE
+  const {
+    // Video call state
+    isVideoCallActive,
+    localStream,
+    remoteStream,
+    isVideoEnabled,
+    isAudioEnabled,
+    isFrontCamera,
+    connectionQuality,
+    
+    // Video call actions
+    startVideoCall,
+    acceptVideoCall,
+    endVideoCall,
+    toggleVideo,
+    toggleAudio,
+    switchCamera,
+    
+    // Permission modal
+    permissionsModalOpen,
+    permissionError,
+    setPermissionsModalOpen,
+    handlePermissionsAllow,
+    handlePermissionsCancel
+  } = useVideoCall(user, friend, chatId);
 
   const [newMessage, setNewMessage] = useState("");
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
@@ -70,6 +102,49 @@ function Chat({ user, friend, onBack }) {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const loading = setupLoading || messagesLoading;
+
+  // Separate handlers for different call types
+  const handleAudioCall = () => {
+    initiateAudioCall();
+  };
+
+  const handleVideoCall = () => {
+    startVideoCall();
+  };
+
+  // Modify handleAcceptCall to handle both audio and video
+  const handleAcceptCallWrapper = () => {
+    if (incomingCall?.type === 'video') {
+      acceptVideoCall(incomingCall);
+    } else {
+      handleAcceptCall(); // Original audio call handler
+    }
+  };
+
+  // Modify to handle end call for both types
+  const handleEndCallWrapper = () => {
+    if (isVideoCallActive) {
+      endVideoCall();
+    } else {
+      handleEndCall(); // Original audio end call
+    }
+  };
+
+  // Add toggle functions for video calls
+  const handleToggleVideo = () => {
+    if (isVideoCallActive) {
+      return toggleVideo();
+    }
+    return false;
+  };
+
+  const handleToggleAudio = () => {
+    if (isVideoCallActive) {
+      return toggleAudio();
+    } else {
+      return handleToggleMute(); // Original audio mute
+    }
+  };
 
   useEffect(() => {
     const loadCloudinaryScript = () => {
@@ -426,25 +501,30 @@ function Chat({ user, friend, onBack }) {
     );
   }
 
+  // Update ChatHeader props
+  const chatHeaderProps = {
+    user,
+    friend,
+    onBack,
+    isBlocked,
+    isFriendOnline,
+    lastSeen,
+    onToggleUserMenu: () => setShowUserMenu(!showUserMenu),
+    showUserMenu,
+    onBlockUser: handleBlockUser,
+    onDeleteChat: handleDeleteChat,
+    onToggleMusicPlayer: () => setShowMusicPlayer(true),
+    onInitiateAudioCall: handleAudioCall, // Audio call handler
+    onInitiateVideoCall: handleVideoCall, // NEW: Video call handler
+    loading,
+    isInCall: isInCall || isVideoCallActive, // Combined call state
+    callState: isVideoCallActive ? 'active' : callState, // Use appropriate state
+    isVideoCallActive // NEW: Pass video call state
+  };
+
   return (
     <div className={`chat-container ${isBlocked ? 'blocked' : ''}`}>
-      <ChatHeader
-        user={user}
-        friend={friend}
-        onBack={onBack}
-        isBlocked={isBlocked}
-        isFriendOnline={isFriendOnline}
-        lastSeen={lastSeen}
-        onToggleUserMenu={() => setShowUserMenu(!showUserMenu)}
-        showUserMenu={showUserMenu}
-        onBlockUser={handleBlockUser}
-        onDeleteChat={handleDeleteChat}
-        onToggleMusicPlayer={() => setShowMusicPlayer(true)}
-        onInitiateAudioCall={initiateAudioCall}
-        loading={loading}
-        isInCall={isInCall}
-        callState={callState}
-      />
+      <ChatHeader {...chatHeaderProps} />
 
       <div className="chat-messages-container">
         {messages.length === 0 ? (
@@ -551,31 +631,63 @@ function Chat({ user, friend, onBack }) {
         onClose={() => setShowMusicPlayer(false)}
       />
       
-      {incomingCall && (
-        <IncomingCallModal
-          callerName={incomingCall.callerName}
-          callerPhoto={friend?.photoURL}
-          onAccept={handleAcceptCall}
-          onDecline={handleDeclineCall}
-          onClose={cleanupIncomingCall}
-          ringtonePlaying={true}
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = "/default-avatar.png";
-          }}
-        />
-      )}
-      
-      {isInCall && friend && (
+      {/* Audio Call Screen */}
+      {isInCall && friend && !isVideoCallActive && (
         <CallScreen
           friend={friend}
           callState={callState}
           callDuration={callDuration}
           isSpeaker={isSpeaker}
-          onEndCall={handleEndCall}
-          onToggleMute={handleToggleMute}
+          onEndCall={handleEndCallWrapper}
+          onToggleMute={handleToggleAudio}
           onToggleSpeaker={handleToggleSpeaker}
           isInitiator={!incomingCall}
+          isVideoCall={false} // This is audio call
+        />
+      )}
+      
+      {/* Video Call Screen */}
+      {isVideoCallActive && friend && (
+        <VideoCallScreen
+          friend={friend}
+          callState={isVideoCallActive ? 'active' : 'connecting'}
+          onEndCall={handleEndCallWrapper}
+          onToggleMute={handleToggleAudio}
+          onToggleVideo={handleToggleVideo}
+          onSwitchCamera={switchCamera}
+          callDuration={callDuration}
+          localStream={localStream}
+          remoteStream={remoteStream}
+          isVideoEnabled={isVideoEnabled}
+          isAudioEnabled={isAudioEnabled}
+          isSpeaker={isSpeaker}
+          isFrontCamera={isFrontCamera}
+          connectionQuality={connectionQuality}
+        />
+      )}
+      
+      {/* Permissions Modal for video calls */}
+      {permissionsModalOpen && (
+        <PermissionsModal
+          isOpen={permissionsModalOpen}
+          onClose={handlePermissionsCancel}
+          onAllow={handlePermissionsAllow}
+          missingPermissions={{
+            camera: permissionError === 'NotAllowedError',
+            microphone: permissionError === 'NotAllowedError'
+          }}
+          errorType={permissionError}
+        />
+      )}
+      
+      {/* Update IncomingCallModal to handle video calls */}
+      {incomingCall && (
+        <IncomingCallModal
+          incomingCall={incomingCall}
+          friend={friend}
+          onAccept={handleAcceptCallWrapper}
+          onDecline={handleDeclineCall}
+          isVideoCall={incomingCall?.type === 'video'} // Pass call type
         />
       )}
       

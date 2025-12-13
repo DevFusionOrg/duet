@@ -6,6 +6,10 @@
   justify-content: center;
 }
 
+.call-screen-overlay.video-active {
+  background: #000;
+}
+
 .call-screen {
   display: flex;
   background: rgba(255, 255, 255, 0.95);
@@ -56,6 +60,30 @@
   align-items: center;
 }
 
+/* Video call indicators */
+.video-call-indicator,
+.audio-call-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.video-call-indicator {
+  color: #2196F3;
+}
+
+.audio-call-indicator {
+  color: #4CAF50;
+}
+
+.call-type {
+  color: #666;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
 .call-controls {
   display: flex;
   justify-content: center;
@@ -91,10 +119,9 @@
 }
 
 .call-control-speaker-inactive {
-    /* White styles for inactive speaker */
-    background-color: white;
-    color: #333;
-    border: 1px solid #ddd;
+  background-color: white;
+  color: #333;
+  border: 1px solid #ddd;
 }
 
 .call-end-button {
@@ -102,6 +129,7 @@
   color: white;
 }
 
+/* Incoming call modal */
 .incoming-call-overlay {
   position: fixed;
   top: 0;
@@ -123,13 +151,23 @@
   width: 90%;
 }
 
+.incoming-call-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.incoming-call-header h3 {
+  margin: 12px 0 4px;
+  font-size: 22px;
+}
+
 .caller-avatar {
   width: 120px;
   height: 120px;
+  margin: 0 auto 24px;
   border-radius: 50%;
   overflow: hidden;
-  margin: 0 auto 20px;
-  border: 4px solid #0070F6;
+  border: 4px solid #f5f5f5;
 }
 
 .caller-avatar img {
@@ -143,11 +181,6 @@
   font-weight: 600;
   margin-bottom: 8px;
   color: #333;
-}
-
-.call-type {
-  font-size: 16px;
-  color: #666;
 }
 
 .ringing-animation {
@@ -251,4 +284,16 @@
 .call-notification-message .call-duration {
   font-weight: 600;
   margin-left: 4px;
+}
+
+/* Media queries */
+@media (max-width: 768px) {
+  .caller-avatar {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .incoming-call-header h3 {
+    font-size: 20px;
+  }
 }
