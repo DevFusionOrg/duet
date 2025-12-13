@@ -12,10 +12,10 @@ class CallService {
     this.activeCallsRef = ref(database, 'activeCalls');
   }
 
-  // Create a new call
+  // Create a new audio call
   async createCall(callerId, callerName, receiverId, receiverName) {
     try {
-      console.log('📞 Creating call from', callerName, 'to', receiverName);
+      console.log('📞 Creating audio call from', callerName, 'to', receiverName);
       
       const callId = `${callerId}_${receiverId}_${Date.now()}`;
       
@@ -36,11 +36,44 @@ class CallService {
       // Create call in Realtime Database
       const callRef = ref(database, `activeCalls/${callId}`);
       await set(callRef, callData);
-      console.log('✅ Call created:', callId);
+      console.log('✅ Audio call created:', callId);
 
       return { callId, ...callData };
     } catch (error) {
-      console.error('❌ Error creating call:', error);
+      console.error('❌ Error creating audio call:', error);
+      throw error;
+    }
+  }
+
+  // Create a video call
+  async createVideoCall(callerId, callerName, receiverId, receiverName) {
+    try {
+      console.log('📹 Creating video call from', callerName, 'to', receiverName);
+      
+      const callId = `${callerId}_${receiverId}_${Date.now()}`;
+      
+      const callData = {
+        callId,
+        callerId,
+        callerName,
+        receiverId,
+        receiverName,
+        status: 'ringing',
+        createdAt: Date.now(),
+        type: 'video',
+        acceptedAt: null,
+        endedAt: null,
+        duration: 0
+      };
+
+      // Create call in Realtime Database
+      const callRef = ref(database, `activeCalls/${callId}`);
+      await set(callRef, callData);
+      console.log('✅ Video call created:', callId);
+
+      return { callId, ...callData };
+    } catch (error) {
+      console.error('❌ Error creating video call:', error);
       throw error;
     }
   }
@@ -189,13 +222,13 @@ class CallService {
       let messageText = '';
       let senderId = '';
       let callAction = '';
-      let callInitiatorId = ''; // NEW: Track who initiated the call
+      let callInitiatorId = '';
       
       if (type === 'started') {
         messageText = 'Audio call started';
         senderId = userId;
         callAction = 'started';
-        callInitiatorId = userId; // User who started the call
+        callInitiatorId = userId;
       } else if (type === 'ended') {
         if (duration > 0) {
           messageText = `Audio call: ${this.formatDuration(duration)}`;
@@ -207,17 +240,16 @@ class CallService {
           callAction = 'ended';
         }
         
-        // For ended calls, check if we have callData to determine initiator
         if (callData && callData.callerId) {
           callInitiatorId = callData.callerId;
         } else {
-          callInitiatorId = userId; // Fallback
+          callInitiatorId = userId;
         }
       } else if (type === 'missed') {
         messageText = 'Missed audio call';
         senderId = friendId;
         callAction = 'missed';
-        callInitiatorId = friendId; // The user who initiated (called)
+        callInitiatorId = friendId;
       }
 
       await addDoc(messagesRef, {
@@ -228,7 +260,7 @@ class CallService {
         callType: type,
         callAction: callAction,
         callDuration: duration,
-        callInitiatorId: callInitiatorId, // NEW: Store who initiated the call
+        callInitiatorId: callInitiatorId,
         read: false,
         deletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
         isCallLog: true
@@ -245,6 +277,77 @@ class CallService {
 
     } catch (error) {
       console.error('❌ Error sending call notification:', error);
+    }
+  }
+
+  // Send video call notification to chat
+  async sendVideoCallNotification(chatId, userId, friendId, type, duration = 0, callData = null) {
+    try {
+      if (!chatId) {
+        console.log('No chatId for video call notification');
+        return;
+      }
+
+      const messagesRef = collection(db, 'chats', chatId, 'messages');
+      
+      let messageText = '';
+      let senderId = '';
+      let callAction = '';
+      let callInitiatorId = '';
+      
+      if (type === 'started') {
+        messageText = 'Video call started';
+        senderId = userId;
+        callAction = 'started';
+        callInitiatorId = userId;
+      } else if (type === 'ended') {
+        if (duration > 0) {
+          messageText = `Video call: ${this.formatDuration(duration)}`;
+          senderId = userId;
+          callAction = 'ended';
+        } else {
+          messageText = 'Video call ended';
+          senderId = userId;
+          callAction = 'ended';
+        }
+        
+        if (callData && callData.callerId) {
+          callInitiatorId = callData.callerId;
+        } else {
+          callInitiatorId = userId;
+        }
+      } else if (type === 'missed') {
+        messageText = 'Missed video call';
+        senderId = friendId;
+        callAction = 'missed';
+        callInitiatorId = friendId;
+      }
+
+      await addDoc(messagesRef, {
+        senderId: senderId,
+        text: messageText,
+        timestamp: new Date(),
+        type: 'video-call',
+        callType: type,
+        callAction: callAction,
+        callDuration: duration,
+        callInitiatorId: callInitiatorId,
+        read: false,
+        deletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        isCallLog: true
+      });
+
+      // Update chat last message
+      const chatRef = doc(db, 'chats', chatId);
+      await updateDoc(chatRef, {
+        lastMessage: messageText,
+        lastMessageAt: new Date()
+      });
+
+      console.log('📹 Video call notification sent:', type, 'initiator:', callInitiatorId);
+
+    } catch (error) {
+      console.error('❌ Error sending video call notification:', error);
     }
   }
 

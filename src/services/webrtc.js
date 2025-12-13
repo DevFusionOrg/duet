@@ -1,4 +1,4 @@
-// webrtc.js - stable WebRTC service for Duet
+// webrtc.js - stable WebRTC service for Duet with video support
 import { database } from '../firebase/firebase';
 import { ref, set, onValue, remove, off } from 'firebase/database';
 
@@ -42,9 +42,14 @@ class WebRTCService {
     // Signal batching (for candidates)
     this.signalQueue = [];
     this.signalQueueTimer = null;
+
+    // Video call specific
+    this.isVideoCall = false;
+    this.isVideoEnabled = true;
+    this.currentFacingMode = 'user';
   }
 
-  async initializeCall(callId, isInitiator, userId, friendId) {
+  async initializeCall(callId, isInitiator, userId, friendId, isVideoCall = false, videoConstraints = {}) {
     // If a call is already active, end it first
     if (this.peer && !this.isEnded) {
       console.warn('Call already initialized, cleaning up first');
@@ -65,6 +70,9 @@ class WebRTCService {
     this.lastOffer = null;
     this.lastAnswer = null;
     this.signalQueue = [];
+    this.isVideoCall = isVideoCall;
+    this.isVideoEnabled = isVideoCall; // Video starts enabled for video calls
+    this.currentFacingMode = 'user';
 
     // Signaling path
     this.signalingRef = ref(database, `callSignals/${callId}`);
@@ -79,8 +87,8 @@ class WebRTCService {
     }
 
     try {
-      // Get user media
-      this.localStream = await navigator.mediaDevices.getUserMedia({
+      // Get user media with video if video call
+      const mediaConstraints = {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -88,8 +96,16 @@ class WebRTCService {
           sampleRate: 48000,
           channelCount: 1
         },
-        video: false
-      });
+        video: isVideoCall ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user',
+          frameRate: { ideal: 30 },
+          ...videoConstraints
+        } : false
+      };
+
+      this.localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
 
       // Debug track events
       this.localStream.getTracks().forEach(track => {
@@ -102,14 +118,14 @@ class WebRTCService {
       });
 
       // Create RTCPeerConnection
-      this.createPeerConnection(this.localStream);
+      this.createPeerConnection(this.localStream, isVideoCall);
 
       // Start listening for signals
       this.listenForSignals();
 
       return this.localStream;
     } catch (error) {
-      console.error('Error accessing microphone:', error);
+      console.error('Error accessing media devices:', error);
       this.connectionState = 'failed';
       if (this.onErrorCallback) {
         this.onErrorCallback(error);
@@ -118,7 +134,12 @@ class WebRTCService {
     }
   }
 
-  createPeerConnection(stream) {
+  // Initialize video call (convenience method)
+  async initializeVideoCall(callId, isInitiator, userId, friendId, videoConstraints = {}) {
+    return this.initializeCall(callId, isInitiator, userId, friendId, true, videoConstraints);
+  }
+
+  createPeerConnection(stream, isVideoCall = false) {
     try {
       // Close existing peer if any
       if (this.peer && this.peer.connectionState !== 'closed') {
@@ -335,8 +356,6 @@ class WebRTCService {
         }
       };
 
-      // ⛔️ NO extra delayed createOffer here; onnegotiationneeded handles it.
-
     } catch (error) {
       console.error('Error creating peer connection:', error);
       this.connectionState = 'failed';
@@ -365,7 +384,7 @@ class WebRTCService {
       console.log('Creating offer...', iceRestart ? '(ICE restart)' : '');
       const offer = await this.peer.createOffer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: false,
+        offerToReceiveVideo: this.isVideoCall, // Enable video for video calls
         iceRestart
       });
 
@@ -401,7 +420,7 @@ class WebRTCService {
       return;
     }
 
-    try{
+    try {
       console.log('Creating answer for offer...');
 
       if (!offer || !offer.sdp) {
@@ -420,7 +439,7 @@ class WebRTCService {
 
       const answer = await this.peer.createAnswer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: false
+        offerToReceiveVideo: this.isVideoCall // Enable video for video calls
       });
 
       this.lastAnswer = answer;
@@ -603,7 +622,7 @@ class WebRTCService {
             });
           } else {
             this.handleSignal(signalData);
-          }
+            }
         });
       }
     }, (error) => {
@@ -757,6 +776,9 @@ class WebRTCService {
     this.lastOffer = null;
     this.lastAnswer = null;
     this.reconnectAttempts = 0;
+    this.isVideoCall = false;
+    this.isVideoEnabled = true;
+    this.currentFacingMode = 'user';
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -779,6 +801,73 @@ class WebRTCService {
       return !audioTrack.enabled; // true = muted
     }
     return false;
+  }
+
+  // Toggle video on/off
+  toggleVideo() {
+    if (!this.localStream || !this.isVideoCall) return false;
+    const videoTrack = this.localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      this.isVideoEnabled = videoTrack.enabled;
+      return !videoTrack.enabled; // true = video off
+    }
+    return false;
+  }
+
+  // Switch camera between front and back
+  async switchCamera(facingMode = 'user') {
+    if (!this.localStream || !this.isVideoCall) return null;
+    
+    const videoTrack = this.localStream.getVideoTracks()[0];
+    if (!videoTrack) return null;
+    
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          ...videoTrack.getConstraints(),
+          facingMode
+        },
+        audio: false
+      });
+      
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      const sender = this.peer.getSenders().find(s => s.track && s.track.kind === 'video');
+      
+      if (sender) {
+        await sender.replaceTrack(newVideoTrack);
+      }
+      
+      videoTrack.stop();
+      this.localStream.removeTrack(videoTrack);
+      this.localStream.addTrack(newVideoTrack);
+      
+      this.currentFacingMode = facingMode;
+      return facingMode;
+    } catch (error) {
+      console.error('Error switching camera:', error);
+      throw error;
+    }
+  }
+
+  // Adjust video quality
+  async adjustVideoQuality(width, height, frameRate) {
+    if (!this.localStream || !this.isVideoCall) return false;
+    
+    const videoTrack = this.localStream.getVideoTracks()[0];
+    if (!videoTrack) return false;
+    
+    try {
+      await videoTrack.applyConstraints({
+        width: { ideal: width },
+        height: { ideal: height },
+        frameRate: { ideal: frameRate }
+      });
+      return true;
+    } catch (error) {
+      console.warn('Could not adjust quality:', error);
+      return false;
+    }
   }
 
   async getConnectionStats() {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CallControls from './CallControls';
+import VideoCallScreen from './VideoCallScreen';
 import CallTimer from './CallTimer';
 import '../../styles/Call.css';
 
@@ -8,10 +9,19 @@ const CallScreen = ({
   callState,
   onEndCall, 
   onToggleMute, 
+  onToggleVideo,
+  onSwitchCamera,
   onToggleSpeaker,
   callDuration = 0,
   isInitiator = true,
-  isSpeaker
+  isSpeaker,
+  isVideoCall = false,
+  localStream = null,
+  remoteStream = null,
+  isVideoEnabled = true,
+  isAudioEnabled = true,
+  isFrontCamera = true,
+  connectionQuality = 'good'
 }) => {
   const [isMuted, setIsMuted] = useState(false);
   const localAudioRef = useRef(null);
@@ -27,9 +37,23 @@ const CallScreen = ({
     }
   }, []);
 
+  // Handle video streams
+  useEffect(() => {
+    if (isVideoCall && localStream && remoteStream) {
+      // Video call - streams are handled by VideoCallScreen
+      return;
+    }
+    
+    // Audio call - handle audio streams
+    if (remoteStream && remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch(e => console.log('Audio play error:', e));
+    }
+  }, [isVideoCall, localStream, remoteStream]);
+
   const handleEndCallWithConfirm = () => {
     if (callState === 'active' && callDuration < 10) {
-      const confirm = window.confirm('End the call?');
+      const confirm = window.confirm(`End the ${isVideoCall ? 'video ' : ''}call?`);
       if (!confirm) return;
     }
     onEndCall();
@@ -40,10 +64,36 @@ const CallScreen = ({
     setIsMuted(muted);
   };
 
-  const handleSpeakerToggle = () => {
-    onToggleSpeaker();
+  const handleVideoToggle = () => {
+    if (onToggleVideo) {
+      const videoEnabled = onToggleVideo();
+      // State is managed by parent for video calls
+    }
   };
 
+  // Render video call screen
+  if (isVideoCall) {
+    return (
+      <VideoCallScreen
+        friend={friend}
+        callState={callState}
+        onEndCall={handleEndCallWithConfirm}
+        onToggleMute={onToggleMute}
+        onToggleVideo={onToggleVideo}
+        onSwitchCamera={onSwitchCamera}
+        callDuration={callDuration}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        isVideoEnabled={isVideoEnabled}
+        isAudioEnabled={isAudioEnabled}
+        isSpeaker={isSpeaker}
+        isFrontCamera={isFrontCamera}
+        connectionQuality={connectionQuality}
+      />
+    );
+  }
+
+  // Render audio call screen (existing code)
   return (
     <div className="call-screen-overlay">
       <div className="call-screen">
@@ -66,7 +116,7 @@ const CallScreen = ({
           isMuted={isMuted}
           isSpeaker={isSpeaker}
           onMuteToggle={handleMuteToggle}
-          onSpeakerToggle={handleSpeakerToggle}
+          onSpeakerToggle={onToggleSpeaker}
           onEndCall={handleEndCallWithConfirm}
           showAllControls={callState === 'active'}
           showEndButton={true}
