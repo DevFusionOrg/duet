@@ -1424,3 +1424,57 @@ export const getReplyNotificationData = (originalMessage, replyText, senderName)
     }
   };
 };
+
+export const deleteFriend = async (userId, friendId, options = { deleteChat: true }) => {
+  try {
+    if (userId === friendId) {
+      throw new Error("You cannot remove yourself");
+    }
+
+    const userRef = doc(db, "users", userId);
+    const friendRef = doc(db, "users", friendId);
+
+    const [userSnap, friendSnap] = await Promise.all([
+      getDoc(userRef),
+      getDoc(friendRef),
+    ]);
+
+    if (!userSnap.exists() || !friendSnap.exists()) {
+      throw new Error("User not found");
+    }
+
+    const userData = userSnap.data();
+    const friendData = friendSnap.data();
+
+    if (!userData.friends?.includes(friendId)) {
+      throw new Error("This user is not in your friends list");
+    }
+
+    const batch = writeBatch(db);
+
+    batch.update(userRef, {
+      friends: arrayRemove(friendId),
+    });
+
+    batch.update(friendRef, {
+      friends: arrayRemove(userId),
+    });
+
+    if (options.deleteChat) {
+      const chatId = [userId, friendId].sort().join("_");
+      const chatRef = doc(db, "chats", chatId);
+
+      const chatSnap = await getDoc(chatRef);
+      if (chatSnap.exists()) {
+        batch.delete(chatRef);
+      }
+    }
+
+    await batch.commit();
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting friend:", error);
+    throw new Error(error.message || "Failed to remove friend");
+  }
+};

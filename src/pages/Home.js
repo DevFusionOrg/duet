@@ -158,6 +158,7 @@ function Home({ user }) {
       {showProfilePopup && (
         <ProfilePopup 
           friend={selectedProfile}
+          currentUserId={user.uid}
           isOwnProfile={false}
           onClose={handleCloseProfilePopup}
           friendsOnlineStatus={friendsOnlineStatus}
