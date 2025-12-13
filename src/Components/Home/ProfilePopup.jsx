@@ -17,6 +17,10 @@ function ProfilePopup({ friend, isOwnProfile, onClose, friendsOnlineStatus }) {
               src={friend?.photoURL} 
               alt={friend?.displayName}
               className="profile-picture-large"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/default-avatar.png";
+              }}
             />
           </div>
 

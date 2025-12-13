@@ -1,7 +1,6 @@
 import React from 'react';
 
 function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
-  // Simple timestamp display - just show time if today, date if older
   const formatChatTimestamp = (timestamp) => {
     if (!timestamp) return 'New';
     
@@ -11,19 +10,16 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const messageDay = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
       
-      // If today, show time
       if (messageDay.getTime() === today.getTime()) {
         return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       }
       
-      // If yesterday, show "Yesterday"
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       if (messageDay.getTime() === yesterday.getTime()) {
         return 'Yesterday';
       }
       
-      // Otherwise show date
       return messageDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
     } catch (error) {
       return 'New';
@@ -52,7 +48,6 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
   return (
     <div className="chats-list">
       {chats.map(chat => {
-        // Get the last message preview
         const lastMessagePreview = chat.lastMessage || 'Start a conversation...';
         
         return (
@@ -66,6 +61,10 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
                 src={chat.otherParticipant.photoURL} 
                 alt={chat.otherParticipant.displayName}
                 className="chat-avatar"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = "/default-avatar.png";
+              }}
               />
               <div className={`online-indicator ${friendsOnlineStatus[chat.otherParticipant.uid] ? 'online' : 'offline'}`}></div>
             </div>

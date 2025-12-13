@@ -559,6 +559,10 @@ function Chat({ user, friend, onBack }) {
           onDecline={handleDeclineCall}
           onClose={cleanupIncomingCall}
           ringtonePlaying={true}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = "/default-avatar.png";
+          }}
         />
       )}
       

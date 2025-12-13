@@ -115,6 +115,10 @@ function SearchView({ user }) {
                 src={result.photoURL || '/default-avatar.png'}
                 alt={result.displayName}
                 className="search-result-avatar"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = "/default-avatar.png";
+              }}
               />
               <div className="search-result-info">
                 <h4>{result.displayName}</h4>

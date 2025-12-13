@@ -10,7 +10,7 @@ import NotificationsView from '../Components/Home/NotificationsView';
 import ProfilePopup from '../Components/Home/ProfilePopup';
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
-import { useProfile } from "../hooks/useProfile";
+import { useProfiles } from "../hooks/useProfiles";
 import { useFriendsOnlineStatus } from "../hooks/useFriendsOnlineStatus";
 import { useUnreadCount } from "../hooks/useUnreadCount";
 
@@ -18,7 +18,7 @@ function Home({ user }) {
   const navigate = useNavigate();
   const { friends, loading: friendsLoading } = useFriends(user);
   const { chats, loading: chatsLoading } = useChats(user);
-  const { userProfile } = useProfile(user);
+  const { profile: userProfile,getProfilePictureUrl} = useProfiles(user);
   const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
   const { unreadFriendsCount } = useUnreadCount(user);
   const [selectedFriend, setSelectedFriend] = useState(null);
@@ -68,10 +68,14 @@ function Home({ user }) {
       <div className="side-pane">
         <div className="pane-header">
           <div className="user-profile-section">
-            <img 
-              src={user?.photoURL} 
+            <img
+              src={getProfilePictureUrl()}
               alt={getDisplayName()}
               className="user-avatar"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/default-avatar.png";
+              }}
             />
             <div className="user-info">
               <h3 className="user-name">{getDisplayName()}</h3>
