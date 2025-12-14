@@ -4,7 +4,7 @@ function ProfileHeader({ isOwnProfile }) {
   return (
     <div className="profile-header">
       <h2 className="profile-title">
-        {isOwnProfile ? "Your Profile" : "Profile"}
+        {isOwnProfile ? "My Account" : "Profile"}
       </h2>
     </div>
   );

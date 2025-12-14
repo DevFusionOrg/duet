@@ -47,7 +47,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
 
   return (
     <div className="chats-container">
-      <h1 className="SearchHeading">Messages</h1>
+      <h1 className="SearchHeading">Conversations</h1>
 
       <div className="chats-list">
         {chats.map(chat => {

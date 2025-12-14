@@ -76,7 +76,7 @@ function SearchView({ user }) {
 
   return (
     <div className="search-container">
-      <h1 className="SearchHeading">Search</h1>
+      <h1 className="SearchHeading">Lookup Friends</h1>
 
       {message && (
         <div className={`search-message ${message.includes("Error") ? "search-message-error" : "search-message-success"}`}>

@@ -910,7 +910,6 @@
   }
 
   .profile-blocked-header {
-    flex-direction: column;
     align-items: flex-start;
     gap: 8px;
   }
@@ -942,6 +941,7 @@
 }
 
 .profile-actions-row {
+  justify-content: center;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;

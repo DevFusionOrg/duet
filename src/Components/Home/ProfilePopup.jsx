@@ -43,16 +43,7 @@ function ProfilePopup({
     }
   };
 
-  // 🔹 SIMPLE LOADING STATE
-  if (!profile) {
-    return (
-      <div className="profile-popup-overlay" onClick={onClose}>
-        <div className="profile-popup" onClick={(e) => e.stopPropagation()}>
-          <p style={{ padding: 20 }}>Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
+  if (!profile) return null;
 
   return (
     <div className="profile-popup-overlay" onClick={onClose}>
