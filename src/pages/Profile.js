@@ -163,9 +163,9 @@ export default function Profile({ user }) {
   if (!profile) {
     return (
       <div className="profile-container">
-        <h2 className="profile-title">
+        <h1 className="profile-title">
           {isOwnProfile ? "Your Profile" : "Profile"}
-        </h2>
+        </h1>
         <div className="profile-loading">
           <p>Loading profile...</p>
           {isOwnProfile && (
@@ -187,7 +187,6 @@ export default function Profile({ user }) {
     <div className="profile-container">
       <ProfileHeader
         isOwnProfile={isOwnProfile}
-        // editing and onToggleEdit no longer used in header
       />
 
       <ProfilePicture

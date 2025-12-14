@@ -97,7 +97,7 @@ function NotificationsView({ user, onFriendRequestUpdate }) {
 
   return (
     <div className="notifications-container">
-
+      <h1 className="SearchHeading">Notifications</h1>
       {actionMessage && (
         <div className={`action-message ${actionMessage.includes("✅") ? "action-message-success" : "action-message-error"}`}>
           {actionMessage}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getUserFriends } from "../firebase/firestore";
+import { listenToUserFriends, getUserFriends } from "../firebase/firestore";
 
 export function useFriends(user) {
   const [friends, setFriends] = useState([]);
@@ -8,19 +8,19 @@ export function useFriends(user) {
   useEffect(() => {
     if (!user) return;
 
-    const loadFriends = async () => {
+    const unsubscribe = listenToUserFriends(user.uid, async (friendIds) => {
       try {
         const friendsList = await getUserFriends(user.uid);
         setFriends(friendsList);
         setLoading(false);
-      } catch (error) {
-        console.error("Error loading friends:", error);
+      } catch (err) {
+        console.error("Error loading friends:", err);
         setLoading(false);
       }
-    };
+    });
 
-    loadFriends();
-  }, [user]);
+    return unsubscribe;
+  }, [user?.uid]);
 
   return { friends, loading };
 }
