@@ -46,51 +46,55 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
   }
 
   return (
-    <div className="chats-list">
-      {chats.map(chat => {
-        const lastMessagePreview = chat.lastMessage || 'Start a conversation...';
-        
-        return (
-          <div 
-            key={chat.id} 
-            className="chat-item"
-            onClick={() => onStartChat(chat.otherParticipant)}
-          >
-            <div className="chat-avatar-section">
-              <img 
-                src={chat.otherParticipant.photoURL} 
-                alt={chat.otherParticipant.displayName}
-                className="chat-avatar"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = "/default-avatar.png";
-              }}
-              />
-              <div className={`online-indicator ${friendsOnlineStatus[chat.otherParticipant.uid] ? 'online' : 'offline'}`}></div>
-            </div>
-            
-            <div className="chat-info">
-              <div className="chat-header">
-                <h4 className="chat-name">{chat.otherParticipant.displayName}</h4>
-                <span className="chat-time">
-                  {formatChatTimestamp(chat.lastMessageAt)}
-                </span>
+    <div className="chats-container">
+      <h1 className="SearchHeading">Messages</h1>
+
+      <div className="chats-list">
+        {chats.map(chat => {
+          const lastMessagePreview = chat.lastMessage || 'Start a conversation...';
+          
+          return (
+            <div 
+              key={chat.id} 
+              className="chat-item"
+              onClick={() => onStartChat(chat.otherParticipant)}
+            >
+              <div className="chat-avatar-section">
+                <img 
+                  src={chat.otherParticipant.photoURL} 
+                  alt={chat.otherParticipant.displayName}
+                  className="chat-avatar"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/default-avatar.png";
+                }}
+                />
+                <div className={`online-indicator ${friendsOnlineStatus[chat.otherParticipant.uid] ? 'online' : 'offline'}`}></div>
               </div>
-              <p className="last-message">
-                {lastMessagePreview.length > 40 
-                  ? lastMessagePreview.substring(0, 40) + '...' 
-                  : lastMessagePreview}
-              </p>
-            </div>
-            
-            {chat.unreadCount > 0 && (
-              <div className="unread-badge">
-                {chat.unreadCount}
+              
+              <div className="chat-info">
+                <div className="chat-header">
+                  <h4 className="chat-name">{chat.otherParticipant.displayName}</h4>
+                  <span className="chat-time">
+                    {formatChatTimestamp(chat.lastMessageAt)}
+                  </span>
+                </div>
+                <p className="last-message">
+                  {lastMessagePreview.length > 40 
+                    ? lastMessagePreview.substring(0, 40) + '...' 
+                    : lastMessagePreview}
+                </p>
               </div>
-            )}
-          </div>
-        );
-      })}
+              
+              {chat.unreadCount > 0 && (
+                <div className="unread-badge">
+                  {chat.unreadCount}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

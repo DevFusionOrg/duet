@@ -246,3 +246,15 @@
     font-size: 12px;
   }
 }
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+* {
+  -ms-overflow-style: none;
+}
