@@ -24,9 +24,10 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
     <div className="friends-container">
       <div className='home-title'>
         <img className="home-img" src="./logo512.png" alt="Duet Logo" />
-        <h1 className="SearchHeading">Duet</h1>
+        <h1 className="SearchHeading appname">Duet</h1>
+        <img className="company-logo" src="./DevFusion.png" alt="DevFusion Logo" />
       </div>
-      <h1 className="SearchHeading">Friends</h1>
+      <h1 className="SearchHeading">Connections</h1>
 
       <div className="friends-grid">
         {friends.map(friend => (
