@@ -8,7 +8,6 @@ import CallScreen from '../Components/Call/CallScreen';
 import IncomingCallModal from '../Components/Call/IncomingCallModal';
 import MusicPlayer from "../Components/MusicPlayer";
 import VideoCallScreen from '../Components/Call/VideoCallScreen';
-import PermissionsModal from '../Components/Call/PermissionsModal';
 
 import { useChatSetup } from "../hooks/useChatSetup";
 import { useChatMessages } from "../hooks/useChatMessages";
@@ -72,12 +71,6 @@ function Chat({ user, friend, onBack }) {
     toggleAudio,
     switchCamera,
     
-    // Permission modal
-    permissionsModalOpen,
-    permissionError,
-    setPermissionsModalOpen,
-    handlePermissionsAllow,
-    handlePermissionsCancel
   } = useVideoCall(user, friend, chatId);
 
   const [newMessage, setNewMessage] = useState("");
@@ -667,20 +660,6 @@ function Chat({ user, friend, onBack }) {
           isSpeaker={isSpeaker}
           isFrontCamera={isFrontCamera}
           connectionQuality={connectionQuality}
-        />
-      )}
-      
-      {/* Permissions Modal for video calls */}
-      {permissionsModalOpen && (
-        <PermissionsModal
-          isOpen={permissionsModalOpen}
-          onClose={handlePermissionsCancel}
-          onAllow={handlePermissionsAllow}
-          missingPermissions={{
-            camera: permissionError === 'NotAllowedError',
-            microphone: permissionError === 'NotAllowedError'
-          }}
-          errorType={permissionError}
         />
       )}
       
