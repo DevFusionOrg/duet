@@ -90,13 +90,11 @@
 }
 
 .nav-item:hover {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
+  color: #cdcdcd;
 }
 
 .nav-item.active {
-  background: #cdcdcd;
-  color: white;
+  color: #667eea;
 }
 
 .nav-icon {
@@ -232,16 +230,6 @@
   overflow: hidden;
 }
 
-.friend-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
 .friend-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
@@ -257,7 +245,6 @@
   height: 70px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid #f0f0f0;
 }
 
 .online-indicator {
@@ -396,6 +383,7 @@
 }
 
 .last-message {
+  padding: 0px 12px;
   margin: 0;
   font-size: 0.9rem;
   color: #666;
@@ -988,8 +976,6 @@
   cursor: not-allowed;
 }
 
-.search-container { padding: 30px; }
-
 .search-title {
   margin: 0 0 25px 0;
   font-size: 1.8rem;
@@ -1023,6 +1009,7 @@
   margin-bottom: 30px;
   justify-content: center;
   align-items: center;
+  padding: 0px 10px;
 }
 
 .search-input {
@@ -1183,7 +1170,6 @@
 .edit-profile-button:focus,
 .accept-btn:focus,
 .reject-btn:focus {
-  outline: 2px solid #667eea;
   outline-offset: 2px;
 }
 
@@ -1282,7 +1268,6 @@
   .accept-btn,
   .reject-btn { flex: 1; }
 
-  .search-container { padding: 0px 20px; }
   .search-form {
     gap: 15px;
   }
@@ -1332,6 +1317,8 @@
 .SearchHeading{
   text-align: center;
   color: #764ba2;
+  border-bottom:1px solid #000000;
+  padding: 0;
 }
 
 .remove-friend-button{
@@ -1343,6 +1330,7 @@
 .home-img{
   height: 80px;
   width: 80px;
+  border-radius: 50%;
 }
 
 .home-title{
@@ -1350,4 +1338,16 @@
   display: flex;
   align-items: center;
   border-bottom:1px solid #000000;
+  justify-content: space-between;
+}
+
+.company-logo{
+  border-radius: 50%;
+  height: 80px;
+  width: 80px;
+  left: 0;
+}
+
+.appname{
+  border: none;
 }
