@@ -4,7 +4,8 @@ import { updateDoc, doc, setDoc, collection, getDocs } from "firebase/firestore"
 import { db } from "../firebase/firebase";
 import { 
   listenToUserProfile, 
-  getUserProfile
+  getUserProfile,
+  updateUsernameTransaction,
 } from "../firebase/firestore";
 
 export function useProfiles(user, uid) {
@@ -23,13 +24,28 @@ export function useProfiles(user, uid) {
       const profileUid = uid || user?.uid;
       let userProfile = await getUserProfile(profileUid);
 
+      // 👇 USER DOES NOT EXIST → CREATE PROFILE + UNIQUE USERNAME
       if (!userProfile && isOwnProfile) {
+        const baseUsername = user.email?.split("@")[0] || "user";
+        let finalUsername = baseUsername;
+        let counter = 1;
+
+        // Try until username is reserved
+        while (true) {
+          try {
+            await updateUsernameTransaction(user.uid, finalUsername);
+            break;
+          } catch (err) {
+            finalUsername = `${baseUsername}${counter++}`;
+          }
+        }
+
         userProfile = {
           uid: user.uid,
           displayName: user.displayName || "User",
           email: user.email,
           photoURL: user.photoURL,
-          username: user.email?.split("@")[0] || "user",
+          username: finalUsername,
           bio: "",
           friends: [],
           friendRequests: [],
@@ -38,7 +54,10 @@ export function useProfiles(user, uid) {
 
         const userRef = doc(db, "users", user.uid);
         await setDoc(userRef, userProfile);
-      } else if (!userProfile) {
+      }
+
+      // 👇 Viewing someone else but profile missing
+      else if (!userProfile) {
         userProfile = {
           uid: profileUid,
           displayName: "User",
@@ -50,6 +69,7 @@ export function useProfiles(user, uid) {
       }
 
       setProfile(userProfile);
+
       if (isOwnProfile) {
         setFormData({
           displayName: userProfile.displayName || "",
@@ -103,33 +123,25 @@ export function useProfiles(user, uid) {
         await updateProfile(user, { displayName: formData.displayName });
       }
 
+      if (formData.username !== profile.username) {
+        await updateUsernameTransaction(
+          user.uid,
+          formData.username,
+          profile.username
+        );
+      }
+
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         displayName: formData.displayName,
-        username: formData.username,
         bio: formData.bio,
-      });
-
-      const friendsSnap = await getDocs(
-        collection(db, "users", user.uid, "friends")
-      );
-
-      const previewUpdates = {
-        displayName: formData.displayName,
-      };
-
-      friendsSnap.forEach(friendDoc => {
-        updateDoc(
-          doc(db, "users", friendDoc.id, "friends", user.uid),
-          previewUpdates
-        );
       });
 
       setMessage("Profile updated!");
       return true;
     } catch (error) {
-      console.error("Error updating:", error);
-      setMessage("Error updating: " + error.message);
+      console.error(error);
+      setMessage(error.message);
       return false;
     } finally {
       setLoading(false);

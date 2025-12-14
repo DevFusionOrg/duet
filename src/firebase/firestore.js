@@ -2,6 +2,7 @@ import { db } from "./firebase";
 import {
   collection,
   doc,
+  runTransaction,
   setDoc,
   getDoc,
   updateDoc,
@@ -17,6 +18,37 @@ import {
   writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
+
+export const updateUsernameTransaction = async (
+  uid,
+  newUsername,
+  oldUsername = null
+) => {
+  return await runTransaction(db, async (transaction) => {
+    const newUsernameRef = doc(db, "usernames", newUsername);
+
+    const newUsernameSnap = await transaction.get(newUsernameRef);
+
+    if (newUsernameSnap.exists()) {
+      if (newUsernameSnap.data().uid !== uid) {
+        throw new Error("Username already taken");
+      }
+      return;
+    }
+
+    if (oldUsername) {
+      const oldUsernameRef = doc(db, "usernames", oldUsername);
+      transaction.delete(oldUsernameRef);
+    }
+
+    transaction.set(newUsernameRef, { uid });
+
+    const userRef = doc(db, "users", uid);
+    transaction.update(userRef, {
+      username: newUsername,
+    });
+  });
+};
 
 export const sendPushNotification = async (senderId, receiverId, message, chatId) => {
   try {
@@ -61,40 +93,6 @@ export const listenToUserFriends = (userId, callback) => {
   });
 };
 
-export const checkUsernameTaken = async (username, excludeUserId = null) => {
-  try {
-    const usernameRef = doc(db, "usernames", username);
-    const usernameSnap = await getDoc(usernameRef);
-    
-    if (usernameSnap.exists()) {
-      const usernameData = usernameSnap.data();
-      if (excludeUserId && usernameData.uid === excludeUserId) {
-        return false;
-      }
-      return true;
-    }
-    
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("username", "==", username));
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-      if (excludeUserId) {
-        const isSameUser = querySnapshot.docs.some(doc => doc.id === excludeUserId);
-        if (isSameUser) {
-          return false;
-        }
-      }
-      return true;
-    }
-    
-    return false;
-  } catch (error) {
-    console.error("Error checking username:", error);
-    throw error;
-  }
-};
-
 export const createUserProfile = async (user, username = null) => {
   if (!user) return;
 
@@ -102,40 +100,44 @@ export const createUserProfile = async (user, username = null) => {
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
 
-    let finalUsername = username || user.email.split("@")[0];
-    
-    if (!userSnap.exists()) {
-      const usernameTaken = await checkUsernameTaken(finalUsername, user.uid);
-      
-      if (usernameTaken) {
-        finalUsername = `${finalUsername}${Math.floor(1000 + Math.random() * 9000)}`;
-      }
-    }
-
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        displayName: user.displayName,
-        email: user.email,
-        photoURL: user.photoURL,
-        username: finalUsername,
-        bio: "",
-        friends: [],
-        friendRequests: [],
-        blockedUsers: [],
-        createdAt: new Date(),
-      });
-      
-      await setDoc(doc(db, "usernames", finalUsername), {
-        uid: user.uid,
-        createdAt: new Date(),
-      });
-    } else {
+    // User already exists → update basic fields only
+    if (userSnap.exists()) {
       await updateDoc(userRef, {
         displayName: user.displayName,
         photoURL: user.photoURL,
       });
+      return;
     }
+
+    const baseUsername =
+      username || user.email?.split("@")[0] || "user";
+
+    let finalUsername = baseUsername;
+    let counter = 1;
+
+    // 🔐 Reserve username safely
+    while (true) {
+      try {
+        await updateUsernameTransaction(user.uid, finalUsername);
+        break;
+      } catch {
+        finalUsername = `${baseUsername}${counter++}`;
+      }
+    }
+
+    // Create user profile
+    await setDoc(userRef, {
+      uid: user.uid,
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL,
+      username: finalUsername,
+      bio: "",
+      friends: [],
+      friendRequests: [],
+      blockedUsers: [],
+      createdAt: new Date(),
+    });
   } catch (error) {
     console.error("Error creating user profile:", error);
     throw error;
@@ -147,49 +149,27 @@ export const updateUsername = async (userId, newUsername) => {
     if (!newUsername || newUsername.length < 3 || newUsername.length > 30) {
       throw new Error("Username must be between 3 and 30 characters");
     }
-    
+
     if (!/^[a-zA-Z0-9_.-]+$/.test(newUsername)) {
-      throw new Error("Username can only contain letters, numbers, dots, underscores, and hyphens");
+      throw new Error(
+        "Username can only contain letters, numbers, dots, underscores, and hyphens"
+      );
     }
-    
-    const usernameTaken = await checkUsernameTaken(newUsername, userId);
-    
-    if (usernameTaken) {
-      throw new Error("Username is already taken");
-    }
-    
+
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
-    
+
     if (!userSnap.exists()) {
       throw new Error("User not found");
     }
-    
-    const userData = userSnap.data();
-    const oldUsername = userData.username;
-    
-    const batch = writeBatch(db);
-    
-    batch.update(userRef, {
-      username: newUsername,
-      updatedAt: serverTimestamp(),
-    });
-    
-    if (oldUsername) {
-      const oldUsernameRef = doc(db, "usernames", oldUsername);
-      batch.delete(oldUsernameRef);
-    }
 
-    const newUsernameRef = doc(db, "usernames", newUsername);
-    batch.set(newUsernameRef, {
-      uid: userId,
-      updatedAt: serverTimestamp(),
-    });
-    
-    await batch.commit();
-    
+    const oldUsername = userSnap.data().username;
+
+    // 🔐 Atomic username update
+    await updateUsernameTransaction(userId, newUsername, oldUsername);
+
     await updateUsernameInChats(userId, oldUsername, newUsername);
-    
+
     return { success: true, username: newUsername };
   } catch (error) {
     console.error("Error updating username:", error);
@@ -200,11 +180,11 @@ export const updateUsername = async (userId, newUsername) => {
 export const getUsernameSuggestions = async (baseUsername) => {
   try {
     const suggestions = [];
-    const maxAttempts = 5;
-    
+    const maxAttempts = 10;
+
     for (let i = 0; i < maxAttempts; i++) {
       let suggestion;
-      
+
       if (i === 0) {
         suggestion = baseUsername;
       } else if (i === 1) {
@@ -214,20 +194,21 @@ export const getUsernameSuggestions = async (baseUsername) => {
       } else if (i === 3) {
         suggestion = `${baseUsername}_${Math.floor(10 + Math.random() * 90)}`;
       } else {
-        suggestion = `${baseUsername}${Math.floor(1 + Math.random() * 9)}${String.fromCharCode(97 + Math.floor(Math.random() * 26))}`;
+        suggestion = `${baseUsername}${Math.floor(
+          1 + Math.random() * 9
+        )}${String.fromCharCode(97 + Math.floor(Math.random() * 26))}`;
       }
-      
-      const isTaken = await checkUsernameTaken(suggestion);
-      
-      if (!isTaken) {
+
+      const usernameRef = doc(db, "usernames", suggestion);
+      const snap = await getDoc(usernameRef);
+
+      if (!snap.exists()) {
         suggestions.push(suggestion);
       }
-      
-      if (suggestions.length >= 3) {
-        break;
-      }
+
+      if (suggestions.length >= 3) break;
     }
-    
+
     return suggestions;
   } catch (error) {
     console.error("Error getting username suggestions:", error);
