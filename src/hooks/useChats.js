@@ -6,25 +6,21 @@ export function useChats(user, friends = []) {
   const [loading, setLoading] = useState(true);
 
   const friendIds = useMemo(
-    () => new Set(friends.map(f => f.uid)),
+    () => friends.map(f => f.uid),
     [friends]
   );
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) return;
 
     const unsubscribe = listenToUserChats(user.uid, (userChats) => {
       const filteredChats = userChats
         .filter(chat =>
-          chat.participants?.some(id => friendIds.has(id))
+          chat.participants?.some(id => friendIds.includes(id))
         )
         .sort((a, b) => {
-          const timeA = a.lastMessageAt?.toDate
-            ? a.lastMessageAt.toDate()
-            : new Date(a.lastMessageAt || 0);
-          const timeB = b.lastMessageAt?.toDate
-            ? b.lastMessageAt.toDate()
-            : new Date(b.lastMessageAt || 0);
+          const timeA = a.lastMessageAt?.toDate?.() || new Date(0);
+          const timeB = b.lastMessageAt?.toDate?.() || new Date(0);
           return timeB - timeA;
         });
 
@@ -33,7 +29,7 @@ export function useChats(user, friends = []) {
     });
 
     return unsubscribe;
-  }, [user?.uid, friendIds]);
+  }, [user?.uid, friendIds.join(",")]);
 
   return { chats, loading };
 }

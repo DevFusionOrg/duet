@@ -17,7 +17,7 @@ import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
 import UpdateChecker from "../Components/UpdateChecker";
 import { useProfiles } from "../hooks/useProfiles";
-import { useBlockedUsersProfile } from "../hooks/useBlockedUsersProfile";
+import { useBlockedUsers } from "../hooks/useBlockedUsers";
 import { useProfilePicture } from "../hooks/useProfilePicture";
 
 import "../styles/Profile.css";
@@ -54,7 +54,7 @@ export default function Profile({ user }) {
     loadingBlockedUsers,
     setShowBlockedUsers,
     handleUnblockUser
-  } = useBlockedUsersProfile(user, isOwnProfile);
+  } = useBlockedUsers(user?.uid);
 
   const {
     uploadingImage,

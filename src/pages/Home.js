@@ -53,6 +53,10 @@ function Home({ user }) {
     return userProfile?.displayName || user?.displayName || "User";
   };
 
+  const filteredFriends = friends.filter(
+    f => !userProfile?.blockedUsers?.includes(f.uid)
+  );
+
   if (selectedFriend) {
     return (
       <Chat 
@@ -114,7 +118,7 @@ function Home({ user }) {
         <div className="content-area">
           {activeView === 'friends' ? (
             <FriendsView 
-              friends={friends} 
+              friends={filteredFriends}
               loading={loading} 
               onStartChat={handleStartChat}
               onFriendCardClick={handleFriendCardClick}

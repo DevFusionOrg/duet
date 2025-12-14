@@ -35,7 +35,7 @@ import "../styles/Chat.css";
 function Chat({ user, friend, onBack }) {
   const { chatId, friends, loading: setupLoading } = useChatSetup(user, friend);
   const { messages, loading: messagesLoading } = useChatMessages(chatId, user);
-  const { isBlocked, setIsBlocked } = useBlockedUsers(user?.uid, friend?.uid);
+  const { isBlocked } = useBlockedUsers(user?.uid, friend?.uid);
   const { isFriendOnline, lastSeen } = useFriendOnlineStatus(friend?.uid);
   
   // Existing audio call hook - NO CHANGES
@@ -188,6 +188,13 @@ function Chat({ user, friend, onBack }) {
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [showMessageMenu]);
+
+  useEffect(() => {
+    if (isBlocked) {
+      alert("This chat is no longer available.");
+      onBack();
+    }
+  }, [isBlocked, onBack]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -443,7 +450,6 @@ function Chat({ user, friend, onBack }) {
     try {
       if (isBlocked) {
         await unblockUser(user.uid, friend.uid);
-        setIsBlocked(false);
         await getBlockedUsers(user.uid);
         alert(`${friend.displayName} has been unblocked.`);
       } else {
@@ -452,7 +458,6 @@ function Chat({ user, friend, onBack }) {
         );
         if (confirmBlock) {
           await blockUser(user.uid, friend.uid);
-          setIsBlocked(true);
           await getBlockedUsers(user.uid);
           alert(`${friend.displayName} has been blocked.`);
         }
