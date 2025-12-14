@@ -1,29 +1,57 @@
 import { useState, useEffect } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, arrayRemove } from "firebase/firestore";
 import { db } from "../firebase/firebase";
+import { getBlockedUsers } from "../firebase/firestore";
 
-export function useBlockedUsers(userId, friendId) {
-  const [isBlocked, setIsBlocked] = useState(false);
+export function useBlockedUsers(userId) {
   const [blockedUsers, setBlockedUsers] = useState([]);
+  const [showBlockedUsers, setShowBlockedUsers] = useState(false);
+  const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(true);
 
   useEffect(() => {
     if (!userId) return;
 
     const userRef = doc(db, "users", userId);
-    const unsubscribe = onSnapshot(userRef, (doc) => {
-      if (doc.exists()) {
-        const userData = doc.data();
-        const blockedList = userData.blockedUsers || [];
-        setBlockedUsers(blockedList);
-        const isUserBlocked = friendId ? blockedList.includes(friendId) : false;
-        setIsBlocked(isUserBlocked);
+
+    const unsubscribe = onSnapshot(userRef, async (snap) => {
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+      const blockedIds = data.blockedUsers || [];
+
+      if (blockedIds.length === 0) {
+        setBlockedUsers([]);
+        setLoadingBlockedUsers(false);
+        return;
       }
+
+      const profiles = await getBlockedUsers(userId);
+      setBlockedUsers(profiles);
+      setLoadingBlockedUsers(false);
     });
 
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [userId, friendId]);
+    return unsubscribe;
+  }, [userId]);
 
-  return { isBlocked, blockedUsers, setIsBlocked };
+  const handleUnblockUser = async (blockedUserId, onSuccess) => {
+    if (!blockedUserId || typeof blockedUserId !== "string") {
+      throw new Error("Invalid blocked user");
+    }
+
+    const userRef = doc(db, "users", userId);
+
+    await updateDoc(userRef, {
+      blockedUsers: arrayRemove(blockedUserId),
+    });
+
+    if (onSuccess) onSuccess();
+  };
+
+  return {
+    blockedUsers,          // ✅ FULL PROFILES
+    showBlockedUsers,
+    setShowBlockedUsers,
+    loadingBlockedUsers,
+    handleUnblockUser,
+  };
 }
