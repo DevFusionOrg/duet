@@ -17,7 +17,7 @@ import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
 import UpdateChecker from "../Components/UpdateChecker";
 import { useProfiles } from "../hooks/useProfiles";
-import { useBlockedUsersProfile } from "../hooks/useBlockedUsersProfile";
+import { useBlockedUsers } from "../hooks/useBlockedUsers";
 import { useProfilePicture } from "../hooks/useProfilePicture";
 
 import "../styles/Profile.css";
@@ -54,7 +54,7 @@ export default function Profile({ user }) {
     loadingBlockedUsers,
     setShowBlockedUsers,
     handleUnblockUser
-  } = useBlockedUsersProfile(user, isOwnProfile);
+  } = useBlockedUsers(user?.uid);
 
   const {
     uploadingImage,
@@ -163,9 +163,9 @@ export default function Profile({ user }) {
   if (!profile) {
     return (
       <div className="profile-container">
-        <h2 className="profile-title">
+        <h1 className="profile-title">
           {isOwnProfile ? "Your Profile" : "Profile"}
-        </h2>
+        </h1>
         <div className="profile-loading">
           <p>Loading profile...</p>
           {isOwnProfile && (
@@ -187,7 +187,6 @@ export default function Profile({ user }) {
     <div className="profile-container">
       <ProfileHeader
         isOwnProfile={isOwnProfile}
-        // editing and onToggleEdit no longer used in header
       />
 
       <ProfilePicture

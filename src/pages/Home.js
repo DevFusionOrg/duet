@@ -17,7 +17,7 @@ import { useUnreadCount } from "../hooks/useUnreadCount";
 function Home({ user }) {
   const navigate = useNavigate();
   const { friends, loading: friendsLoading } = useFriends(user);
-  const { chats, loading: chatsLoading } = useChats(user);
+  const { chats, loading: chatsLoading } = useChats(user, friends);
   const { profile: userProfile,getProfilePictureUrl} = useProfiles(user);
   const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
   const { unreadFriendsCount } = useUnreadCount(user);
@@ -53,6 +53,10 @@ function Home({ user }) {
     return userProfile?.displayName || user?.displayName || "User";
   };
 
+  const filteredFriends = friends.filter(
+    f => !userProfile?.blockedUsers?.includes(f.uid)
+  );
+
   if (selectedFriend) {
     return (
       <Chat 
@@ -66,24 +70,6 @@ function Home({ user }) {
   return (
     <div className="home-container">
       <div className="side-pane">
-        <div className="pane-header">
-          <div className="user-profile-section">
-            <img
-              src={getProfilePictureUrl()}
-              alt={getDisplayName()}
-              className="user-avatar"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = "/default-avatar.png";
-              }}
-            />
-            <div className="user-info">
-              <h3 className="user-name">{getDisplayName()}</h3>
-              <p className="user-status online">Online</p>
-            </div>
-          </div>
-        </div>
-
         <nav className="pane-nav">
           <button 
             className={`nav-item ${activeView === 'friends' ? 'active' : ''}`}
@@ -122,7 +108,7 @@ function Home({ user }) {
             }}
             title="View profile"
           >
-            <svg aria-label="Profile" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" className="x14rh7hd"><title>Tagged</title><path d="M10.201 3.797 12 1.997l1.799 1.8a1.59 1.59 0 0 0 1.124.465h5.259A1.818 1.818 0 0 1 22 6.08v14.104a1.818 1.818 0 0 1-1.818 1.818H3.818A1.818 1.818 0 0 1 2 20.184V6.08a1.818 1.818 0 0 1 1.818-1.818h5.26a1.59 1.59 0 0 0 1.123-.465z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2px"></path><g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2px"><path d="M18.598 22.002V21.4a3.949 3.949 0 0 0-3.948-3.949H9.495A3.949 3.949 0 0 0 5.546 21.4v.603" fill="none"></path><circle cx="12.07211" cy="11.07515" r="3.55556" fill="none"></circle></g></svg>
+            <div className="user-profile-section"><img src={getProfilePictureUrl()} alt={getDisplayName()} className="user-avatar" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/default-avatar.png";}}/></div>
             <span className="nav-text">PROFILE</span>
           </button>
         </nav>
@@ -132,7 +118,7 @@ function Home({ user }) {
         <div className="content-area">
           {activeView === 'friends' ? (
             <FriendsView 
-              friends={friends} 
+              friends={filteredFriends}
               loading={loading} 
               onStartChat={handleStartChat}
               onFriendCardClick={handleFriendCardClick}

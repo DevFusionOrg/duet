@@ -2,6 +2,7 @@ import { db } from "./firebase";
 import {
   collection,
   doc,
+  runTransaction,
   setDoc,
   getDoc,
   updateDoc,
@@ -18,67 +19,98 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
+export const updateUsernameTransaction = async (
+  uid,
+  newUsername,
+  oldUsername = null
+) => {
+  return await runTransaction(db, async (transaction) => {
+    const newUsernameRef = doc(db, "usernames", newUsername);
+
+    const newUsernameSnap = await transaction.get(newUsernameRef);
+
+    if (newUsernameSnap.exists()) {
+      if (newUsernameSnap.data().uid !== uid) {
+        throw new Error("Username already taken");
+      }
+      return;
+    }
+
+    if (oldUsername) {
+      const oldUsernameRef = doc(db, "usernames", oldUsername);
+      transaction.delete(oldUsernameRef);
+    }
+
+    transaction.set(newUsernameRef, { uid });
+
+    const userRef = doc(db, "users", uid);
+    transaction.update(userRef, {
+      username: newUsername,
+    });
+  });
+};
+
 export const sendPushNotification = async (senderId, receiverId, message, chatId) => {
   try {
-    const receiverDoc = await getDoc(doc(db, "users", receiverId));
-    const receiverTokens = receiverDoc.data()?.notificationTokens || [];
-    
+    const [senderSnap, receiverSnap] = await Promise.all([
+      getDoc(doc(db, "users", senderId)),
+      getDoc(doc(db, "users", receiverId)),
+    ]);
+
+    if (!senderSnap.exists() || !receiverSnap.exists()) return;
+
+    const senderData = senderSnap.data();
+    const receiverData = receiverSnap.data();
+
+    // 🚫 Block checks (both directions)
+    if (
+      senderData.blockedUsers?.includes(receiverId) ||
+      receiverData.blockedUsers?.includes(senderId)
+    ) {
+      return;
+    }
+
+    const receiverTokens = receiverData.notificationTokens || [];
     if (receiverTokens.length === 0) return;
-    
-    const response = await fetch('/api/send-notification', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+
+    const response = await fetch("/api/send-notification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tokens: receiverTokens,
         title: "New Message",
-        body: message.type === 'image' ? '📷 Photo' : message.text.substring(0, 100),
+        body:
+          message.type === "image"
+            ? "📷 Photo"
+            : (message.text || "").substring(0, 100),
         data: {
           chatId,
           senderId,
           messageId: message.id,
-          type: 'new-message'
-        }
-      })
+          type: "new-message",
+        },
+      }),
     });
-    
+
     return response.json();
   } catch (error) {
     console.error("Error sending push notification:", error);
   }
 };
 
-export const checkUsernameTaken = async (username, excludeUserId = null) => {
-  try {
-    const usernameRef = doc(db, "usernames", username);
-    const usernameSnap = await getDoc(usernameRef);
-    
-    if (usernameSnap.exists()) {
-      const usernameData = usernameSnap.data();
-      if (excludeUserId && usernameData.uid === excludeUserId) {
-        return false;
-      }
-      return true;
+
+export const listenToUserFriends = (userId, callback) => {
+  const userRef = doc(db, "users", userId);
+
+  return onSnapshot(userRef, (snap) => {
+    if (!snap.exists()) {
+      callback([]);
+      return;
     }
-    
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("username", "==", username));
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-      if (excludeUserId) {
-        const isSameUser = querySnapshot.docs.some(doc => doc.id === excludeUserId);
-        if (isSameUser) {
-          return false;
-        }
-      }
-      return true;
-    }
-    
-    return false;
-  } catch (error) {
-    console.error("Error checking username:", error);
-    throw error;
-  }
+
+    const data = snap.data();
+    callback(data.friends || []);
+  });
 };
 
 export const createUserProfile = async (user, username = null) => {
@@ -88,40 +120,41 @@ export const createUserProfile = async (user, username = null) => {
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
 
-    let finalUsername = username || user.email.split("@")[0];
-    
-    if (!userSnap.exists()) {
-      const usernameTaken = await checkUsernameTaken(finalUsername, user.uid);
-      
-      if (usernameTaken) {
-        finalUsername = `${finalUsername}${Math.floor(1000 + Math.random() * 9000)}`;
-      }
-    }
-
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        displayName: user.displayName,
-        email: user.email,
-        photoURL: user.photoURL,
-        username: finalUsername,
-        bio: "",
-        friends: [],
-        friendRequests: [],
-        blockedUsers: [],
-        createdAt: new Date(),
-      });
-      
-      await setDoc(doc(db, "usernames", finalUsername), {
-        uid: user.uid,
-        createdAt: new Date(),
-      });
-    } else {
+    if (userSnap.exists()) {
       await updateDoc(userRef, {
         displayName: user.displayName,
         photoURL: user.photoURL,
       });
+      return;
     }
+
+    const baseUsername =
+      username || user.email?.split("@")[0] || "user";
+
+    let finalUsername = baseUsername;
+    let counter = 1;
+
+    while (true) {
+      try {
+        await updateUsernameTransaction(user.uid, finalUsername);
+        break;
+      } catch {
+        finalUsername = `${baseUsername}${counter++}`;
+      }
+    }
+
+    await setDoc(userRef, {
+      uid: user.uid,
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL,
+      username: finalUsername,
+      bio: "",
+      friends: [],
+      friendRequests: [],
+      blockedUsers: [],
+      createdAt: new Date(),
+    });
   } catch (error) {
     console.error("Error creating user profile:", error);
     throw error;
@@ -133,49 +166,27 @@ export const updateUsername = async (userId, newUsername) => {
     if (!newUsername || newUsername.length < 3 || newUsername.length > 30) {
       throw new Error("Username must be between 3 and 30 characters");
     }
-    
+
     if (!/^[a-zA-Z0-9_.-]+$/.test(newUsername)) {
-      throw new Error("Username can only contain letters, numbers, dots, underscores, and hyphens");
+      throw new Error(
+        "Username can only contain letters, numbers, dots, underscores, and hyphens"
+      );
     }
-    
-    const usernameTaken = await checkUsernameTaken(newUsername, userId);
-    
-    if (usernameTaken) {
-      throw new Error("Username is already taken");
-    }
-    
+
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
-    
+
     if (!userSnap.exists()) {
       throw new Error("User not found");
     }
-    
-    const userData = userSnap.data();
-    const oldUsername = userData.username;
-    
-    const batch = writeBatch(db);
-    
-    batch.update(userRef, {
-      username: newUsername,
-      updatedAt: serverTimestamp(),
-    });
-    
-    if (oldUsername) {
-      const oldUsernameRef = doc(db, "usernames", oldUsername);
-      batch.delete(oldUsernameRef);
-    }
 
-    const newUsernameRef = doc(db, "usernames", newUsername);
-    batch.set(newUsernameRef, {
-      uid: userId,
-      updatedAt: serverTimestamp(),
-    });
-    
-    await batch.commit();
-    
+    const oldUsername = userSnap.data().username;
+
+    // 🔐 Atomic username update
+    await updateUsernameTransaction(userId, newUsername, oldUsername);
+
     await updateUsernameInChats(userId, oldUsername, newUsername);
-    
+
     return { success: true, username: newUsername };
   } catch (error) {
     console.error("Error updating username:", error);
@@ -186,11 +197,11 @@ export const updateUsername = async (userId, newUsername) => {
 export const getUsernameSuggestions = async (baseUsername) => {
   try {
     const suggestions = [];
-    const maxAttempts = 5;
-    
+    const maxAttempts = 10;
+
     for (let i = 0; i < maxAttempts; i++) {
       let suggestion;
-      
+
       if (i === 0) {
         suggestion = baseUsername;
       } else if (i === 1) {
@@ -200,20 +211,21 @@ export const getUsernameSuggestions = async (baseUsername) => {
       } else if (i === 3) {
         suggestion = `${baseUsername}_${Math.floor(10 + Math.random() * 90)}`;
       } else {
-        suggestion = `${baseUsername}${Math.floor(1 + Math.random() * 9)}${String.fromCharCode(97 + Math.floor(Math.random() * 26))}`;
+        suggestion = `${baseUsername}${Math.floor(
+          1 + Math.random() * 9
+        )}${String.fromCharCode(97 + Math.floor(Math.random() * 26))}`;
       }
-      
-      const isTaken = await checkUsernameTaken(suggestion);
-      
-      if (!isTaken) {
+
+      const usernameRef = doc(db, "usernames", suggestion);
+      const snap = await getDoc(usernameRef);
+
+      if (!snap.exists()) {
         suggestions.push(suggestion);
       }
-      
-      if (suggestions.length >= 3) {
-        break;
-      }
+
+      if (suggestions.length >= 3) break;
     }
-    
+
     return suggestions;
   } catch (error) {
     console.error("Error getting username suggestions:", error);
@@ -291,12 +303,13 @@ export const updateUserProfilePicture = async (userId, photoURL, cloudinaryPubli
   }
 };
 
-export const searchUsers = async (searchTerm, excludeUserId = null, checkBlocked = false) => {
+export const searchUsers = async (searchTerm, excludeUserId = null) => {
   if (!searchTerm) return [];
 
   try {
     let blockedUsers = [];
-    if (checkBlocked && excludeUserId) {
+
+    if (excludeUserId) {
       const userProfile = await getUserProfile(excludeUserId);
       blockedUsers = userProfile?.blockedUsers || [];
     }
@@ -306,13 +319,13 @@ export const searchUsers = async (searchTerm, excludeUserId = null, checkBlocked
     const displayNameQuery = query(
       usersRef,
       where("displayName", ">=", searchTerm),
-      where("displayName", "<=", searchTerm + "\uf8ff"),
+      where("displayName", "<=", searchTerm + "\uf8ff")
     );
 
     const usernameQuery = query(
       usersRef,
       where("username", ">=", searchTerm),
-      where("username", "<=", searchTerm + "\uf8ff"),
+      where("username", "<=", searchTerm + "\uf8ff")
     );
 
     const [displayNameSnapshot, usernameSnapshot] = await Promise.all([
@@ -322,12 +335,23 @@ export const searchUsers = async (searchTerm, excludeUserId = null, checkBlocked
 
     const users = new Map();
 
-    const addUser = (doc) => {
-      if (excludeUserId && doc.id === excludeUserId) return;
-      
-      if (checkBlocked && blockedUsers.includes(doc.id)) return;
-      
-      users.set(doc.id, { id: doc.id, ...doc.data() });
+    const addUser = (docSnap) => {
+      if (excludeUserId && docSnap.id === excludeUserId) return;
+
+      const otherUserData = docSnap.data();
+
+      // 🚫 Block checks (both directions)
+      if (
+        blockedUsers.includes(docSnap.id) ||
+        otherUserData.blockedUsers?.includes(excludeUserId)
+      ) {
+        return;
+      }
+
+      users.set(docSnap.id, {
+        id: docSnap.id,
+        ...otherUserData,
+      });
     };
 
     displayNameSnapshot.forEach(addUser);
@@ -376,24 +400,39 @@ export const validateUsername = (username) => {
 
 export const sendFriendRequest = async (fromUserId, toUserId) => {
   try {
+    if (fromUserId === toUserId) {
+      throw new Error("You cannot send a request to yourself");
+    }
+
     console.log("Sending friend request from:", fromUserId, "to:", toUserId);
 
-    const toUserProfile = await getUserProfile(toUserId);
+    const [fromUser, toUserProfile] = await Promise.all([
+      getUserProfile(fromUserId),
+      getUserProfile(toUserId),
+    ]);
+
     if (!toUserProfile) {
       throw new Error("User not found");
     }
 
-    if (toUserProfile.friends && toUserProfile.friends.includes(fromUserId)) {
+    // 🚫 Block checks (both directions)
+    if (
+      fromUser?.blockedUsers?.includes(toUserId) ||
+      toUserProfile?.blockedUsers?.includes(fromUserId)
+    ) {
+      throw new Error("Cannot send request to blocked user");
+    }
+
+    if (toUserProfile.friends?.includes(fromUserId)) {
       throw new Error("You are already friends with this user");
     }
 
-    if (toUserProfile.friendRequests) {
-      const existingRequest = toUserProfile.friendRequests.find(
-        (req) => req.from === fromUserId && req.status === "pending",
-      );
-      if (existingRequest) {
-        throw new Error("Friend request already sent");
-      }
+    const existingRequest = toUserProfile.friendRequests?.find(
+      (req) => req.from === fromUserId && req.status === "pending"
+    );
+
+    if (existingRequest) {
+      throw new Error("Friend request already sent");
     }
 
     const toUserRef = doc(db, "users", toUserId);
@@ -411,16 +450,19 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
     console.error("Error sending friend request:", error);
 
     let errorMessage = "Error sending friend request";
+
     if (error.code === "permission-denied") {
       errorMessage = "Permission denied. Please check Firestore rules.";
-    } else if (error.code === "not-found") {
-      errorMessage = "User not found.";
     } else if (error.message.includes("already friends")) {
       errorMessage = "You are already friends with this user.";
     } else if (error.message.includes("already sent")) {
       errorMessage = "Friend request already sent.";
+    } else if (error.message.includes("blocked")) {
+      errorMessage = "You cannot send a request to this user.";
+    } else if (error.message.includes("not found")) {
+      errorMessage = "User not found.";
     } else {
-      errorMessage = error.message || "Error sending friend request";
+      errorMessage = error.message || errorMessage;
     }
 
     throw new Error(errorMessage);
@@ -429,6 +471,10 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
 
 export const acceptFriendRequest = async (userId, requestFromId) => {
   try {
+    if (userId === requestFromId) {
+      throw new Error("Invalid friend request");
+    }
+
     const userRef = doc(db, "users", userId);
     const fromUserRef = doc(db, "users", requestFromId);
 
@@ -444,6 +490,14 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
     const userData = userSnap.data();
     const fromUserData = fromUserSnap.data();
 
+    // 🚫 Block checks (both directions)
+    if (
+      userData.blockedUsers?.includes(requestFromId) ||
+      fromUserData.blockedUsers?.includes(userId)
+    ) {
+      throw new Error("Cannot accept request from blocked user");
+    }
+
     const requestToRemove = userData.friendRequests?.find(
       (req) => req.from === requestFromId && req.status === "pending"
     );
@@ -452,44 +506,49 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
       throw new Error("Friend request not found");
     }
 
-    const batchUpdates = [
-      updateDoc(userRef, {
-        friends: arrayUnion(requestFromId),
-        friendRequests: arrayRemove(requestToRemove),
-      }),
-      updateDoc(fromUserRef, {
-        friends: arrayUnion(userId),
-      }),
-    ];
+    const batch = writeBatch(db);
 
-    const previewForUser = {
-      displayName: fromUserData.displayName,
-      photoURL: fromUserData.photoURL || null,
-      lastSeen: fromUserData.lastSeen || null,
-      online: fromUserData.online || false,
-      addedAt: serverTimestamp(),
-    };
+    // 1. Update user documents
+    batch.update(userRef, {
+      friends: arrayUnion(requestFromId),
+      friendRequests: arrayRemove(requestToRemove),
+    });
 
-    const previewForFromUser = {
-      displayName: userData.displayName,
-      photoURL: userData.photoURL || null,
-      lastSeen: userData.lastSeen || null,
-      online: userData.online || false,
-      addedAt: serverTimestamp(),
-    };
+    batch.update(fromUserRef, {
+      friends: arrayUnion(userId),
+    });
 
-    batchUpdates.push(
-      setDoc(doc(db, "users", userId, "friends", requestFromId), previewForUser),
-      setDoc(doc(db, "users", requestFromId, "friends", userId), previewForFromUser),
+    // 2. Create friends subcollection previews
+    batch.set(
+      doc(db, "users", userId, "friends", requestFromId),
+      {
+        displayName: fromUserData.displayName,
+        photoURL: fromUserData.photoURL || null,
+        lastSeen: fromUserData.lastSeen || null,
+        online: fromUserData.online || false,
+        addedAt: serverTimestamp(),
+      }
     );
 
-    await Promise.all(batchUpdates);
+    batch.set(
+      doc(db, "users", requestFromId, "friends", userId),
+      {
+        displayName: userData.displayName,
+        photoURL: userData.photoURL || null,
+        lastSeen: userData.lastSeen || null,
+        online: userData.online || false,
+        addedAt: serverTimestamp(),
+      }
+    );
+
+    await batch.commit();
+    return { success: true };
+
   } catch (error) {
     console.error("Error accepting friend request:", error);
     throw new Error(error.message || "Error accepting friend request");
   }
 };
-
 
 export const rejectFriendRequest = async (userId, requestFromId) => {
   try {
@@ -542,23 +601,30 @@ export async function getUserFriends(uid) {
 
 export const getOrCreateChat = async (user1Id, user2Id) => {
   try {
+    const [user1, user2] = await Promise.all([
+      getUserProfile(user1Id),
+      getUserProfile(user2Id),
+    ]);
+
+    if (
+      user1?.blockedUsers?.includes(user2Id) ||
+      user2?.blockedUsers?.includes(user1Id)
+    ) {
+      throw new Error("Cannot create chat with blocked user");
+    }
+
     const chatId = [user1Id, user2Id].sort().join("_");
     const chatRef = doc(db, "chats", chatId);
 
     const chatSnap = await getDoc(chatRef);
 
     if (!chatSnap.exists()) {
-      const [user1Data, user2Data] = await Promise.all([
-        getUserProfile(user1Id),
-        getUserProfile(user2Id),
-      ]);
-
       await setDoc(chatRef, {
         id: chatId,
         participants: [user1Id, user2Id],
         participantUsernames: {
-          [user1Data.username]: user1Id,
-          [user2Data.username]: user2Id,
+          [user1.username]: user1Id,
+          [user2.username]: user2Id,
         },
         createdAt: new Date(),
         lastMessage: null,
@@ -1235,94 +1301,93 @@ export const deleteChat = async (chatId, userId) => {
 };
 
 export const blockUser = async (userId, userToBlockId) => {
-  try {
-    if (userId === userToBlockId) {
-      throw new Error("You cannot block yourself");
-    }
-    
-    const userRef = doc(db, "users", userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) {
-      throw new Error("User not found");
-    }
-    
-    const userData = userSnap.data();
-    
-    if (userData.blockedUsers && userData.blockedUsers.includes(userToBlockId)) {
-      throw new Error("User is already blocked");
-    }
-    
-    const updates = {
-      blockedUsers: arrayUnion(userToBlockId),
-    };
-    
-    if (userData.friends && userData.friends.includes(userToBlockId)) {
-      updates.friends = arrayRemove(userToBlockId);
-    }
-    
-    await updateDoc(userRef, updates);
-    
-    // Also remove from friend requests if any
-    if (userData.friendRequests) {
-      const requestToRemove = userData.friendRequests.find(
-        req => req.from === userToBlockId
-      );
-      if (requestToRemove) {
-        await updateDoc(userRef, {
-          friendRequests: arrayRemove(requestToRemove)
-        });
-      }
-    }
-    
-    return { success: true };
-    
-  } catch (error) {
-    console.error("Error blocking user:", error);
-    throw error;
+  if (userId === userToBlockId) {
+    throw new Error("You cannot block yourself");
   }
+
+  const userRef = doc(db, "users", userId);
+  const blockedUserRef = doc(db, "users", userToBlockId);
+
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) {
+    throw new Error("User not found");
+  }
+
+  const userData = userSnap.data();
+
+  // ✅ Already blocked → no-op
+  if (userData.blockedUsers?.includes(userToBlockId)) {
+    return { success: true };
+  }
+
+  const chatId = [userId, userToBlockId].sort().join("_");
+  const chatRef = doc(db, "chats", chatId);
+
+  const batch = writeBatch(db);
+
+  batch.update(userRef, {
+    blockedUsers: arrayUnion(userToBlockId),
+    friends: arrayRemove(userToBlockId),
+  });
+
+  batch.update(blockedUserRef, {
+    friends: arrayRemove(userId),
+  });
+
+  batch.delete(doc(db, "users", userId, "friends", userToBlockId));
+  batch.delete(doc(db, "users", userToBlockId, "friends", userId));
+
+  // Remove incoming requests
+  const incomingRequests = userData.friendRequests || [];
+  incomingRequests
+    .filter((req) => req.from === userToBlockId)
+    .forEach((req) => {
+      batch.update(userRef, {
+        friendRequests: arrayRemove(req),
+      });
+    });
+
+  // Remove outgoing requests
+  const blockedUserSnap = await getDoc(blockedUserRef);
+  if (blockedUserSnap.exists()) {
+    const theirRequests = blockedUserSnap.data().friendRequests || [];
+    theirRequests
+      .filter((req) => req.from === userId)
+      .forEach((req) => {
+        batch.update(blockedUserRef, {
+          friendRequests: arrayRemove(req),
+        });
+      });
+  }
+
+  batch.delete(chatRef);
+
+  await batch.commit();
+  return { success: true };
 };
 
 export const unblockUser = async (userId, userToUnblockId) => {
-  try {
-    const userRef = doc(db, "users", userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) {
-      throw new Error("User not found");
-    }
-    
-    const userData = userSnap.data();
-    
-    if (!userData.blockedUsers || !userData.blockedUsers.includes(userToUnblockId)) {
-      throw new Error("User is not blocked");
-    }
-    
-    await updateDoc(userRef, {
-      blockedUsers: arrayRemove(userToUnblockId)
-    });
-    
-    return { success: true };
-    
-  } catch (error) {
-    console.error("Error unblocking user:", error);
-    throw error;
-  }
+  const userRef = doc(db, "users", userId);
+
+  await updateDoc(userRef, {
+    blockedUsers: arrayRemove(userToUnblockId),
+  });
+
+  return { success: true };
 };
 
 export const getBlockedUsers = async (userId) => {
-  try {
-    const user = await getUserProfile(userId);
-    if (!user || !user.blockedUsers) return [];
-    
-    const blockedUsersPromises = user.blockedUsers.map((blockedId) =>
-      getUserProfile(blockedId)
-    );
-    return Promise.all(blockedUsersPromises);
-  } catch (error) {
-    console.error("Error getting blocked users:", error);
-    return [];
-  }
+  const userSnap = await getDoc(doc(db, "users", userId));
+  if (!userSnap.exists()) return [];
+
+  const blockedIds = userSnap.data().blockedUsers || [];
+  if (blockedIds.length === 0) return [];
+
+  const profiles = await Promise.all(
+    blockedIds.map(id => getUserProfile(id))
+  );
+
+  return profiles.filter(Boolean);
 };
 
 export const replyToMessage = async (chatId, originalMessageId, replyText, senderId, imageData = null) => {
@@ -1448,21 +1513,8 @@ export const deleteFriend = async (userId, friendId, options = { deleteChat: tru
     const userRef = doc(db, "users", userId);
     const friendRef = doc(db, "users", friendId);
 
-    const [userSnap, friendSnap] = await Promise.all([
-      getDoc(userRef),
-      getDoc(friendRef),
-    ]);
-
-    if (!userSnap.exists() || !friendSnap.exists()) {
-      throw new Error("User not found");
-    }
-
-    const userData = userSnap.data();
-    const friendData = friendSnap.data();
-
-    if (!userData.friends?.includes(friendId)) {
-      throw new Error("This user is not in your friends list");
-    }
+    const userFriendSubRef = doc(db, "users", userId, "friends", friendId);
+    const friendUserSubRef = doc(db, "users", friendId, "friends", userId);
 
     const batch = writeBatch(db);
 
@@ -1474,21 +1526,19 @@ export const deleteFriend = async (userId, friendId, options = { deleteChat: tru
       friends: arrayRemove(userId),
     });
 
+    batch.delete(userFriendSubRef);
+    batch.delete(friendUserSubRef);
+
     if (options.deleteChat) {
       const chatId = [userId, friendId].sort().join("_");
       const chatRef = doc(db, "chats", chatId);
-
-      const chatSnap = await getDoc(chatRef);
-      if (chatSnap.exists()) {
-        batch.delete(chatRef);
-      }
+      batch.delete(chatRef);
     }
 
     await batch.commit();
-
     return { success: true };
   } catch (error) {
     console.error("Error deleting friend:", error);
-    throw new Error(error.message || "Failed to remove friend");
+    throw error;
   }
 };

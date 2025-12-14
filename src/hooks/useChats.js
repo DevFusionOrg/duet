@@ -1,26 +1,35 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { listenToUserChats } from "../firebase/firestore";
 
-export function useChats(user) {
+export function useChats(user, friends = []) {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const friendIds = useMemo(
+    () => friends.map(f => f.uid),
+    [friends]
+  );
+
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) return;
 
     const unsubscribe = listenToUserChats(user.uid, (userChats) => {
-      const sortedChats = [...userChats].sort((a, b) => {
-        const timeA = a.lastMessageAt?.toDate ? a.lastMessageAt.toDate() : new Date(a.lastMessageAt || 0);
-        const timeB = b.lastMessageAt?.toDate ? b.lastMessageAt.toDate() : new Date(b.lastMessageAt || 0);
-        return timeB.getTime() - timeA.getTime();
-      });
-      
-      setChats(sortedChats);
+      const filteredChats = userChats
+        .filter(chat =>
+          chat.participants?.some(id => friendIds.includes(id))
+        )
+        .sort((a, b) => {
+          const timeA = a.lastMessageAt?.toDate?.() || new Date(0);
+          const timeB = b.lastMessageAt?.toDate?.() || new Date(0);
+          return timeB - timeA;
+        });
+
+      setChats(filteredChats);
       setLoading(false);
     });
 
     return unsubscribe;
-  }, [user]);
+  }, [user?.uid, friendIds.join(",")]);
 
   return { chats, loading };
 }

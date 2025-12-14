@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Pinyon+Script&display=swap');
 .home-container {
   display: flex;
   min-height: 100vh;
@@ -9,7 +10,7 @@
   border-right: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   flex-direction: column;
-  padding: 20px 0;
+  padding: 8px 0;
   position: fixed;
   height: 100vh;
   left: 0;
@@ -19,7 +20,7 @@
 }
 
 .pane-header {
-  padding: 0 25px 30px;
+  padding: 0 25px 8px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   margin-bottom: 20px;
 }
@@ -31,11 +32,10 @@
 }
 
 .user-avatar {
-  width: 50px;
-  height: 50px;
+  width: 25px;
+  height: 25px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid #667eea;
 }
 
 .user-info {
@@ -95,7 +95,7 @@
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #cdcdcd;
   color: white;
 }
 
@@ -111,18 +111,19 @@
 }
 
 .nav-badge {
+  position: absolute;
+  top: 6px;
+  right: 12px;
   background: #ff4757;
   color: white;
-  border-radius: 10px;
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  min-width: 20px;
-  text-align: center;
-}
-
-.nav-item.active .nav-badge {
-  background: rgba(255, 255, 255, 0.3);
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
 }
 
 .pane-footer {
@@ -136,17 +137,11 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  margin-left: 280px;
+  margin-left: 180px;
   width: 100%;
   min-height: 100vh;
   box-sizing: border-box;
-}
-
-.content-area {
-  margin-top: 20px;
-  flex: 1;
-  margin-bottom: 20px;
+  background:white;
 }
 
 .welcome-section,
@@ -154,10 +149,10 @@
 .empty-state,
 .search-container,
 .profile-tab-container,
-.notifications-container {
+.notifications-container,
+.friends-container,
+.chats-container {
   background: white;
-  border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   overflow: hidden;
 }
 
@@ -220,6 +215,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 20px;
+  padding: 10px;
 }
 
 .friend-card {
@@ -337,7 +333,7 @@
 
 .chat-icon { font-size: 1rem; }
 
-.chats-list { display: flex; flex-direction: column; gap: 12px; }
+.chats-list { display: flex; flex-direction: column; gap: 12px; padding: 10px; }
 
 .chat-item {
   display: flex;
@@ -1211,12 +1207,16 @@
 @media (max-width: 768px) {
   .home-container { flex-direction: column; }
   .side-pane {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    top: auto;
     width: 100%;
-    border-right: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    position: relative;
     height: auto;
-    margin-left: 0;
+    border-right: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: none;
+    z-index: 1000;
   }
 
   .main-content {
@@ -1224,12 +1224,14 @@
     width: 100%;
     min-height: auto;
     max-width: 100%;
-    padding: 15px;
+    order:1;
+    padding-bottom: 80px;
+    background: white;
   }
 
   .pane-nav {
     flex-direction: row;
-    justify-content: center;
+    justify-content: space-between;
   }
 
   .nav-item {
@@ -1237,9 +1239,10 @@
     gap: 6px;
     padding: 10px;
     font-size: 12px;
+    flex: 1;
   }
 
-  .nav-text { text-align: center; }
+  .nav-text { display: none; }
 
   .pane-footer { display: none; }
 
@@ -1279,7 +1282,7 @@
   .accept-btn,
   .reject-btn { flex: 1; }
 
-  .search-container { padding: 20px; }
+  .search-container { padding: 0px 20px; }
   .search-form {
     gap: 15px;
   }
@@ -1335,4 +1338,16 @@
   color: red;
   background: none;
   border: none;
+}
+
+.home-img{
+  height: 80px;
+  width: 80px;
+}
+
+.home-title{
+  font-family: 'Pinyon Script', cursive;
+  display: flex;
+  align-items: center;
+  border-bottom:1px solid #000000;
 }

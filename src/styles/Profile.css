@@ -20,21 +20,12 @@
   margin: 0 auto;
   padding: 20px;
   min-height: 100vh;
-  background: var(--profile-bg);
-}
-
-.profile-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  background: white;
 }
 
 .profile-title {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--profile-text-main);
+  text-align: center;
+  color: #764ba2;
 }
 
 .profile-edit-button {
@@ -786,7 +777,7 @@
 /* Responsive */
 @media (max-width: 768px) {
   .profile-container {
-    padding: 16px;
+    padding: 0px 20px;
   }
 
   .profile-header {
