@@ -7,8 +7,8 @@ import ForwardPopup from '../Components/Chat/ForwardPopup';
 import CallScreen from '../Components/Call/CallScreen';
 import IncomingCallModal from '../Components/Call/IncomingCallModal';
 import MusicPlayer from "../Components/MusicPlayer";
-import VideoCallScreen from '../Components/Call/VideoCallScreen'; // ADD THIS
-import PermissionsModal from '../Components/Call/PermissionsModal'; // ADD THIS
+import VideoCallScreen from '../Components/Call/VideoCallScreen';
+import PermissionsModal from '../Components/Call/PermissionsModal';
 
 import { useChatSetup } from "../hooks/useChatSetup";
 import { useChatMessages } from "../hooks/useChatMessages";
@@ -38,7 +38,6 @@ function Chat({ user, friend, onBack }) {
   const { isBlocked } = useBlockedUsers(user?.uid, friend?.uid);
   const { isFriendOnline, lastSeen } = useFriendOnlineStatus(friend?.uid);
   
-  // Existing audio call hook - NO CHANGES
   const {
     callState,
     isInCall,

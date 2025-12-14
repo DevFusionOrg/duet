@@ -12,9 +12,7 @@
   justify-content: space-between;
   padding: 0px 12px 0px 12px;
   background-color: #ffffff;
-  border-bottom: 1px solid #e0e0e0;
   color: #333;
-  position: sticky;
   top: 0;
   z-index: 1000;
   min-height: 56px;
@@ -68,6 +66,7 @@
 }
 
 .chat-music-button {
+  background: #ffffff;
   color: rgb(0, 0, 0);
   border: none;
   border-radius: 20px;
