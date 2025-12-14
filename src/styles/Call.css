@@ -140,6 +140,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
 }
 
 .incoming-call-modal {
@@ -149,22 +151,25 @@
   text-align: center;
   max-width: 400px;
   width: 90%;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
 }
 
 .incoming-call-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 30px;
 }
 
 .incoming-call-header h3 {
   margin: 12px 0 4px;
   font-size: 22px;
+  color: #333;
+  font-weight: 600;
 }
 
 .caller-avatar {
   width: 120px;
   height: 120px;
-  margin: 0 auto 24px;
+  margin: 0 auto 20px;
   border-radius: 50%;
   overflow: hidden;
   border: 4px solid #f5f5f5;
@@ -177,16 +182,24 @@
 }
 
 .caller-name {
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: #333;
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #222;
+}
+
+.call-status-text {
+  color: #666;
+  font-size: 16px;
+  margin-bottom: 25px;
+  font-weight: 500;
 }
 
 .ringing-animation {
   display: flex;
   justify-content: center;
   gap: 8px;
+  margin: 25px 0 35px;
 }
 
 .ringing-animation span {
@@ -214,33 +227,90 @@
   }
 }
 
+/* ========== FIXED: Incoming call controls - SIDE BY SIDE ========== */
 .incoming-call-controls {
   display: flex;
   justify-content: center;
-  gap: 40px;
+  gap: 80px; /* Increased gap for better separation */
+  align-items: center;
+  margin-top: 20px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+/* Button container for each button with label */
+.call-button-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 80px;
 }
 
 .accept-call-button,
 .decline-call-button {
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s ease;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.accept-call-button:hover,
+.decline-call-button:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+
+.accept-call-button:active,
+.decline-call-button:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .accept-call-button {
-  background: #31CC46;
+  background: linear-gradient(135deg, #31CC46, #2bbd3e);
   color: white;
 }
 
 .decline-call-button {
-  background: #FF3B30;
+  background: linear-gradient(135deg, #FF3B30, #e53935);
   color: white;
+}
+
+/* Button icons */
+.accept-call-button svg,
+.decline-call-button svg {
+  width: 30px;
+  height: 30px;
+}
+
+/* Button labels - IMPORTANT FIX */
+.call-button-label {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 8px;
+  white-space: nowrap;
+}
+
+/* Specific label colors */
+.call-button-container:first-child .call-button-label {
+  color: #FF3B30;
+}
+
+.call-button-container:last-child .call-button-label {
+  color: #31CC46;
 }
 
 /* Audio elements */
@@ -295,5 +365,147 @@
   
   .incoming-call-header h3 {
     font-size: 20px;
+  }
+  
+  .caller-name {
+    font-size: 24px;
+  }
+  
+  .incoming-call-modal {
+    padding: 35px 25px;
+    margin: 20px;
+  }
+  
+  .incoming-call-controls {
+    gap: 60px;
+  }
+  
+  .accept-call-button,
+  .decline-call-button {
+    width: 68px;
+    height: 68px;
+  }
+  
+  .accept-call-button svg,
+  .decline-call-button svg {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .call-button-label {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .incoming-call-modal {
+    padding: 30px 20px;
+  }
+  
+  .caller-avatar {
+    width: 90px;
+    height: 90px;
+  }
+  
+  .caller-name {
+    font-size: 22px;
+  }
+  
+  .incoming-call-controls {
+    gap: 50px;
+  }
+  
+  .accept-call-button,
+  .decline-call-button {
+    width: 64px;
+    height: 64px;
+  }
+  
+  .accept-call-button svg,
+  .decline-call-button svg {
+    width: 26px;
+    height: 26px;
+  }
+  
+  .call-button-label {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 400px) {
+  .incoming-call-controls {
+    gap: 40px;
+  }
+  
+  .accept-call-button,
+  .decline-call-button {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .accept-call-button svg,
+  .decline-call-button svg {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .call-button-label {
+    font-size: 12px;
+  }
+}
+
+/* For very small screens */
+@media (max-width: 360px) {
+  .incoming-call-controls {
+    gap: 35px;
+  }
+  
+  .accept-call-button,
+  .decline-call-button {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .accept-call-button svg,
+  .decline-call-button svg {
+    width: 22px;
+    height: 22px;
+  }
+  
+  .call-button-label {
+    font-size: 11px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .incoming-call-modal {
+    background: #1a1a1a;
+    color: white;
+  }
+  
+  .incoming-call-header h3,
+  .caller-name {
+    color: white;
+  }
+  
+  .call-status-text {
+    color: #aaa;
+  }
+  
+  .call-button-label {
+    color: #ddd;
+  }
+  
+  .caller-avatar {
+    border-color: #333;
+  }
+  
+  .call-button-container:first-child .call-button-label {
+    color: #ff6b6b;
+  }
+  
+  .call-button-container:last-child .call-button-label {
+    color: #51cf66;
   }
 }

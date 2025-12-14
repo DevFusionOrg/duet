@@ -667,16 +667,8 @@ class WebRTCService {
   }
 
   handleTrackEnded() {
-    console.log('Track ended, checking connection...');
-    if (this.peer) {
-      const senderTracks = this.peer.getSenders().map(sender => sender.track);
-      const activeTracks = senderTracks.filter(track => track && track.readyState === 'live');
-
-      if (activeTracks.length === 0) {
-        console.log('All tracks ended, closing connection');
-        this.endCall();
-      }
-    }
+    console.log('Track ended:', 'ignoring during call lifecycle');
+    // Do NOT auto-end call on track end
   }
 
   // sendSignalFlag = false when we are responding to remote end-call
