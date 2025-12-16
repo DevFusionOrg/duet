@@ -128,32 +128,67 @@ export const createUserProfile = async (user, username = null) => {
       return;
     }
 
-    const baseUsername =
-      username || user.email?.split("@")[0] || "user";
+    // Prefer email local-part on first creation; sanitize and fall back to uid slug
+    const providerEmail = user?.providerData?.find((p) => p.email)?.email || "";
+    const emailLocalPart = (user.email || providerEmail || "").split("@")[0];
+    const displaySlug = (user.displayName || "")
+      .replace(/\s+/g, "")
+      .replace(/[^a-zA-Z0-9_.-]/g, "")
+      .toLowerCase();
+
+    let baseUsername = (
+      username ||
+      emailLocalPart ||
+      displaySlug ||
+      `user${user.uid.slice(0, 6)}`
+    )
+      .toLowerCase()
+      .replace(/[^a-zA-Z0-9_.-]/g, "");
+
+    if (!baseUsername || baseUsername.length < 3) {
+      baseUsername = `user${user.uid.slice(0, 6)}`;
+    }
 
     let finalUsername = baseUsername;
     let counter = 1;
 
+    // Find available username
     while (true) {
-      try {
-        await updateUsernameTransaction(user.uid, finalUsername);
+      const usernameRef = doc(db, "usernames", finalUsername);
+      const usernameSnap = await getDoc(usernameRef);
+      
+      if (!usernameSnap.exists()) {
         break;
-      } catch {
-        finalUsername = `${baseUsername}${counter++}`;
       }
+      
+      finalUsername = `${baseUsername}${counter++}`;
     }
 
-    await setDoc(userRef, {
-      uid: user.uid,
-      displayName: user.displayName,
-      email: user.email,
-      photoURL: user.photoURL,
-      username: finalUsername,
-      bio: "",
-      friends: [],
-      friendRequests: [],
-      blockedUsers: [],
-      createdAt: new Date(),
+    // Create user document and username document together
+    await runTransaction(db, async (transaction) => {
+      const usernameRef = doc(db, "usernames", finalUsername);
+      const usernameSnap = await transaction.get(usernameRef);
+      
+      if (usernameSnap.exists()) {
+        throw new Error("Username taken during transaction");
+      }
+      
+      // Create username document
+      transaction.set(usernameRef, { uid: user.uid });
+      
+      // Create user document
+      transaction.set(userRef, {
+        uid: user.uid,
+        displayName: user.displayName,
+        email: user.email,
+        photoURL: user.photoURL,
+        username: finalUsername,
+        bio: "",
+        friends: [],
+        friendRequests: [],
+        blockedUsers: [],
+        createdAt: new Date(),
+      });
     });
   } catch (error) {
     console.error("Error creating user profile:", error);
