@@ -289,7 +289,6 @@ export const updateUsernameInChats = async (userId, oldUsername, newUsername) =>
 };
 
 export const getUserProfile = async (userId) => {
-  if (!userId) return null;
   try {
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
@@ -426,8 +425,8 @@ export const validateUsername = (username) => {
 
 export const sendFriendRequest = async (fromUserId, toUserId) => {
   try {
-    if (!fromUserId || !toUserId) {
-      throw new Error("Invalid user ID");
+    if (fromUserId === toUserId) {
+      throw new Error("You cannot send a request to yourself");
     }
 
     console.log("Sending friend request from:", fromUserId, "to:", toUserId);
@@ -679,50 +678,29 @@ export const saveUserNotificationToken = async (userId, token) => {
 
 export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
-    const chatRef = doc(db, "chats", chatId);
-    let chatSnap = await getDoc(chatRef);
-
-    if (!chatSnap.exists()) {
-      // If the collection was wiped, recreate the chat using the deterministic chatId
-      const participantsFromId = chatId.includes("_") ? chatId.split("_") : [];
-      if (participantsFromId.length === 2 && participantsFromId.includes(senderId)) {
-        await getOrCreateChat(participantsFromId[0], participantsFromId[1]);
-        chatSnap = await getDoc(chatRef);
-      } else {
-        throw new Error("Chat does not exist and participants could not be determined.");
+    const receiverId = chatId.replace(senderId, '').replace('_', '');
+    
+    const receiverRef = doc(db, "users", receiverId);
+    const receiverSnap = await getDoc(receiverRef);
+    
+    if (receiverSnap.exists()) {
+      const receiverData = receiverSnap.data();
+      
+      if (receiverData.blockedUsers && receiverData.blockedUsers.includes(senderId)) {
+        throw new Error("You cannot send messages to this user. You have been blocked.");
       }
-    }
-
-    if (!chatSnap.exists()) {
-      throw new Error("Chat does not exist. Call getOrCreateChat first.");
-    }
-
-    const chatData = chatSnap.data();
-    const receiverId = chatData.participants.find(
-      (id) => id !== senderId
-    );
-
-    if (!receiverId) {
-      throw new Error("Receiver not found");
-    }
-
-    // 🔒 Block checks
-    const receiverSnap = await getDoc(doc(db, "users", receiverId));
-    if (!receiverSnap.exists()) {
-      throw new Error("Receiver not found");
-    }
-
-    const receiverData = receiverSnap.data();
-    if (receiverData.blockedUsers?.includes(senderId)) {
-      throw new Error("You cannot send messages to this user. You have been blocked.");
-    }
-
-    const senderSnap = await getDoc(doc(db, "users", senderId));
-    if (senderSnap.exists()) {
-      const senderData = senderSnap.data();
-      if (senderData.blockedUsers?.includes(receiverId)) {
-        throw new Error("You cannot send messages to a user you have blocked.");
+      
+      const senderRef = doc(db, "users", senderId);
+      const senderSnap = await getDoc(senderRef);
+      
+      if (senderSnap.exists()) {
+        const senderData = senderSnap.data();
+        if (senderData.blockedUsers && senderData.blockedUsers.includes(receiverId)) {
+          throw new Error("You cannot send messages to a user you have blocked. Unblock them first.");
+        }
       }
+    } else {
+      throw new Error("Receiver not found");
     }
 
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -738,15 +716,17 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       readBy: null,
       readAt: null,
       seenBy: [],
-      deletionTime,
+      deletionTime: deletionTime,
       isSaved: false,
       isEdited: false,
       editHistory: [],
       originalText: text || "",
       canEditUntil: new Date(Date.now() + 15 * 60 * 1000),
       isReply: false,
-      type: imageData ? "image" : "text",
     };
+
+    // Only send notification if NOT blocked
+    await sendPushNotification(senderId, receiverId, messageData, chatId);
 
     if (imageData) {
       messageData.image = {
@@ -756,20 +736,20 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
         height: imageData.height,
         format: imageData.format,
       };
+      messageData.type = "image";
+    } else {
+      messageData.type = "text";
     }
 
-    // ✅ Save message FIRST
     const messageRef = await addDoc(messagesRef, messageData);
 
-    // ✅ Update chat metadata
+    const chatRef = doc(db, "chats", chatId);
+    const now = new Date(); // Get current timestamp
     await updateDoc(chatRef, {
       lastMessage: text || "📷 Image",
-      lastMessageAt: new Date(),
+      lastMessageAt: now,
       lastMessageId: messageRef.id,
     });
-
-    // 🔔 Notify AFTER message exists
-    await sendPushNotification(senderId, receiverId, messageData, chatId);
 
     return messageRef.id;
   } catch (error) {
@@ -1301,26 +1281,14 @@ export const listenToUserOnlineStatus = (userId, callback) => {
 };
 
 export const listenToFriendsOnlineStatus = (friendIds, callback) => {
-  if (!Array.isArray(friendIds)) return () => {};
-
-  const validFriendIds = friendIds.filter(
-    (id) => typeof id === "string" && id.length > 0
-  );
-
-  if (validFriendIds.length === 0) {
-    callback({});
-    return () => {};
-  }
-
+  if (friendIds.length === 0) return () => {};
+  
   const friendsRef = collection(db, "users");
-  const q = query(
-    friendsRef,
-    where("__name__", "in", validFriendIds)
-  );
-
+  const q = query(friendsRef, where("__name__", "in", friendIds));
+  
   return onSnapshot(q, (snapshot) => {
     const onlineStatus = {};
-    snapshot.forEach((doc) => {
+    snapshot.forEach(doc => {
       onlineStatus[doc.id] = doc.data().isOnline || false;
     });
     callback(onlineStatus);
@@ -1447,49 +1415,22 @@ export const getBlockedUsers = async (userId) => {
   return profiles.filter(Boolean);
 };
 
-export const replyToMessage = async (
-  chatId,
-  originalMessageId,
-  replyText,
-  senderId,
-  imageData = null
-) => {
+export const replyToMessage = async (chatId, originalMessageId, replyText, senderId, imageData = null) => {
   try {
-    const chatRef = doc(db, "chats", chatId);
-    const chatSnap = await getDoc(chatRef);
-
-    if (!chatSnap.exists()) {
-      throw new Error("Chat not found");
-    }
-
-    const chatData = chatSnap.data();
-    const receiverId = chatData.participants.find(
-      (id) => id !== senderId
-    );
-
-    if (!receiverId) {
-      throw new Error("Receiver not found");
-    }
-
-    const originalMessageRef = doc(
-      db,
-      "chats",
-      chatId,
-      "messages",
-      originalMessageId
-    );
-
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    
+    const originalMessageRef = doc(db, "chats", chatId, "messages", originalMessageId);
     const originalMessageSnap = await getDoc(originalMessageRef);
-
+    
     if (!originalMessageSnap.exists()) {
       throw new Error("Original message not found");
     }
-
+    
     const originalMessage = originalMessageSnap.data();
-
+    
     const deletionTime = new Date();
     deletionTime.setHours(deletionTime.getHours() + 24);
-
+    
     const replyData = {
       senderId,
       text: replyText || "",
@@ -1498,19 +1439,19 @@ export const replyToMessage = async (
       readBy: null,
       readAt: null,
       seenBy: [],
-      deletionTime,
+      deletionTime: deletionTime,
       isSaved: false,
       isEdited: false,
       editHistory: [],
       originalText: replyText || "",
       canEditUntil: new Date(Date.now() + 15 * 60 * 1000),
       isReply: true,
-      originalMessageId,
+      originalMessageId: originalMessageId,
       originalSenderId: originalMessage.senderId,
       originalMessageText: originalMessage.text,
       originalMessageType: originalMessage.type,
     };
-
+    
     if (imageData) {
       replyData.image = {
         publicId: imageData.public_id,
@@ -1523,27 +1464,29 @@ export const replyToMessage = async (
     } else {
       replyData.type = "text";
     }
-
+    
     if (originalMessage.image) {
       replyData.originalMessageImage = {
         url: originalMessage.image.url,
         publicId: originalMessage.image.publicId,
       };
     }
-
-    const messagesRef = collection(db, "chats", chatId, "messages");
+    
+    const receiverId = chatId.replace(senderId, '').replace('_', '');
+    await sendPushNotification(senderId, receiverId, replyData, chatId);
+    
     const messageRef = await addDoc(messagesRef, replyData);
-
+    
+    const chatRef = doc(db, "chats", chatId);
+    const now = new Date();
     await updateDoc(chatRef, {
       lastMessage: replyText || "📷 Image",
-      lastMessageAt: new Date(),
+      lastMessageAt: now,
       lastMessageId: messageRef.id,
     });
-
-    // 🔔 notify AFTER message is saved
-    await sendPushNotification(senderId, receiverId, replyData, chatId);
-
+    
     return messageRef.id;
+    
   } catch (error) {
     console.error("Error replying to message:", error);
     throw error;
