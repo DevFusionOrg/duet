@@ -73,12 +73,14 @@ export const sendPushNotification = async (senderId, receiverId, message, chatId
     const receiverTokens = receiverData.notificationTokens || [];
     if (receiverTokens.length === 0) return;
 
+    const senderUsername = senderData.username || senderData.displayName || "Someone";
+
     const response = await fetch("/api/send-notification", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tokens: receiverTokens,
-        title: "New Message",
+        title: senderUsername,
         body:
           message.type === "image"
             ? "📷 Photo"
