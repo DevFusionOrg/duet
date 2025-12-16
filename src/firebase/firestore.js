@@ -44,9 +44,11 @@ export const updateUsernameTransaction = async (
     transaction.set(newUsernameRef, { uid });
 
     const userRef = doc(db, "users", uid);
-    transaction.update(userRef, {
-      username: newUsername,
-    });
+    transaction.set(
+      userRef,
+      { username: newUsername },
+      { merge: true }
+    );
   });
 };
 
@@ -121,27 +123,40 @@ export const createUserProfile = async (user, username = null) => {
     const userSnap = await getDoc(userRef);
 
     if (userSnap.exists()) {
+      const data = userSnap.data();
+
       await updateDoc(userRef, {
         displayName: user.displayName,
         photoURL: user.photoURL,
       });
+
+      if (!data.username) {
+        const baseUsername =
+          user.email?.split("@")[0] ||
+          user.displayName?.toLowerCase().replace(/[^a-z0-9._-]/g, "") ||
+          "user";
+
+        let finalUsername = baseUsername;
+        let counter = 1;
+
+        while (true) {
+          try {
+            await updateUsernameTransaction(user.uid, finalUsername);
+            break;
+          } catch {
+            finalUsername = `${baseUsername}${counter++}`;
+          }
+        }
+      }
+
       return;
     }
 
     const baseUsername =
-      username || user.email?.split("@")[0] || "user";
+      (username && username.trim()) || user.email?.split("@")[0] || user.displayName?.toLowerCase().replace(/[^a-z0-9._-]/g, "") || "user";
 
     let finalUsername = baseUsername;
     let counter = 1;
-
-    while (true) {
-      try {
-        await updateUsernameTransaction(user.uid, finalUsername);
-        break;
-      } catch {
-        finalUsername = `${baseUsername}${counter++}`;
-      }
-    }
 
     await setDoc(userRef, {
       uid: user.uid,
@@ -155,6 +170,16 @@ export const createUserProfile = async (user, username = null) => {
       blockedUsers: [],
       createdAt: new Date(),
     });
+
+    while (true) {
+      try {
+        await updateUsernameTransaction(user.uid, finalUsername);
+        break;
+      } catch {
+        finalUsername = `${baseUsername}${counter++}`;
+      }
+    }
+
   } catch (error) {
     console.error("Error creating user profile:", error);
     throw error;
@@ -1235,15 +1260,15 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
 };
 
 export const setUserOnlineStatus = async (userId, isOnline) => {
-  try {
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-      isOnline: isOnline,
+  const userRef = doc(db, "users", userId);
+  await setDoc(
+    userRef,
+    {
+      isOnline,
       lastSeen: new Date()
-    });
-  } catch (error) {
-    console.error("Error updating online status:", error);
-  }
+    },
+    { merge: true }
+  );
 };
 
 export const listenToUserOnlineStatus = (userId, callback) => {
