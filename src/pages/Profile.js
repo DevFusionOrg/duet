@@ -266,8 +266,8 @@ export default function Profile({ user }) {
       />
 
       {isOwnProfile && (
-        <>
-          <UpdateChecker className="profile-action-container" />
+        <div className="profile-actions-row">
+          <UpdateChecker />
           <button
             onClick={async () => {
               try {
@@ -281,7 +281,7 @@ export default function Profile({ user }) {
           >
             Logout
           </button>
-        </>
+        </div>
       )}
     </div>
   );
