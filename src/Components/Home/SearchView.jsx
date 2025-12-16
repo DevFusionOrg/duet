@@ -17,7 +17,7 @@ function SearchView({ user }) {
       const { searchUsers } = await import("../../firebase/firestore");
       const results = await searchUsers(searchTerm);
       const filteredResults = results.filter(
-        (result) => result.id !== user.uid,
+        (result) => result.uid !== user.uid,
       );
       setSearchResults(filteredResults);
 
@@ -42,7 +42,7 @@ function SearchView({ user }) {
 
       setSearchResults((prev) =>
         prev.map((user) =>
-          user.id === toUserId
+          user.uid === toUserId
             ? {
                 ...user,
                 hasSentRequest: true,
@@ -108,7 +108,7 @@ function SearchView({ user }) {
 
           return (
             <div
-              key={result.id}
+              key={result.uid}
               className="search-result-item"
             >
               <img
@@ -143,7 +143,7 @@ function SearchView({ user }) {
               {!alreadyFriends && !requestSent ? (
                 <button
                   onClick={() =>
-                    handleSendRequest(result.id, result.displayName)
+                    handleSendRequest(result.uid, result.displayName)
                   }
                   disabled={requestLoading[result.uid]}
                   className="add-friend-button"
