@@ -27,6 +27,7 @@ import {
   getBlockedUsers,
   deleteChat,
   replyToMessage,
+  getOrCreateChat,
 } from "../firebase/firestore";
 import { openUploadWidget, getOptimizedImageUrl } from "../services/cloudinary";
 import "../styles/Chat.css";
@@ -264,6 +265,7 @@ function Chat({ user, friend, onBack }) {
     try {
       const imageResult = await openUploadWidget();
       if (imageResult) {
+        const chatId = await getOrCreateChat(user.uid, friend.uid);
         await sendMessage(chatId, user.uid, "", imageResult);
       }
     } catch (error) {
@@ -308,6 +310,7 @@ function Chat({ user, friend, onBack }) {
           setReplyText('');
         }
       } else {
+        const chatId = await getOrCreateChat(user.uid, friend.uid);
         await sendMessage(chatId, user.uid, text, selectedImage);
         if (inputRef.current) {
           inputRef.current.value = '';
