@@ -66,22 +66,20 @@
 }
 
 .chat-music-button {
-  background: #f3f4f6;
-  border: 1px solid #d1d5db;
+  background: transparent;
+  border: none;
   padding: 8px;
-  border-radius: 50%;
   cursor: pointer;
   color: #111827;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s, transform 0.2s, opacity 0.2s, border-color 0.2s;
+  transition: background-color 0.2s, transform 0.2s, opacity 0.2s, color 0.2s;
 }
 
 .chat-music-button:hover:not(:disabled) {
-  background: #e5e7eb;
-  border-color: #cbd5e1;
-  transform: scale(1.02);
+  color: #667eea;
+  transform: scale(1.1);
 }
 
 .chat-music-button:active:not(:disabled) {
@@ -611,13 +609,13 @@
 
 .chat-input-container {
   display: flex;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background-color: #ffffff;
   border-top: 1px solid #e0e0e0;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
   flex-wrap: nowrap;
-  min-height: 60px;
+  min-height: 50px;
 }
 
 .chat-message-input {
@@ -639,26 +637,25 @@
 }
 
 .chat-send-button {
-  padding: 10px 16px;
-  background-color: #25d366;
-  color: white;
+  padding: 8px;
+  background: transparent;
+  color: #111827;
   border: none;
-  border-radius: 24px;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  transition: background-color 0.2s;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, transform 0.2s, opacity 0.2s;
   flex-shrink: 0;
-  min-width: 60px;
 }
 
 .chat-send-button:hover:not(:disabled) {
-  background-color: #128c7e;
+  color: #667eea;
+  transform: scale(1.1);
 }
 
 .chat-send-button:disabled {
-  background-color: #cccccc;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -691,19 +688,20 @@
 }
 
 .chat-image-upload-button {
-  background: none;
+  background: transparent;
   border: none;
-  font-size: 18px;
+  padding: 8px;
   cursor: pointer;
-  border-radius: 50%;
-  transition: background-color 0.2s;
+  color: #111827;
+  transition: color 0.2s, transform 0.2s, opacity 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .chat-image-upload-button:hover:not(:disabled) {
-  background-color: #e0e0e0;
+  color: #667eea;
+  transform: scale(1.1);
 }
 
 .chat-image-upload-button:disabled {

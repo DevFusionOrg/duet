@@ -110,8 +110,8 @@ function ChatHeader({
         title="Music"
         disabled={loading}
       >
-        <svg aria-label="Music" fill="currentColor" height="22" width="22" viewBox="0 0 24 24">
-          <path d="M9 18.5a2.5 2.5 0 1 1-1-2v-8.4l8-2.1v5.1a2.5 2.5 0 1 1-1 2v-5.2l-6 1.6v6.1a2.5 2.5 0 0 1-2 2.4Z"/>
+        <svg aria-label="Music" fill="currentColor" height="24" width="24" viewBox="0 0 24 24">
+          <path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z"/>
         </svg>
       </button>
       

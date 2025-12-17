@@ -56,6 +56,24 @@ class NotificationService {
     }
     return this.showNotification(title, options);
   }
+
+  async clearChatNotifications(chatId) {
+    try {
+      if (!('serviceWorker' in navigator) || !chatId) {
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (!registration || !registration.getNotifications) {
+        return;
+      }
+
+      const notifications = await registration.getNotifications({ tag: `chat-${chatId}` });
+      notifications.forEach((notification) => notification.close());
+    } catch (err) {
+      console.error("[notifications] Failed to clear chat notifications", err);
+    }
+  }
 }
 
 export const notificationService = new NotificationService();

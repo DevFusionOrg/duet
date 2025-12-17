@@ -96,10 +96,6 @@
   background: #fff;
 }
 
-.searchButton {
-  /* Removed - using music-control-button instead */
-}
-
 .music-control-button {
   width: 36px;
   height: 36px;
@@ -117,19 +113,13 @@
   box-shadow: none;
 }
 
-.music-control-button:hover:not(:disabled) {
-  background: #e5e7eb;
-  transform: scale(1.05);
-}
-
-.music-control-button:active:not(:disabled) {
-  transform: scale(0.95);
+.music-control-button.search-button{
+  padding: 0;
 }
 
 .music-control-button svg,
 .music-control-button svg path {
   color: currentColor;
-  fill: currentColor;
 }
 
 .music-control-button.stop-button {
