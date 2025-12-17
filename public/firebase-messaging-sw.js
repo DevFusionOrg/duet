@@ -15,19 +15,40 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload);
-  
-  const notificationTitle = payload.notification?.title || 'New Message';
+  const data = payload.data || {};
+  const type = data.type || 'chat_message';
+
+  let notificationTitle = data.senderName || payload.notification?.title || 'New Message';
+  let notificationBody = payload.notification?.body || data.message || 'You have a new message';
+  let tag = 'chat-notification';
+  let targetUrl = '/';
+
+  if (type === 'friend_request') {
+    notificationTitle = data.fromUserName || 'New friend request';
+    notificationBody = `${notificationTitle} sent you a friend request`;
+    tag = data.fromUserId ? `friend-request-${data.fromUserId}` : 'friend-request';
+    targetUrl = '/?view=notifications';
+  } else {
+    if (data.messageType === 'image') {
+      notificationBody = `${notificationTitle} sent a photo`;
+    }
+    tag = data.chatId ? `chat-${data.chatId}` : 'chat-notification';
+    targetUrl = data.chatId
+      ? `/?chatId=${data.chatId}&senderId=${data.senderId || ''}`
+      : '/';
+  }
+
   const notificationOptions = {
-    body: payload.notification?.body,
-    icon: payload.notification?.icon || '/icon-192x192.png',
+    body: notificationBody,
+    icon: payload.notification?.icon || data.senderPhoto || '/icon-192x192.png',
     badge: '/badge.png',
-    data: payload.data,
-    tag: payload.data?.chatId ? `chat-${payload.data.chatId}` : 'chat-notification',
+    data: { ...data, targetUrl },
+    tag,
     requireInteraction: false,
     actions: [
       {
         action: 'open',
-        title: 'Open Chat'
+        title: 'Open'
       },
       {
         action: 'dismiss',
@@ -41,23 +62,41 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  
-  const chatId = event.notification.data?.chatId;
-  const senderId = event.notification.data?.senderId;
-  
-  if (event.action === 'open' || !event.action) {
-    event.waitUntil(
-      clients.matchAll({ type: 'window', includeUncontrolled: true })
-        .then((clientList) => {
-          for (const client of clientList) {
-            if (client.url.includes('/chat') && 'focus' in client) {
-              return client.focus();
-            }
-          }
-          if (clients.openWindow) {
-            return clients.openWindow(`/chat?chatId=${chatId}&senderId=${senderId}`);
-          }
-        })
-    );
-  }
+  const targetUrl = event.notification.data?.targetUrl || '/';
+  const tag = event.notification.tag;
+
+  event.waitUntil((async () => {
+    try {
+      if (tag) {
+        const existing = await self.registration.getNotifications({ tag });
+        existing.forEach((n) => n.close());
+      }
+
+      const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+      for (const client of clientList) {
+        if ('focus' in client) {
+          await client.focus();
+        }
+
+        if (client.url.includes(targetUrl) || targetUrl === '/') {
+          return;
+        }
+
+        if (client.navigate) {
+          return client.navigate(targetUrl);
+        }
+
+        if (client.postMessage) {
+          client.postMessage({ type: 'notification-click', data: event.notification.data });
+        }
+      }
+
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    } catch (err) {
+      console.error('[firebase-messaging-sw.js] notification click error', err);
+    }
+  })());
 });

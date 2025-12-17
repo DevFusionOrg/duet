@@ -1,3 +1,13 @@
+:root {
+  --videocall-modal-bg: #ffffff;
+  --videocall-text: #333;
+}
+
+[data-theme="dark"] {
+  --videocall-modal-bg: #2d2d2d;
+  --videocall-text: #e0e0e0;
+}
+
 .video-call-screen-overlay {
   position: fixed;
   top: 0;
@@ -319,7 +329,7 @@
 }
 
 .permissions-modal {
-  background: white;
+  background: var(--videocall-modal-bg);
   border-radius: 20px;
   width: 90%;
   max-width: 500px;
@@ -351,7 +361,7 @@
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #333;
+  color: var(--videocall-text);
 }
 
 .permissions-close {
@@ -411,7 +421,7 @@
 
 .permissions-steps h4 {
   margin: 0 0 12px;
-  color: #333;
+  color: var(--videocall-text);
   font-size: 16px;
 }
 

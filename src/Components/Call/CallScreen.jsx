@@ -64,9 +64,11 @@ const CallScreen = ({
     setIsMuted(muted);
   };
 
-  const handleVideoToggle = () => {
+  // eslint-disable-next-line no-unused-vars
+  const _handleVideoToggle = () => {
     if (onToggleVideo) {
-      const videoEnabled = onToggleVideo();
+      // eslint-disable-next-line no-unused-vars
+      const _videoEnabled = onToggleVideo();
       // State is managed by parent for video calls
     }
   };

@@ -239,60 +239,80 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
 
   return (
     <div className="musicPlayerWrapper">
-    {currentlyPlaying && (
-      <div className="nowPlayingBar">
-        <span className="nowPlayingText">Now Playing: </span>
-        <span className="songNameText">{currentlyPlaying}</span>
-      </div>
-    )}
-    <div className={`musicPlayer ${pinned ? 'pinned' : 'floating'}`}>
-      <div className="header">
-        <button onClick={onClose} className="closeButton">×</button>
-      </div>
-
-      <div className="searchSection">
-        <div className="searchBox">
-          <input
-            type="text"
-            placeholder="Type song name"
-            value={songName}
-            onChange={(e) => setSongName(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && searchAndPlaySong()}
-            className="searchInput"
-            disabled={loading}
-          />
-          <button 
-            onClick={searchAndPlaySong} 
-            className="searchButton"
-            disabled={loading}
-          >
-            {loading ? '🔍' : 'Play'}
-          </button>
+      {currentlyPlaying && (
+        <div className="nowPlayingBar">
+          <span className="nowPlayingText">Now Playing: </span>
+          <span className="songNameText">{currentlyPlaying}</span>
         </div>
-      </div>
+      )}
+      <div className={`musicPlayer ${pinned ? 'pinned' : 'floating'}`}>
+        <button onClick={onClose} className="closeButton" aria-label="Close music player">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
 
-      <div className="controls">
-        {videoId ? (
-          <div style={{display: 'flex', gap: '10px'}}>
+        <div className="searchSection">
+          <div className="searchBox">
+            <input
+              type="text"
+              placeholder="Search for a song..."
+              value={songName}
+              onChange={(e) => setSongName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && searchAndPlaySong()}
+              className="searchInput"
+              disabled={loading}
+            />
             <button 
-              onClick={togglePlayPause} 
-              className={isPlaying ? "pauseButton" : "playButton"}
+              onClick={searchAndPlaySong} 
+              className="music-control-button search-button"
+              disabled={loading}
+              aria-label="Search and play"
             >
-              {isPlaying ? '⏸️' : '▶️'}
-            </button>
-            <button 
-              onClick={stopMusic}
-              className="stopButton"
-            >
-              ⏹️
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z" />
+                <line x1="16.511" y1="16.511" x2="22" y2="22" />
+              </svg>
             </button>
           </div>
-        ) : null}
-      </div>
+        </div>
 
-      <div id="youtube-player"></div>
+        <div className="controls">
+          {videoId && (
+            <>
+              <button 
+                onClick={togglePlayPause} 
+                className="music-control-button"
+                aria-label={isPlaying ? "Pause" : "Play"}
+                title={isPlaying ? "Pause" : "Play"}
+              >
+                {isPlaying ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                )}
+              </button>
+              <button 
+                onClick={stopMusic}
+                className="music-control-button stop-button"
+                aria-label="Stop"
+                title="Stop"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 6h12v12H6z"/>
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
+
+        <div id="youtube-player"></div>
+      </div>
     </div>
-  </div>
   );
 }
 

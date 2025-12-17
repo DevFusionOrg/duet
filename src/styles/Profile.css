@@ -15,12 +15,20 @@
   --profile-danger: #f44336;
 }
 
+[data-theme="dark"] {
+  --profile-bg: #1a1a1a;
+  --profile-card-bg: #2d2d2d;
+  --profile-border: #404040;
+  --profile-text-main: #e0e0e0;
+  --profile-text-muted: #a0a0a0;
+}
+
 /* Container & Header */
 .profile-container {
   margin: 0 auto;
-  padding: 20px;
   min-height: 100vh;
-  background: white;
+  background: var(--profile-card-bg);
+  color: var(--profile-text-main);
 }
 
 .profile-header-row {
@@ -35,14 +43,41 @@
 .profile-settings-button {
   position: absolute;
   left: 0;
-  background: #fff;
+  background: var(--profile-card-bg);
   border: 1px solid var(--profile-border);
   border-radius: 8px;
   padding: 6px 10px;
   cursor: pointer;
+  color: var(--profile-text-main);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-theme-toggle-button {
+  position: absolute;
+  right: 0;
+  background: var(--profile-card-bg);
+  border: 1px solid var(--profile-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--profile-text-main);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-theme-toggle-button:hover,
+.profile-settings-button:hover {
+  background: var(--profile-bg);
+  transform: scale(1.05);
 }
 
 .profile-summary {
+  padding: 24px;
   display: flex;
   gap: 16px;
   margin-bottom: 16px;
@@ -101,8 +136,8 @@
 }
 
 .summary-card {
-  background: var(--profile-card-bg);
   border-radius: var(--profile-radius-lg);
+  border: 1px solid var(--home-border);
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   padding: 12px 16px;
   display: flex;
@@ -203,7 +238,7 @@
   padding: 8px 14px;
   border-radius: 8px;
   border: 1px solid var(--profile-border);
-  background: #fff;
+  background: var(--profile-card-bg);
   color: var(--profile-text-main);
   cursor: pointer;
   font-size: 14px;
@@ -244,7 +279,7 @@
 
 .profile-title {
   text-align: center;
-  color: #000;
+  color: var(--profile-text-main);
 }
 
 .profile-edit-button {
@@ -256,11 +291,11 @@
   font-weight: 500;
   font-family: inherit;
   transition: background-color 0.2s ease, color 0.2s ease;
-  color: #000;
+  color: var(--profile-text-main);
 }
 
 .profile-edit-button-primary {
-  background-color: #fff;
+  background-color: var(--profile-card-bg);
 }
 
 .profile-edit-button-primary:hover {
@@ -272,7 +307,7 @@
 }
 
 .profile-edit-button-secondary:hover {
-  background-color: #fff;
+  background-color: var(--profile-card-bg);
 }
 
 /* Spinners and Animations - ADD THESE */
@@ -293,7 +328,7 @@
   height: 20px;
   border: 2px solid rgba(0, 0, 0, 0.1);
   border-radius: 50%;
-  border-top-color: #000;
+  border-top-color: var(--profile-text-main);
   animation: spin 1s ease-in-out infinite;
 }
 
@@ -347,7 +382,7 @@
   margin: 0;
   font-size: 14px;
   font-style: italic;
-  color: #000;
+  color: var(--profile-text-main);
 }
 
 .profile-picture-actions {
@@ -519,7 +554,7 @@
 .profile-input:focus {
   outline: none;
   border-color: var(--profile-accent-purple);
-  background: #fff;
+  background: var(--profile-card-bg);
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -576,7 +611,7 @@
 
 .profile-password-button {
   padding: 8px 14px;
-  background: #fff;
+  background: var(--profile-card-bg);
   color: var(--profile-text-main);
   border: 1px solid var(--profile-border);
 }
@@ -905,7 +940,7 @@
 }
 
 .no-blocked-users p {
-  color: #333;
+  color: var(--profile-text-main);
 }
 
 .no-blocked-users-description {
@@ -929,7 +964,7 @@
   padding: 16px;
   border-radius: 12px;
   border: 1px solid #f0f0f0;
-  background: #fff;
+  background: var(--profile-card-bg);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease;
 }
@@ -957,7 +992,7 @@
   margin: 0 0 4px;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--profile-text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -998,13 +1033,13 @@
   text-align: center;
   border-top: 1px solid #f0f0f0;
   border-radius: 0 0 16px 16px;
-  background: #fff;
+  background: var(--profile-card-bg);
 }
 
 .blocked-users-close-footer-button {
   padding: 10px 24px;
   background: #f8f9fa;
-  color: #333;
+  color: var(--profile-text-main);
   border: 1px solid var(--profile-border);
   font-size: 14px;
 }
@@ -1225,9 +1260,9 @@
 }
 
 .profile-edit-inline-button {
-  background: #ffffff;
-  color: #333;
-  border: 1px solid #e0e0e0;
+  background: var(--profile-card-bg);
+  color: var(--profile-text-main);
+  border: 1px solid var(--profile-border);
 }
 
 .profile-edit-inline-button:hover {
@@ -1294,7 +1329,7 @@
   justify-content:center;
 }
 .update-modal {
-  background: #fff;
+  background: var(--profile-card-bg);
   padding: 18px;
   width: 92%;
   max-width: 420px;

@@ -9,7 +9,6 @@ import {
 import { auth } from "../firebase/firebase";
 
 import ProfileHeader from '../Components/Profile/ProfileHeader';
-import ProfilePicture from '../Components/Profile/ProfilePicture';
 import ProfileForm from '../Components/Profile/ProfileForm';
 import ProfileDisplay from '../Components/Profile/ProfileDisplay';
 import PasswordChange from '../Components/Profile/PasswordChange';
@@ -23,7 +22,7 @@ import { useProfilePicture } from "../hooks/useProfilePicture";
 
 import "../styles/Profile.css";
 
-export default function Profile({ user }) {
+export default function Profile({ user, isDarkMode, toggleTheme }) {
   const { uid } = useParams();
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
@@ -50,7 +49,6 @@ export default function Profile({ user }) {
     handleFormChange,
     handleUpdate,
     getProfilePictureUrl,
-    isCloudinaryPicture,
     loadProfileFallback
   } = useProfiles(user, uid);
 
@@ -239,6 +237,8 @@ export default function Profile({ user }) {
       <ProfileHeader
         username={profile?.username}
         onOpenSettings={() => setShowSettings((s) => !s)}
+        onToggleTheme={toggleTheme}
+        isDarkMode={isDarkMode}
       />
 
       <div className="profile-summary">

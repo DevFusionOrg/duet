@@ -49,9 +49,13 @@ function ForwardPopup({
                   className="forward-checkbox"
                 />
                 <img
-                  src={friend.photoURL}
+                  src={friend.photoURL || '/default-avatar.png'}
                   alt={friend.displayName}
                   className="forward-friend-avatar"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/default-avatar.png';
+                  }}
                 />
                 <div className="forward-friend-info">
                   <span className="forward-friend-name">

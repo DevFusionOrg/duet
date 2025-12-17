@@ -37,8 +37,25 @@ exports.sendChatMessageNotification = functions
     // All other participants except sender
     const receiverIds = participants.filter((id) => id !== senderId);
 
-    const title = message.senderName || "New message";
-    const body = text || "You have a new message";
+    // Try to enrich notification with sender info
+    let senderProfile;
+    try {
+      const senderSnap = await admin.firestore().collection("users").doc(senderId).get();
+      senderProfile = senderSnap.exists ? senderSnap.data() : null;
+    } catch (err) {
+      console.error("Unable to load sender profile", err);
+    }
+
+    const senderName =
+      message.senderName || senderProfile?.displayName || senderProfile?.username || "New message";
+    const senderPhoto = message.senderPhoto || senderProfile?.photoURL || "";
+
+    const body =
+      message.type === "image"
+        ? `${senderName} sent a photo`
+        : text || "You have a new message";
+
+    const title = senderName;
 
     for (const receiverId of receiverIds) {
       console.log("Processing receiver:", receiverId);
@@ -69,9 +86,10 @@ exports.sendChatMessageNotification = functions
           type: "chat_message",
           chatId,
           senderId,
-          senderName: message.senderName || "",
-          senderPhoto: message.senderPhoto || "",
+          senderName,
+          senderPhoto,
           message: text,
+          messageType: message.type || (message.image ? "image" : "text"),
           timestamp: Date.now().toString(),
         },
         android: {
@@ -88,6 +106,91 @@ exports.sendChatMessageNotification = functions
         console.log("Notification sent result:", JSON.stringify(res));
       } catch (err) {
         console.error("Error sending notification to", receiverId, err);
+      }
+    }
+
+    return null;
+  });
+
+// ✅ FRIEND REQUEST NOTIFICATION
+exports.sendFriendRequestNotification = functions
+  .region("us-central1")
+  .firestore.document("users/{userId}")
+  .onUpdate(async (change, context) => {
+    const beforeRequests = change.before.data().friendRequests || [];
+    const afterRequests = change.after.data().friendRequests || [];
+
+    // Find newly added pending requests
+    const beforeKeys = new Set(
+      beforeRequests.map((req) => `${req.from}_${req.status}_${req.timestamp?.toMillis?.() || req.timestamp}`)
+    );
+
+    const newRequests = afterRequests.filter((req) => {
+      const key = `${req.from}_${req.status}_${req.timestamp?.toMillis?.() || req.timestamp}`;
+      return req.status === "pending" && !beforeKeys.has(key);
+    });
+
+    if (!newRequests.length) {
+      return null;
+    }
+
+    const userId = context.params.userId;
+
+    for (const request of newRequests) {
+      const fromUserId = request.from;
+
+      let fromUser;
+      try {
+        const snap = await admin.firestore().collection("users").doc(fromUserId).get();
+        fromUser = snap.exists ? snap.data() : null;
+      } catch (err) {
+        console.error("Unable to load requesting user", err);
+      }
+
+      const title = fromUser?.displayName || fromUser?.username || "New friend request";
+      const body = "sent you a friend request";
+
+      const tokensSnap = await admin
+        .firestore()
+        .collection("users")
+        .doc(userId)
+        .collection("tokens")
+        .get();
+
+      if (tokensSnap.empty) {
+        console.log("No tokens for receiver", userId);
+        continue;
+      }
+
+      const tokens = tokensSnap.docs.map((doc) => doc.id);
+
+      const multicast = {
+        tokens,
+        notification: {
+          title,
+          body,
+        },
+        data: {
+          type: "friend_request",
+          fromUserId,
+          fromUserName: title,
+          fromUserPhoto: fromUser?.photoURL || "",
+          timestamp: Date.now().toString(),
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "duet_default_channel",
+            sound: "default",
+          },
+        },
+      };
+
+      try {
+        const res = await messaging.sendEachForMulticast(multicast);
+        console.log("Friend request notification sent:", JSON.stringify(res));
+      } catch (err) {
+        console.error("Error sending friend request notification", err);
       }
     }
 

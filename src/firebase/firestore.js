@@ -694,6 +694,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     
     const receiverRef = doc(db, "users", receiverId);
     const receiverSnap = await getDoc(receiverRef);
+    let senderData;
     
     if (receiverSnap.exists()) {
       const receiverData = receiverSnap.data();
@@ -706,7 +707,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       const senderSnap = await getDoc(senderRef);
       
       if (senderSnap.exists()) {
-        const senderData = senderSnap.data();
+        senderData = senderSnap.data();
         if (senderData.blockedUsers && senderData.blockedUsers.includes(receiverId)) {
           throw new Error("You cannot send messages to a user you have blocked. Unblock them first.");
         }
@@ -720,8 +721,14 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     const deletionTime = new Date();
     deletionTime.setHours(deletionTime.getHours() + 24);
 
+    const senderName = senderData?.displayName || senderData?.username || "Someone";
+    const senderPhoto = senderData?.photoURL || "";
+
     const messageData = {
       senderId,
+      senderName,
+      senderPhoto,
+      chatId,
       text: text || "",
       timestamp: new Date(),
       read: false,
