@@ -12,9 +12,23 @@ import { initPushNotifications } from "./push-init";
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState(null);
+  // eslint-disable-next-line no-unused-vars
+  const [authError, _setAuthError] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme === 'dark';
+  });
 
   const pushInitCalledRef = useRef(false);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  const toggleTheme = () => {
+    setIsDarkMode(prev => !prev);
+  };
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -142,9 +156,9 @@ function App() {
       <SecurityWarning />
       <Router>
         <Routes>
-          <Route path="/" element={<Home user={user} />} />
-          <Route path="/profile" element={<Profile user={user} />} />
-          <Route path="/profile/:uid" element={<Profile user={user} />} />
+          <Route path="/" element={<Home user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />
+          <Route path="/profile" element={<Profile user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />
+          <Route path="/profile/:uid" element={<Profile user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />
         </Routes>
       </Router>
     </>

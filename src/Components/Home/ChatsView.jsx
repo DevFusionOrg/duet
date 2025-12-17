@@ -61,7 +61,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
             >
               <div className="chat-avatar-section">
                 <img 
-                  src={chat.otherParticipant.photoURL} 
+                  src={chat.otherParticipant.photoURL || '/default-avatar.png'} 
                   alt={chat.otherParticipant.displayName}
                   className="chat-avatar"
                   onError={(e) => {

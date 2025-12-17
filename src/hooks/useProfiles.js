@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { updateProfile } from "firebase/auth";
-import { updateDoc, doc, setDoc, collection, getDocs } from "firebase/firestore";
+import { updateDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { 
   listenToUserProfile, 

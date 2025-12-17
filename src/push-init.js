@@ -3,6 +3,22 @@ import { PushNotifications } from "@capacitor/push-notifications";
 import { db, auth } from "./firebase/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
+function dispatchNotificationClick(detail) {
+  try {
+    window.dispatchEvent(new CustomEvent("notification-click", { detail }));
+  } catch (err) {
+    console.error("[push-init] Failed to dispatch notification click", err);
+  }
+}
+
+async function clearDeliveredNotifications() {
+  try {
+    await PushNotifications.removeAllDeliveredNotifications();
+  } catch (err) {
+    console.warn("[push-init] Unable to clear delivered notifications", err);
+  }
+}
+
 async function saveTokenToFirestore(token) {
   const user = auth.currentUser;
   if (!user) {
@@ -86,6 +102,9 @@ export async function initPushNotifications() {
     if (chatId) {
       console.log("[push-init] Should navigate to chat:", chatId);
     }
+
+    dispatchNotificationClick(data);
+    clearDeliveredNotifications();
   });
 
   console.log("[push-init] Push notifications setup complete");
