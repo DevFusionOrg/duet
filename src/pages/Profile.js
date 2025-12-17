@@ -23,7 +23,7 @@ import { useProfilePicture } from "../hooks/useProfilePicture";
 
 import "../styles/Profile.css";
 
-export default function Profile({ user }) {
+export default function Profile({ user, isDarkMode, toggleTheme }) {
   const { uid } = useParams();
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
@@ -239,6 +239,8 @@ export default function Profile({ user }) {
       <ProfileHeader
         username={profile?.username}
         onOpenSettings={() => setShowSettings((s) => !s)}
+        onToggleTheme={toggleTheme}
+        isDarkMode={isDarkMode}
       />
 
       <div className="profile-summary">

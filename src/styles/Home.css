@@ -1,13 +1,33 @@
 @import url('https://fonts.googleapis.com/css2?family=Pinyon+Script&display=swap');
+
+:root {
+  --home-bg: #ffffff;
+  --home-text: #333;
+  --home-text-muted: #666;
+  --home-border: rgba(0, 0, 0, 0.1);
+  --home-card-bg: #ffffff;
+  --home-hover-bg: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] {
+  --home-bg: #2d2d2d;
+  --home-text: #e0e0e0;
+  --home-text-muted: #a0a0a0;
+  --home-border: #f0f0f0;
+  --home-card-bg: #1a1a1a;
+  --home-hover-bg: rgba(255, 255, 255, 0.05);
+}
+
 .home-container {
   display: flex;
   min-height: 100vh;
+  background: var(--home-bg);
 }
 
 .side-pane {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--home-card-bg);
   backdrop-filter: blur(10px);
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  border-right: 1px solid var(--home-border);
   display: flex;
   flex-direction: column;
   padding: 8px 0;
@@ -21,7 +41,7 @@
 
 .pane-header {
   padding: 0 25px 8px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid var(--home-border);
   margin-bottom: 20px;
 }
 
@@ -46,7 +66,7 @@
   margin: 0 0 4px 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #333;
+  color: var(--home-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -84,13 +104,14 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #666;
+  color: var(--home-text-muted);
   transition: all 0.3s ease;
   position: relative;
 }
 
 .nav-item:hover {
-  color: #cdcdcd;
+  color: var(--home-text);
+  background: var(--home-hover-bg);
 }
 
 .nav-item.active {
@@ -141,7 +162,7 @@
 
 .pane-footer {
   padding: 20px 15px 20px 20px;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--home-border);
   margin-top: 20px;
   margin-bottom: 20px;
 }
@@ -154,7 +175,7 @@
   width: 100%;
   min-height: 100vh;
   box-sizing: border-box;
-  background:white;
+  background: var(--home-bg);
 }
 
 .welcome-section,
@@ -165,7 +186,8 @@
 .notifications-container,
 .friends-container,
 .chats-container {
-  background: white;
+  background: var(--home-bg);
+  color: var(--home-text);
   overflow: hidden;
 }
 
@@ -173,7 +195,7 @@
   text-align: center;
   font-size: 2.2rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
   margin: 0 0 10px 0;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   -webkit-background-clip: text;
@@ -203,7 +225,6 @@
 
 .empty-state {
   text-align: center;
-  padding: 80px 40px;
 }
 
 .empty-icon {
@@ -214,13 +235,13 @@
 
 .empty-state h3 {
   margin: 0 0 10px 0;
-  color: #333;
+  color: var(--home-text);
   font-size: 1.5rem;
 }
 
 .empty-state p {
   margin: 0;
-  color: #666;
+  color: var(--home-text-muted);
   font-size: 1rem;
 }
 
@@ -232,7 +253,8 @@
 }
 
 .friend-card {
-  background: white;
+  background: var(--home-card-bg);
+  border: 1px solid var(--home-border);
   padding: 25px;
   border-radius: 20px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
@@ -283,7 +305,7 @@
   margin: 0 0 5px 0;
   font-size: 1.2rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -302,7 +324,7 @@
 .friend-bio {
   margin: 0;
   font-size: 0.85rem;
-  color: #666;
+  color: var(--home-text-muted);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -341,7 +363,7 @@
   display: flex;
   align-items: center;
   padding: 20px 25px;
-  background: white;
+  background: var(--home-card-bg);
   border-radius: 15px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
   cursor: pointer;
@@ -380,7 +402,7 @@
   margin: 0;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -401,7 +423,7 @@
   padding: 0px 12px;
   margin: 0;
   font-size: 0.9rem;
-  color: #666;
+  color: var(--home-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -451,7 +473,7 @@
   margin: 0 0 8px 0;
   font-size: 2rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
 }
 
 .profile-username {
@@ -464,13 +486,13 @@
 .profile-email {
   margin: 0;
   font-size: 1rem;
-  color: #666;
+  color: var(--home-text-muted);
 }
 
 .profile-details { display: flex; flex-direction: column; gap: 30px; }
 
 .profile-section {
-  background: #f8f9fa;
+  background: var(--home-bg);
   padding: 25px;
   border-radius: 15px;
 }
@@ -479,7 +501,7 @@
   margin: 0 0 15px 0;
   font-size: 1.3rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
   border-bottom: 2px solid #667eea;
   padding-bottom: 8px;
 }
@@ -488,7 +510,7 @@
   margin: 0;
   font-size: 1rem;
   line-height: 1.6;
-  color: #333;
+  color: var(--home-text);
 }
 
 .no-bio {
@@ -505,7 +527,7 @@
 .profile-stat-item {
   text-align: center;
   padding: 20px;
-  background: white;
+  background: var(--home-card-bg);
   border-radius: 12px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
 }
@@ -520,7 +542,7 @@
 
 .profile-stat-item .stat-label {
   font-size: 0.9rem;
-  color: #666;
+  color: var(--home-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
@@ -559,8 +581,8 @@
 
 .back-button {
   padding: 8px 16px;
-  background: #f0f0f0;
-  color: #333;
+  background: var(--home-bg);
+  color: var(--home-text);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -575,7 +597,7 @@
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
 }
 
 .profile-edit-form { padding: 0 30px 30px; }
@@ -586,7 +608,7 @@
   display: block;
   margin-bottom: 8px;
   font-weight: 600;
-  color: #333;
+  color: var(--home-text);
   font-size: 14px;
 }
 
@@ -605,7 +627,7 @@
 .profile-input:focus {
   outline: none;
   border-color: #667eea;
-  background: white;
+  background: var(--home-card-bg);
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -643,8 +665,8 @@
 
 .cancel-profile-button {
   padding: 12px 30px;
-  background: #f0f0f0;
-  color: #333;
+  background: var(--home-bg);
+  color: var(--home-text);
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -762,7 +784,7 @@
 }
 
 .profile-popup {
-  background: white;
+  background: var(--home-card-bg);
   border-radius: 20px;
   width: 90%;
   max-width: 400px;
@@ -795,14 +817,14 @@
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
 }
 
 .close-button {
   background: none;
   border: none;
   font-size: 2rem;
-  color: #666;
+  color: var(--home-text-muted);
   cursor: pointer;
   padding: 0;
   width: 40px;
@@ -840,19 +862,19 @@
 .info-field label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #666;
+  color: var(--home-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .info-field span {
   font-size: 1rem;
-  color: #333;
+  color: var(--home-text);
   font-weight: 500;
 }
 
 .bio-text {
-  background: #f8f9fa;
+  background: var(--home-bg);
   padding: 12px;
   border-radius: 8px;
   line-height: 1.5;
@@ -878,16 +900,16 @@
 
 .stat-label {
   font-size: 0.8rem;
-  color: #666;
+  color: var(--home-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .action-message {
   padding: 15px 30px;
-  background: #f0f8ff;
-  color: #333;
-  border-bottom: 1px solid #e0f0ff;
+  background: var(--home-bg);
+  color: var(--home-text);
+  border-bottom: 1px solid var(--home-border);
   font-weight: 500;
   text-align: center;
 }
@@ -931,7 +953,7 @@
   margin: 0 0 5px 0;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -995,7 +1017,7 @@
   margin: 0 0 25px 0;
   font-size: 1.8rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
   text-align: center;
 }
 
@@ -1029,18 +1051,19 @@
 
 .search-input {
   padding: 12px 20px;
-  border: 2px solid #f0f0f0;
+  border: 2px solid var(--home-border);
   border-radius: 12px;
   font-size: 1rem;
   width: 300px;
   transition: all 0.3s ease;
-  background: #fafafa;
+  background: var(--home-card-bg);
+  color: var(--home-text);
 }
 
 .search-input:focus {
   outline: none;
   border-color: #667eea;
-  background: white;
+  background: var(--home-card-bg);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
 }
 
@@ -1074,14 +1097,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--home-border);
   border-radius: 15px;
   transition: all 0.3s ease;
-  background: #fafafa;
+  background: var(--home-card-bg);
 }
 
 .search-result-item:hover {
-  background: #f9f9f9;
+  background: var(--home-hover-bg);
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
@@ -1101,7 +1124,7 @@
   margin: 0 0 5px 0;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #333;
+  color: var(--home-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1120,7 +1143,7 @@
 .search-result-bio {
   margin: 0;
   font-size: 0.85rem;
-  color: #666;
+  color: var(--home-text-muted);
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1230,7 +1253,6 @@
     max-width: 100%;
     order:1;
     padding-bottom: 80px;
-    background: white;
   }
 
   .pane-nav {
@@ -1334,9 +1356,15 @@
 
 .SearchHeading{
   text-align: center;
-  color: #764ba2;
-  border-bottom:1px solid #000000;
+  font-size: 1.8rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  border-bottom:1px solid var(--home-border);
   padding: 0;
+  margin: 15px 0;
 }
 
 .remove-friend-button{
@@ -1355,7 +1383,7 @@
   font-family: 'Pinyon Script', cursive;
   display: flex;
   align-items: center;
-  border-bottom:1px solid #000000;
+  border-bottom:1px solid var(--home-border);
   justify-content: space-between;
 }
 

@@ -1,4 +1,17 @@
 /* Call Screen Styles */
+
+:root {
+  --call-bg: rgba(255, 255, 255, 0.95);
+  --call-text: #333;
+  --call-border: #ffffff;
+}
+
+[data-theme="dark"] {
+  --call-bg: rgba(45, 45, 45, 0.95);
+  --call-text: #e0e0e0;
+  --call-border: #404040;
+}
+
 .call-screen-overlay {
   z-index: 2000;
   display: flex;
@@ -12,7 +25,7 @@
 
 .call-screen {
   display: flex;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--call-bg);
   border-radius: 24px;
   text-align: center;
   width: 100%;
@@ -43,7 +56,7 @@
 .call-friend-name {
   font-size: 24px;
   font-weight: 600;
-  color: #333;
+  color: var(--call-text);
   margin: 0px 10px 0px 0px;
 }
 
@@ -119,8 +132,8 @@
 }
 
 .call-control-speaker-inactive {
-  background-color: white;
-  color: #333;
+  background-color: var(--call-bg);
+  color: var(--call-text);
   border: 1px solid #ddd;
 }
 
@@ -145,7 +158,7 @@
 }
 
 .incoming-call-modal {
-  background: white;
+  background: var(--call-bg);
   border-radius: 24px;
   padding: 40px;
   text-align: center;
@@ -162,7 +175,7 @@
 .incoming-call-header h3 {
   margin: 12px 0 4px;
   font-size: 22px;
-  color: #333;
+  color: var(--call-text);
   font-weight: 600;
 }
 
@@ -297,7 +310,7 @@
   display: block;
   font-size: 15px;
   font-weight: 600;
-  color: #333;
+  color: var(--call-text);
   text-transform: uppercase;
   letter-spacing: 0.8px;
   margin-top: 8px;

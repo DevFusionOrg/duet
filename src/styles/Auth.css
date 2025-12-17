@@ -1,5 +1,21 @@
 /* Auth.css - New Design */
 
+:root {
+  --auth-bg: #ffffff;
+  --auth-card-bg: #ffffff;
+  --auth-text: #333;
+  --auth-text-secondary: #666;
+  --auth-border: #e0e0e0;
+}
+
+[data-theme="dark"] {
+  --auth-bg: #1a1a1a;
+  --auth-card-bg: #2d2d2d;
+  --auth-text: #e0e0e0;
+  --auth-text-secondary: #a0a0a0;
+  --auth-border: #404040;
+}
+
 .auth-container {
   display: flex;
   flex-direction: column;
@@ -7,7 +23,7 @@
   height: 100vh;
   max-height: 100vh;
   overflow: hidden;
-  background: white;
+  background: var(--auth-bg);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
@@ -21,7 +37,7 @@
 
 .auth-app-name {
   font-weight: 700;
-  color: #333;
+  color: var(--auth-text);
   letter-spacing: 1px;
 }
 
@@ -45,7 +61,7 @@
 
 /* Auth Card */
 .auth-card {
-  background-color: #ffffff;
+  background-color: var(--auth-card-bg);
   padding: 30px;
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
@@ -94,7 +110,7 @@
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--auth-text);
 }
 
 .auth-required {
@@ -200,8 +216,8 @@
 .auth-google-button {
   width: 100%;
   padding: 14px;
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--auth-card-bg);
+  border: 1px solid var(--auth-border);
   border-radius: 8px;
   font-size: 15px;
   font-weight: 600;
@@ -212,7 +228,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #333;
+  color: var(--auth-text);
   margin-bottom: 20px;
 }
 
