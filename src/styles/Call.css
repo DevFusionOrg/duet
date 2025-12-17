@@ -55,7 +55,7 @@
 
 .call-timer {
   color: #888;
-  font-family: Segoe UI, Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
   letter-spacing: 1px;
   align-items: center;
 }
