@@ -44,7 +44,6 @@ export const secureOriginCheck = {
    */
   getBrowserInstructions() {
     const userAgent = navigator.userAgent.toLowerCase();
-    const ipAddress = window.location.hostname;
     const origin = window.location.origin;
 
     if (userAgent.includes('chrome') || userAgent.includes('edg')) {

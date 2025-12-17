@@ -1,5 +1,4 @@
 import React from "react";
-import { openChatImageUploadWidget } from "../../services/cloudinary";
 
 function ChatInput({
   user,
