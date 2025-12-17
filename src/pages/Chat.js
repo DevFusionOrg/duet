@@ -48,7 +48,8 @@ function Chat({ user, friend, onBack }) {
     handleAcceptCall,
     handleDeclineCall,
     handleEndCall,
-    cleanupIncomingCall,
+    // eslint-disable-next-line no-unused-vars
+    cleanupIncomingCall: _cleanupIncomingCall,
     handleToggleMute,
     handleToggleSpeaker,
   } = useCall(user, friend, chatId);

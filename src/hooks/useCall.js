@@ -129,6 +129,7 @@ export function useCall(user, friend, chatId) {
             activeCallListenerRef.current = null;
         }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.uid, friend?.uid, incomingCall, isInCall, stopRingtone]);
 
     useEffect(() => {
@@ -189,6 +190,7 @@ export function useCall(user, friend, chatId) {
         }
         WebRTCService.endCall();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -230,6 +232,7 @@ export function useCall(user, friend, chatId) {
             callEndListenerRef.current = null;
             }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [callIdRef.current, friend]);
 
     useEffect(() => {

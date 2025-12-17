@@ -12,7 +12,8 @@ import { initPushNotifications } from "./push-init";
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState(null);
+  // eslint-disable-next-line no-unused-vars
+  const [authError, _setAuthError] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem('theme');
     return savedTheme === 'dark';

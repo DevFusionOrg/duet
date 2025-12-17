@@ -18,7 +18,7 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { friends, loading: friendsLoading } = useFriends(user);
-  const { chats, loading: chatsLoading } = useChats(user, friends);
+  const { chats } = useChats(user, friends);
   const { profile: userProfile,getProfilePictureUrl} = useProfiles(user);
   const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
   const { unreadFriendsCount } = useUnreadCount(user);

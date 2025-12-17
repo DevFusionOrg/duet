@@ -29,6 +29,7 @@ export function useChats(user, friends = []) {
     });
 
     return unsubscribe;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, friendIds.join(",")]);
 
   return { chats, loading };
