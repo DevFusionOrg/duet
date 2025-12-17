@@ -36,6 +36,7 @@ function Auth() {
 
     try {
       if (isNative) {
+        console.log("[Auth] Attempting native Google sign-in...");
         const result = await FirebaseAuthentication.signInWithGoogle();
 
         if (!result || !result.credential || !result.credential.idToken) {
@@ -51,15 +52,31 @@ function Auth() {
           userCredential.user.email || ""
         );
         await createUserProfile(userCredential.user, derivedUsername);
+        console.log("[Auth] Native Google sign-in successful");
       } else {
+        console.log("[Auth] Attempting web Google sign-in popup...");
         const result = await signInWithPopup(auth, googleProvider);
 
         const derivedUsername = deriveUsernameFromEmail(result.user.email || "");
         await createUserProfile(result.user, derivedUsername);
+        console.log("[Auth] Web Google sign-in successful");
       }
     } catch (err) {
-      console.error("Error signing in with Google:", err);
-      setError("Error signing in with Google: " + (err.message || err));
+      console.error("[Auth] Error signing in with Google:", err);
+      
+      // Provide more user-friendly error messages
+      let errorMessage = "Error signing in with Google: ";
+      if (err.code === 'auth/popup-blocked') {
+        errorMessage += "Pop-up was blocked by your browser. Please allow pop-ups for this site.";
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        errorMessage += "Sign-in was cancelled.";
+      } else if (err.code === 'auth/network-request-failed') {
+        errorMessage += "Network error. Please check your internet connection.";
+      } else {
+        errorMessage += (err.message || err);
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
