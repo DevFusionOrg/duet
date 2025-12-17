@@ -293,6 +293,10 @@ class WebRTCService {
         this.connectionState = state;
 
         switch (state) {
+          case 'new':
+          case 'connecting':
+            console.log('🔄 WebRTC connection establishing...');
+            break;
           case 'connected':
             console.log('✅ WebRTC connection established');
             this.reconnectAttempts = 0;
@@ -308,7 +312,7 @@ class WebRTCService {
             this.attemptReconnection();
             break;
           case 'failed':
-            console.error('WebRTC connection failed');
+            console.error('❌ WebRTC connection failed');
             this.reconnectAttempts = 0;
             if (this.onErrorCallback) {
               this.onErrorCallback(new Error('Connection failed'));
@@ -321,7 +325,7 @@ class WebRTCService {
             }
             break;
           default:
-            console.log('Unknown connection state:', state);
+            console.log('Connection state:', state);
             break;
         }
       };
@@ -331,11 +335,15 @@ class WebRTCService {
         const state = this.peer.iceConnectionState;
         console.log('ICE connection state:', state);
 
-        if (state === 'failed') {
-          console.error('ICE connection failed, restarting...');
+        if (state === 'connected') {
+          console.log('✅ ICE connection established');
+        } else if (state === 'completed') {
+          console.log('✅ ICE gathering and connection complete');
+        } else if (state === 'failed') {
+          console.error('❌ ICE connection failed, restarting...');
           this.restartIce();
         } else if (state === 'disconnected') {
-          console.log('ICE disconnected, attempting recovery...');
+          console.log('⚠️ ICE disconnected, attempting recovery...');
           setTimeout(() => {
             if (this.peer && this.peer.iceConnectionState === 'disconnected') {
               this.restartIce();
@@ -556,9 +564,17 @@ class WebRTCService {
         }
 
       } else if (signal.type === 'end-call') {
-        console.log('Received end call signal');
+        console.log('Received end call signal from other user');
         // Do not send another end-call back
         await this.endCall(false);
+        // Trigger close callback to notify UI on receiving side
+        if (this.onCloseCallback) {
+          setTimeout(() => {
+            if (this.onCloseCallback) {
+              this.onCloseCallback();
+            }
+          }, 100);
+        }
       }
     } catch (error) {
       console.error('Error handling signal:', error);

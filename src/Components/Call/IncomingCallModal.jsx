@@ -16,9 +16,26 @@ const IncomingCallModal = ({
 
   // Play ringing sound with better handling
   useEffect(() => {
-    if (!incomingCall) return; // Don't play if no incoming call
+    if (!incomingCall) {
+      // Stop audio when modal closes
+      if (audioRef.current) {
+        try {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        } catch (e) {
+          console.error('Error stopping audio:', e);
+        }
+      }
+      return;
+    }
     
     try {
+      // Stop any existing audio first
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      
       audioRef.current = new Audio('/ringtone.mp3');
       audioRef.current.loop = true;
       audioRef.current.volume = 0.7;
@@ -37,9 +54,12 @@ const IncomingCallModal = ({
     
     return () => {
       if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-        audioRef.current = null;
+        try {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        } catch (e) {
+          console.error('Error in cleanup:', e);
+        }
       }
     };
   }, [incomingCall]);

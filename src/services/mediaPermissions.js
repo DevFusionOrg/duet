@@ -1,4 +1,6 @@
 // mediaPermissions.js - UPDATED WITHOUT PERMISSION MODAL POPUP
+import { secureOriginCheck } from '../utils/secureOriginCheck';
+
 export const mediaPermissions = {
   /**
    * Simple permission check for video calls
@@ -6,6 +8,16 @@ export const mediaPermissions = {
    * Returns { success: false, error: errorName } if denied
    */
   async checkAndRequest(required = { video: true, audio: true }) {
+    // Check if on insecure origin (IP address)
+    if (!secureOriginCheck.isSecureOrigin()) {
+      return {
+        success: false,
+        error: 'SecurityError',
+        message: `Camera/microphone access blocked on IP addresses. Access via localhost or enable in browser settings.`,
+        isIPAddressIssue: true
+      };
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: required.audio ? {
@@ -32,7 +44,8 @@ export const mediaPermissions = {
       return {
         success: false,
         error: error.name,
-        message: this.getSimpleErrorMessage(error)
+        message: this.getSimpleErrorMessage(error),
+        isIPAddressIssue: error.name === 'NotAllowedError' && !secureOriginCheck.isSecureOrigin()
       };
     }
   },
@@ -41,6 +54,11 @@ export const mediaPermissions = {
    * Simple error message (no popup)
    */
   getSimpleErrorMessage(error) {
+    // Check if it's an IP address security issue
+    if (!secureOriginCheck.isSecureOrigin() && error.name === 'NotAllowedError') {
+      return `Permissions blocked on IP address (${window.location.hostname}). Access via localhost or check browser settings.`;
+    }
+
     switch(error.name) {
       case 'NotAllowedError':
         return 'Camera/microphone access denied. Please allow in browser settings.';
@@ -51,7 +69,7 @@ export const mediaPermissions = {
       case 'OverconstrainedError':
         return 'Camera resolution not supported.';
       case 'SecurityError':
-        return 'Camera access requires a secure connection (HTTPS).';
+        return 'Camera access blocked. Use localhost or enable in browser settings for IP addresses.';
       default:
         return 'Cannot access camera/microphone.';
     }

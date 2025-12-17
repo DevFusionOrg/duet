@@ -1,0 +1,375 @@
+.security-warning-banner {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  color: white;
+  padding: 12px 16px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.security-warning-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.security-warning-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.security-warning-text {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.security-warning-text strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.security-warning-text p {
+  margin: 4px 0;
+  opacity: 0.95;
+}
+
+.security-warning-solution {
+  margin-top: 8px !important;
+  font-size: 13px;
+}
+
+.security-warning-link {
+  color: white;
+  text-decoration: underline;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.security-warning-link:hover {
+  opacity: 0.8;
+}
+
+.security-warning-instructions-btn {
+  background: none;
+  border: none;
+  color: white;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.security-warning-instructions-btn:hover {
+  opacity: 0.8;
+}
+
+.security-warning-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.2s;
+}
+
+.security-warning-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Instructions Modal */
+.security-instructions-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.security-instructions-content {
+  background: white;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.security-instructions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.security-instructions-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #333;
+}
+
+.security-instructions-close {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #666;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.security-instructions-close:hover {
+  background: #f0f0f0;
+}
+
+.security-instructions-body {
+  padding: 24px;
+}
+
+.security-instructions-section {
+  margin-bottom: 24px;
+}
+
+.security-instructions-section h4 {
+  margin: 0 0 16px 0;
+  color: #ff6b6b;
+  font-size: 18px;
+}
+
+.security-instructions-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.security-instruction-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 3px solid #ff6b6b;
+}
+
+.step-number {
+  background: #ff6b6b;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.step-text {
+  flex: 1;
+  color: #333;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.security-instructions-quick {
+  margin: 20px 0;
+  padding: 16px;
+  background: #e3f2fd;
+  border-radius: 8px;
+  border-left: 4px solid #2196f3;
+}
+
+.security-instructions-quick strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #1976d2;
+}
+
+.security-instructions-url {
+  width: calc(100% - 80px);
+  padding: 8px 12px;
+  border: 1px solid #90caf9;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
+  margin-right: 8px;
+}
+
+.security-instructions-copy {
+  padding: 8px 16px;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.security-instructions-copy:hover {
+  background: #1976d2;
+}
+
+.security-instructions-alternative {
+  margin: 20px 0;
+  padding: 16px;
+  background: #fff3e0;
+  border-radius: 8px;
+  border-left: 4px solid #ff9800;
+}
+
+.security-instructions-alternative h4 {
+  margin: 0 0 12px 0;
+  color: #f57c00;
+  font-size: 16px;
+}
+
+.security-instructions-alternative p {
+  margin: 4px 0;
+  color: #555;
+  font-size: 14px;
+}
+
+.security-instructions-recommended {
+  margin-top: 20px;
+  padding: 16px;
+  background: #e8f5e9;
+  border-radius: 8px;
+  border-left: 4px solid #4caf50;
+  color: #2e7d32;
+  font-size: 14px;
+}
+
+.security-instructions-link {
+  color: #2e7d32;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.security-instructions-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.security-instructions-done {
+  padding: 10px 24px;
+  background: #ff6b6b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.security-instructions-done:hover {
+  background: #ee5a6f;
+}
+
+/* Mobile Responsive */
+@media (max-width: 600px) {
+  .security-warning-banner {
+    padding: 10px 12px;
+  }
+
+  .security-warning-text {
+    font-size: 13px;
+  }
+
+  .security-warning-text strong {
+    font-size: 14px;
+  }
+
+  .security-instructions-content {
+    margin: 10px;
+    max-height: 95vh;
+  }
+
+  .security-instructions-header {
+    padding: 16px;
+  }
+
+  .security-instructions-body {
+    padding: 16px;
+  }
+
+  .security-instruction-step {
+    padding: 10px;
+  }
+
+  .step-text {
+    font-size: 13px;
+  }
+
+  .security-instructions-url {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .security-instructions-copy {
+    width: 100%;
+  }
+}

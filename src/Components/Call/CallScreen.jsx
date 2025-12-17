@@ -85,9 +85,11 @@ const CallScreen = ({
         localStream={localStream}
         remoteStream={remoteStream}
         isVideoEnabled={isVideoEnabled}
-        isAudioEnabled={isAudioEnabled}
+          isAudioEnabled={isAudioEnabled}
+          isMuted={!isAudioEnabled}
         isSpeaker={isSpeaker}
         isFrontCamera={isFrontCamera}
+        isInitiator={isInitiator}
         connectionQuality={connectionQuality}
       />
     );
@@ -100,7 +102,7 @@ const CallScreen = ({
         <div className="call-info">
           <h2 className="call-friend-name">{friend.displayName}</h2>
           
-          {callState === 'active' && <CallTimer duration={callDuration} />}
+          {callState === 'active' && isInitiator && <CallTimer duration={callDuration} />}
           
           {callState === 'active' && (
             <div className="call-quality-indicator">
