@@ -14,7 +14,7 @@ import { useProfiles } from "../hooks/useProfiles";
 import { useFriendsOnlineStatus } from "../hooks/useFriendsOnlineStatus";
 import { useUnreadCount } from "../hooks/useUnreadCount";
 
-function Home({ user }) {
+function Home({ user, isDarkMode, toggleTheme }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { friends, loading: friendsLoading } = useFriends(user);
@@ -215,7 +215,7 @@ function Home({ user }) {
           ) : activeView === 'notifications' ? (
             <NotificationsView user={user} onFriendRequestUpdate={handleFriendRequestUpdate} />
           ) : activeView === 'profile' ? (
-            <ProfileView user={user} />
+            <ProfileView user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
           ) : null}
         </div>
       </div>
