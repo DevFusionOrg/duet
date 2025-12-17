@@ -37,21 +37,6 @@ function ProfileDisplay({
         </div>
       )}
 
-      <div className="profile-stats">
-        <div className="profile-stat">
-          <div className="profile-stat-number">
-            {profile.friends ? profile.friends.length : 0}
-          </div>
-          <div className="profile-stat-label">Friends</div>
-        </div>
-        <div className="profile-stat">
-          <div className="profile-stat-number">
-            {profile.friendRequests ? profile.friendRequests.length : 0}
-          </div>
-          <div className="profile-stat-label">Requests</div>
-        </div>
-      </div>
-
       {isOwnProfile && (
         <div className="profile-actions-row">
           <button
@@ -60,13 +45,14 @@ function ProfileDisplay({
           >
             {editing ? "Cancel Edit" : "Edit Profile"}
           </button>
-
-          <button
-            onClick={onTogglePasswordChange}
-            className="profile-action-button profile-password-button"
-          >
-            Change Password
-          </button>
+          {onTogglePasswordChange && (
+            <button
+              onClick={onTogglePasswordChange}
+              className="profile-action-button profile-password-button"
+            >
+              Change Password
+            </button>
+          )}
         </div>
       )}
     </div>

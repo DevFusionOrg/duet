@@ -117,49 +117,83 @@ function Auth() {
 
   return (
     <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <h1 className="auth-title">Duet</h1>
-          <p className="auth-subtitle">
-            Chat with friends and listen to music together
-          </p>
-        </div>
+      <div className="auth-top-header">
+        <div className="auth-app-name">Duet (IND)</div>
+      </div>
 
+      <div className="auth-logo-section">
+        <img src="/logo192.png" alt="Duet Logo" className="auth-logo" />
+      </div>
+
+      <div className="auth-card">
         {error && <div className="auth-error">{error}</div>}
 
-        <div className="auth-toggle-container">
-          <button
-            type="button"
-            className={`auth-toggle-button ${isLogin ? "auth-toggle-active" : ""}`}
-            onClick={() => {
-              resetForm();
-              setIsLogin(true);
-            }}
-            disabled={loading}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            className={`auth-toggle-button ${!isLogin ? "auth-toggle-active" : ""}`}
-            onClick={() => {
-              resetForm();
-              setIsLogin(false);
-            }}
-            disabled={loading}
-          >
-            Sign Up
-          </button>
-        </div>
-
-        <form onSubmit={handleEmailAuth} className="auth-form">
-          {!isLogin && (
-            <>
+        {isLogin ? (
+          <>
+            <form onSubmit={handleEmailAuth} className="auth-form">
               <div className="auth-input-group">
-                <label className="auth-label">
-                  Full Name
-                  <span className="auth-required">*</span>
-                </label>
+                <label className="auth-label">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className="auth-input"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="auth-input-group">
+                <label className="auth-label">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="auth-input"
+                  required
+                  minLength={6}
+                  disabled={loading}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="auth-email-button"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="auth-loading-spinner"></span>
+                ) : (
+                  "Sign In"
+                )}
+              </button>
+            </form>
+
+            <div className="auth-divider">
+              <span className="auth-divider-text">or</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              className="auth-google-button"
+              disabled={loading}
+            >
+              <img
+                src="https://developers.google.com/identity/images/g-logo.png"
+                alt="Google"
+                className="auth-google-icon"
+              />
+              {loading ? "Loading..." : "Sign in with Google"}
+            </button>
+          </>
+        ) : (
+          <>
+            <form onSubmit={handleEmailAuth} className="auth-form">
+              <div className="auth-input-group">
+                <label className="auth-label">Full Name</label>
                 <input
                   type="text"
                   value={name}
@@ -170,87 +204,83 @@ function Auth() {
                   disabled={loading}
                 />
               </div>
-            </>
-          )}
 
-          <div className="auth-input-group">
-            <label className="auth-label">
-              Email
-              <span className="auth-required">*</span>
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              className="auth-input"
-              required
-              disabled={loading}
-            />
-          </div>
+              <div className="auth-input-group">
+                <label className="auth-label">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className="auth-input"
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-          <div className="auth-input-group">
-            <label className="auth-label">
-              Password
-              <span className="auth-required">*</span>
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              className="auth-input"
-              required
-              minLength={6}
-              disabled={loading}
-            />
-          </div>
+              <div className="auth-input-group">
+                <label className="auth-label">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="auth-input"
+                  required
+                  minLength={6}
+                  disabled={loading}
+                />
+              </div>
 
-          <button
-            type="submit"
-            className="auth-email-button"
-            disabled={loading}
-          >
-            {loading ? (
-              <span className="auth-loading-spinner"></span>
-            ) : isLogin ? (
-              "Sign In"
-            ) : (
-              "Create Account"
-            )}
-          </button>
-        </form>
+              <button
+                type="submit"
+                className="auth-email-button"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="auth-loading-spinner"></span>
+                ) : (
+                  "Create Account"
+                )}
+              </button>
+            </form>
 
-        <div className="auth-divider">
-          <span className="auth-divider-text">or continue with</span>
-        </div>
+            <div className="auth-divider">
+              <span className="auth-divider-text">or</span>
+            </div>
 
-        <button
-          type="button"
-          onClick={signInWithGoogle}
-          className="auth-google-button"
-          disabled={loading}
-        >
-          <img
-            src="https://developers.google.com/identity/images/g-logo.png"
-            alt="Google"
-            className="auth-google-icon"
-          />
-          {loading ? "Loading..." : "Sign in with Google"}
-        </button>
-
-        <div className="auth-switch-container">
-          <p className="auth-switch-text">
-            {isLogin ? "Don't have an account? " : "Already have an account? "}
             <button
               type="button"
-              onClick={toggleAuthMode}
-              className="auth-switch-button"
+              onClick={signInWithGoogle}
+              className="auth-google-button"
               disabled={loading}
             >
-              {isLogin ? "Sign up" : "Sign in"}
+              <img
+                src="https://developers.google.com/identity/images/g-logo.png"
+                alt="Google"
+                className="auth-google-icon"
+              />
+              {loading ? "Loading..." : "Sign up with Google"}
             </button>
-          </p>
+          </>
+        )}
+
+        <div className="auth-switch-container">
+          <button
+            type="button"
+            onClick={toggleAuthMode}
+            className="auth-create-account-button"
+            disabled={loading}
+          >
+            {isLogin ? "Create new account" : "Back to Sign In"}
+          </button>
+        </div>
+      </div>
+
+      <div className="auth-footer">
+        <div className="devfusion-logo">
+          <img src="/DevFusion.png" alt="DevFusion" className="devfusion-logo-img" />
+          <span className="devfusion-text">Devfusion</span>
         </div>
       </div>
     </div>

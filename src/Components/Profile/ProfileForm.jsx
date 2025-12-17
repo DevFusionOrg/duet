@@ -1,10 +1,12 @@
 import React from "react";
+import PropTypes from "prop-types";
 
 function ProfileForm({ 
   formData, 
   loading, 
   onFormChange, 
-  onSubmit 
+  onSubmit,
+  onCancel
 }) {
   return (
     <form onSubmit={onSubmit} className="profile-form">
@@ -48,8 +50,27 @@ function ProfileForm({
       >
         {loading ? "Saving..." : "Save Changes"}
       </button>
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="profile-password-cancel"
+          disabled={loading}
+          style={{ marginLeft: 10 }}
+        >
+          Cancel
+        </button>
+      )}
     </form>
   );
 }
+
+ProfileForm.propTypes = {
+  formData: PropTypes.object.isRequired,
+  loading: PropTypes.bool,
+  onFormChange: PropTypes.func.isRequired,
+  onSubmit: PropTypes.func.isRequired,
+  onCancel: PropTypes.func,
+};
 
 export default ProfileForm;

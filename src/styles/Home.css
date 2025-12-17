@@ -1049,7 +1049,12 @@
 
 .search-button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
-.search-results { display: flex; flex-direction: column; gap: 15px; }
+.search-results { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 15px;
+  padding-bottom: 100px;
+}
 
 .search-result-item {
   display: flex;
