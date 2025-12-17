@@ -29,6 +29,7 @@ import {
   replyToMessage,
 } from "../firebase/firestore";
 import { openUploadWidget, getOptimizedImageUrl } from "../services/cloudinary";
+import { notificationService } from "../services/notifications";
 import "../styles/Chat.css";
 
 function Chat({ user, friend, onBack }) {
@@ -165,12 +166,19 @@ function Chat({ user, friend, onBack }) {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && chatId && user?.uid) {
         markMessagesAsRead(chatId, user.uid);
+        notificationService.clearChatNotifications(chatId);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
+  }, [chatId, user?.uid]);
+
+  useEffect(() => {
+    if (!chatId || !user?.uid) return;
+    markMessagesAsRead(chatId, user.uid);
+    notificationService.clearChatNotifications(chatId);
   }, [chatId, user?.uid]);
 
   useEffect(() => {
