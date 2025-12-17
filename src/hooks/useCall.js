@@ -242,13 +242,39 @@ export function useCall(user, friend, chatId) {
 
     const checkMicrophonePermissions = async () => {
         try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-        return true;
+            // First, check if permissions API is available
+            if (navigator.permissions && navigator.permissions.query) {
+                try {
+                    const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+                    console.log('Microphone permission status:', permissionStatus.state);
+                    
+                    if (permissionStatus.state === 'denied') {
+                        alert('Microphone access is permanently denied. Please enable it in browser settings:\n\n1. Click the lock icon in the address bar\n2. Find "Microphone" and change to "Allow"\n3. Reload the page');
+                        return false;
+                    }
+                } catch (e) {
+                    console.log('Permission query not available, will try getUserMedia directly');
+                }
+            }
+            
+            // Try to get the media stream (this will show permission prompt if not yet asked)
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop());
+            console.log('✅ Microphone permission granted');
+            return true;
         } catch (error) {
-        console.error('Microphone permission denied:', error);
-        alert('Please allow microphone access to make calls');
-        return false;
+            console.error('Microphone permission error:', error.name, error.message);
+            
+            if (error.name === 'NotAllowedError') {
+                alert('Microphone access denied. To fix this:\n\n1. Click the lock icon in the address bar\n2. Find "Microphone" and change to "Allow"\n3. Reload the page');
+            } else if (error.name === 'NotFoundError') {
+                alert('No microphone found on your device.');
+            } else if (error.name === 'SecurityError') {
+                alert('Microphone access requires HTTPS or localhost.');
+            } else {
+                alert('Cannot access microphone: ' + error.message);
+            }
+            return false;
         }
     };
 

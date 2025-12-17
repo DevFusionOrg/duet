@@ -97,10 +97,10 @@ class WebRTCService {
           channelCount: 1
         },
         video: isVideoCall ? {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
           facingMode: 'user',
-          frameRate: { ideal: 30 },
+          frameRate: { ideal: 30, max: 60 },
           ...videoConstraints
         } : false
       };
@@ -384,7 +384,7 @@ class WebRTCService {
       console.log('Creating offer...', iceRestart ? '(ICE restart)' : '');
       const offer = await this.peer.createOffer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: this.isVideoCall, // Enable video for video calls
+        offerToReceiveVideo: this.isVideoCall ? true : false,
         iceRestart
       });
 
@@ -439,7 +439,7 @@ class WebRTCService {
 
       const answer = await this.peer.createAnswer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: this.isVideoCall // Enable video for video calls
+        offerToReceiveVideo: this.isVideoCall ? true : false
       });
 
       this.lastAnswer = answer;
@@ -808,22 +808,29 @@ class WebRTCService {
   }
 
   // Switch camera between front and back
-  async switchCamera(facingMode = 'user') {
+  async switchCamera(newFacingMode = 'user') {
     if (!this.localStream || !this.isVideoCall) return null;
     
     const videoTrack = this.localStream.getVideoTracks()[0];
     if (!videoTrack) return null;
     
     try {
+      // Determine which facing mode to use
+      const facingMode = this.currentFacingMode === 'user' ? 'environment' : 'user';
+      
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          ...videoTrack.getConstraints(),
-          facingMode
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 60 },
+          facingMode: facingMode
         },
         audio: false
       });
       
       const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!this.peer) return null;
+      
       const sender = this.peer.getSenders().find(s => s.track && s.track.kind === 'video');
       
       if (sender) {
@@ -835,6 +842,7 @@ class WebRTCService {
       this.localStream.addTrack(newVideoTrack);
       
       this.currentFacingMode = facingMode;
+      console.log('Camera switched to:', facingMode);
       return facingMode;
     } catch (error) {
       console.error('Error switching camera:', error);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { notificationService } from "../services/notifications";
-import { requestNotificationPermission, onMessageListener } from "../firebase/firebase";
+import { requestNotificationPermission, onMessageListener, messaging } from "../firebase/firebase";
 import { saveUserNotificationToken } from "../firebase/firestore";
 
 export function useNotifications(user, chatId) {
@@ -8,6 +8,12 @@ export function useNotifications(user, chatId) {
 
   useEffect(() => {
     const initializeNotifications = async () => {
+      // Skip if Firebase Messaging is not supported in this environment
+      if (!messaging) {
+        console.log("Firebase Messaging is not supported in this environment.");
+        return;
+      }
+
       if (Notification.permission === 'granted') {
         setHasNotificationPermission(true);
         const token = await requestNotificationPermission();
@@ -33,21 +39,30 @@ export function useNotifications(user, chatId) {
 
   useEffect(() => {
     const setupForegroundMessages = async () => {
-      const payload = await onMessageListener();
-      if (payload) {
-        const { title, body, data } = payload.notification || payload;
-        
-        const isFromCurrentChat = data?.chatId === chatId;
-        const isAppInFocus = document.visibilityState === 'visible';
-        
-        if (!isFromCurrentChat && !isAppInFocus) {
-          notificationService.showNotification(title || 'New Message', {
-            body,
-            data,
-            icon: data?.senderPhoto || '/default-avatar.png',
-            tag: `fcm-${Date.now()}`
-          });
+      // Skip if Firebase Messaging is not supported
+      if (!messaging) {
+        return;
+      }
+
+      try {
+        const payload = await onMessageListener();
+        if (payload) {
+          const { title, body, data } = payload.notification || payload;
+          
+          const isFromCurrentChat = data?.chatId === chatId;
+          const isAppInFocus = document.visibilityState === 'visible';
+          
+          if (!isFromCurrentChat && !isAppInFocus) {
+            notificationService.showNotification(title || 'New Message', {
+              body,
+              data,
+              icon: data?.senderPhoto || '/default-avatar.png',
+              tag: `fcm-${Date.now()}`
+            });
+          }
         }
+      } catch (error) {
+        console.error("Error setting up foreground messages:", error);
       }
     };
     
