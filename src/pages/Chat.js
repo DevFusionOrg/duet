@@ -62,6 +62,8 @@ function Chat({ user, friend, onBack }) {
     isAudioEnabled,
     isFrontCamera,
     connectionQuality,
+    callState: videoCallState,
+    callDuration: videoCallDuration,
     
     // Video call actions
     startVideoCall,
@@ -643,16 +645,16 @@ function Chat({ user, friend, onBack }) {
         />
       )}
       
-      {/* Video Call Screen */}
-      {isVideoCallActive && friend && (
+      {/* Video Call Screen - Show during all video call states */}
+      {(isVideoCallActive || (videoCallState !== 'idle' && videoCallState !== 'ended')) && friend && (
         <VideoCallScreen
           friend={friend}
-          callState={isVideoCallActive ? 'active' : 'connecting'}
+          callState={videoCallState}
           onEndCall={handleEndCallWrapper}
           onToggleMute={handleToggleAudio}
           onToggleVideo={handleToggleVideo}
           onSwitchCamera={switchCamera}
-          callDuration={callDuration}
+          callDuration={videoCallDuration}
           localStream={localStream}
           remoteStream={remoteStream}
           isVideoEnabled={isVideoEnabled}
