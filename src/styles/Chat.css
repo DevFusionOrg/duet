@@ -144,6 +144,23 @@
   color: #666 !important;
 }
 
+.chat-video-call-message {
+  background: rgba(0, 112, 246, 0.1) !important;
+  border: 1px solid rgba(0, 112, 246, 0.2) !important;
+  color: #0070F6 !important;
+}
+
+.chat-sent-message.chat-video-call-message {
+  background: rgba(48, 138, 248, 0.15) !important;
+  border-color: rgba(0, 112, 246, 0.3) !important;
+}
+
+.chat-received-message.chat-video-call-message {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #666 !important;
+}
+
 .call-message-content {
   display: flex;
   flex-direction: column;
@@ -168,6 +185,11 @@
 
 /* Hide reply button for call messages */
 .chat-call-message ~ .reply-button {
+  display: none !important;
+}
+
+/* Hide reply button for video call messages */
+.chat-video-call-message ~ .reply-button {
   display: none !important;
 }
 

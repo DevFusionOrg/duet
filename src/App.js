@@ -5,6 +5,7 @@ import Auth from "./pages/Auth";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
+import SecurityWarning from "./Components/SecurityWarning";
 import "./App.css";
 import { initPushNotifications } from "./push-init";
 
@@ -128,17 +129,25 @@ function App() {
   }
 
   if (!user) {
-    return <Auth />;
+    return (
+      <>
+        <SecurityWarning />
+        <Auth />
+      </>
+    );
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Home user={user} />} />
-        <Route path="/profile" element={<Profile user={user} />} />
-        <Route path="/profile/:uid" element={<Profile user={user} />} />
-      </Routes>
-    </Router>
+    <>
+      <SecurityWarning />
+      <Router>
+        <Routes>
+          <Route path="/" element={<Home user={user} />} />
+          <Route path="/profile" element={<Profile user={user} />} />
+          <Route path="/profile/:uid" element={<Profile user={user} />} />
+        </Routes>
+      </Router>
+    </>
   );
 }
 

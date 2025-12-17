@@ -26,6 +26,8 @@ export function useVideoCall(user, friend, chatId) {
   const callAcceptListenerRef = useRef(null);
   const ringtoneRef = useRef(null);
   const hasSetupCallbacksRef = useRef(false);
+  const endVideoCallRef = useRef(null);
+  const callInitiatorRef = useRef(null);
 
   // Simple permission check - NO MODAL
   const checkPermissions = async () => {
@@ -102,6 +104,7 @@ export function useVideoCall(user, friend, chatId) {
       );
 
       callIdRef.current = callData.callId;
+      callInitiatorRef.current = user.uid;
       console.log('📞 Video call created:', callData.callId);
       
       // Setup callbacks BEFORE listening for acceptance
@@ -212,6 +215,9 @@ export function useVideoCall(user, friend, chatId) {
     if (!callData || !user) return;
     
     console.log('📞 Accepting video call:', callData.callId);
+
+    // Track who initiated the call so end-call logs stay on caller side
+    callInitiatorRef.current = callData.callerId;
     
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -285,10 +291,6 @@ export function useVideoCall(user, friend, chatId) {
         callAcceptListenerRef.current = null;
       }
       
-      if (chatId) {
-        callService.sendVideoCallNotification(chatId, user.uid, friend.uid, 'started');
-      }
-      
       setIsVideoCallActive(true);
     });
 
@@ -301,11 +303,10 @@ export function useVideoCall(user, friend, chatId) {
     });
 
     WebRTCService.setOnClose(() => {
-      console.log('📞 WebRTC connection closed');
-      // Only end if we're currently in a call
-      if (callStateRef.current !== 'idle' && callStateRef.current !== 'ended') {
-        callStateRef.current = 'ended';
-        setIsVideoCallActive(false);
+      console.log('📞 WebRTC connection closed - ending video call');
+      // End the video call properly using ref to avoid circular dependency
+      if (endVideoCallRef.current && callStateRef.current !== 'idle' && callStateRef.current !== 'ended' && callStateRef.current !== 'ending') {
+        endVideoCallRef.current();
       }
     });
 
@@ -445,12 +446,27 @@ export function useVideoCall(user, friend, chatId) {
     }
     
     if (chatId && friend && callState === 'active') {
-      callService.sendVideoCallNotification(chatId, user.uid, friend.uid, 'ended', duration);
+      const callerId = callInitiatorRef.current || user.uid;
+      if (user.uid === callerId) {
+        callService.sendVideoCallNotification(
+          chatId,
+          user.uid,
+          friend.uid,
+          'ended',
+          duration,
+          { callerId }
+        );
+      }
     }
     
     cleanupCallState();
     console.log('✅ Video call ended');
   }, [localStream, user, friend, chatId, callState, callStartTime, stopRingtone]);
+
+  // Update ref for use in callbacks
+  useEffect(() => {
+    endVideoCallRef.current = endVideoCall;
+  }, [endVideoCall]);
 
   // Cleanup call state (without ending WebRTC)
   const cleanupCallState = useCallback(() => {
@@ -574,14 +590,11 @@ export function useVideoCall(user, friend, chatId) {
     }, [localStream]),
     
     toggleAudio: useCallback(() => {
-      if (localStream) {
-        const audioTrack = localStream.getAudioTracks()[0];
-        if (audioTrack) {
-          audioTrack.enabled = !audioTrack.enabled;
-          setIsAudioEnabled(audioTrack.enabled);
-        }
-      }
-    }, [localStream]),
+      const muted = WebRTCService.toggleMute();
+      // WebRTCService.toggleMute returns true when muted
+      setIsAudioEnabled(!muted);
+      return muted;
+    }, []),
     
     switchCamera: useCallback(async () => {
       if (!localStream) return null;
