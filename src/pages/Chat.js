@@ -659,6 +659,7 @@ function Chat({ user, friend, onBack }) {
           remoteStream={remoteStream}
           isVideoEnabled={isVideoEnabled}
           isAudioEnabled={isAudioEnabled}
+          isMuted={!isAudioEnabled}
           isSpeaker={isSpeaker}
           isFrontCamera={isFrontCamera}
           connectionQuality={connectionQuality}

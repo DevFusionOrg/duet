@@ -25,7 +25,8 @@ function ChatMessage({
   getOptimizedImageUrl
 }) {
 
-  const isCallMessage = message.type === 'call';  const shouldShowOnRight = isCallMessage 
+  const isCallMessage = message.type === 'call' || message.type === 'video-call';
+  const shouldShowOnRight = isCallMessage 
     ? ((message.callInitiatorId || message.senderId) === user.uid)
     : (message.senderId === user.uid);
 
@@ -49,15 +50,15 @@ function ChatMessage({
   );
 
   const renderMessageContent = (message) => {
-    const isCallMessage = message.type === 'call';
+    const isCallMessage = message.type === 'call' || message.type === 'video-call';
     const isSeenByRecipient = message.senderId === user.uid && message.read === true;
     
-    // Special rendering for call messages
+    // Special rendering for call messages (both audio and video)
     if (isCallMessage) {
       return (
         <div className="call-message-content">
           <div className="call-icon-time">
-            <span className="call-icon">📞</span>
+            <span className="call-icon">{message.type === 'video-call' ? '📹' : '📞'}</span>
             <span className="call-message-text">{message.text}</span>
           </div>
           {renderMessageStatus(message, isSeenByRecipient)}
@@ -145,7 +146,7 @@ function ChatMessage({
             shouldShowOnRight
               ? "chat-sent-message"
               : "chat-received-message"
-          } ${isCallMessage ? "chat-call-message" : ""} ${
+          } ${message.type === 'call' ? "chat-call-message" : message.type === 'video-call' ? "chat-video-call-message" : ""} ${
             isMessageSaved(message) ? "chat-saved-message" : ""
           }`}
         >

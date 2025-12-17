@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import WebRTCService from '../services/webrtc';
 import CallService from '../services/callService';
 import { notificationService } from "../services/notifications";
@@ -19,11 +19,40 @@ export function useCall(user, friend, chatId) {
     const callTimeoutRef = useRef(null);
     const ringtoneAudioRef = useRef(null);
     const incomingCallRef = useRef(null);
+    const callInitiatorRef = useRef(null);
+    const endNotifiedRef = useRef(false);
     const callIdRef = useRef(null);
     const callStateRef = useRef('idle');
     const activeCallListenerRef = useRef(null);
     const callAcceptanceListenerRef = useRef(null);
     const callEndListenerRef = useRef(null);
+
+    // Define stopRingtone with useCallback to use it in effects
+    const stopRingtone = useCallback(() => {
+        if (ringtoneAudioRef.current) {
+        try {
+            ringtoneAudioRef.current.pause();
+            ringtoneAudioRef.current.currentTime = 0;
+            ringtoneAudioRef.current.src = '';
+            ringtoneAudioRef.current = null;
+        } catch (error) {
+            console.error('Error stopping ringtone:', error);
+        }
+        }
+        
+        // Also stop any Audio elements on the page that might be playing ringtone
+        try {
+            const allAudioElements = document.querySelectorAll('audio');
+            allAudioElements.forEach(audio => {
+                if (audio.src && audio.src.includes('ringtone')) {
+                    audio.pause();
+                    audio.currentTime = 0;
+                }
+            });
+        } catch (e) {
+            console.error('Error stopping page audio elements:', e);
+        }
+    }, []);
 
     useEffect(() => {
         if (!user?.uid || !friend?.uid) return;
@@ -55,7 +84,9 @@ export function useCall(user, friend, chatId) {
             const isActive = call.status === 'ringing';
             return isFromCurrentFriend && isForCurrentUser && isActive;
         });
-        if (relevantCalls.length > 0 && !incomingCall && callStateRef.current === 'idle') {
+        
+        // Only set incoming call if we're in idle state
+        if (relevantCalls.length > 0 && !incomingCall && callStateRef.current === 'idle' && !isInCall) {
             const newIncomingCall = relevantCalls[0];
             console.log('Setting incoming call from current friend:', newIncomingCall);
             if (newIncomingCall.receiverId !== user.uid) {
@@ -74,7 +105,14 @@ export function useCall(user, friend, chatId) {
             console.log('Auto-declining call after 60 seconds:', newIncomingCall.callId);
             handleAutoDeclineCall(newIncomingCall.callId);
             }, 60000);
+        } else if (relevantCalls.length === 0 && incomingCall && incomingCallRef.current) {
+            // If there are no calls but we have an incomingCall in state, clear it
+            console.log('No incoming calls from friend, clearing incomingCall state');
+            setIncomingCall(null);
+            incomingCallRef.current = null;
+            stopRingtone();
         }
+        
         calls.filter(call => call.callerId !== friend.uid && call.receiverId === user.uid)
             .forEach(staleCall => {
             console.log('Cleaning up stale call not from current friend:', staleCall.callId);
@@ -91,7 +129,7 @@ export function useCall(user, friend, chatId) {
             activeCallListenerRef.current = null;
         }
         };
-    }, [user?.uid, friend?.uid, incomingCall]);
+    }, [user?.uid, friend?.uid, incomingCall, isInCall, stopRingtone]);
 
     useEffect(() => {
         let interval;
@@ -105,6 +143,24 @@ export function useCall(user, friend, chatId) {
         if (interval) clearInterval(interval);
         };
     }, [isInCall, callState, callStartTime]);
+
+    // Stop ringtone when call becomes active
+    useEffect(() => {
+        if (callState === 'active' || callState === 'connecting') {
+        console.log('Call state changed to', callState, '- stopping ringtone');
+        stopRingtone();
+        }
+    }, [callState, stopRingtone]);
+
+    // Clear incoming call when call ends
+    useEffect(() => {
+        if (callState === 'idle' || callState === 'ended') {
+        console.log('Call ended, clearing incoming call state');
+        setIncomingCall(null);
+        incomingCallRef.current = null;
+        stopRingtone();
+        }
+    }, [callState, stopRingtone]);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
@@ -213,18 +269,6 @@ export function useCall(user, friend, chatId) {
         }
         } catch (error) {
         console.error('Error playing ringtone:', error);
-        }
-    };
-
-    const stopRingtone = () => {
-        if (ringtoneAudioRef.current) {
-        try {
-            ringtoneAudioRef.current.pause();
-            ringtoneAudioRef.current.currentTime = 0;
-            ringtoneAudioRef.current = null;
-        } catch (error) {
-            console.error('Error stopping ringtone:', error);
-        }
         }
     };
 
@@ -472,6 +516,7 @@ export function useCall(user, friend, chatId) {
         setCallState('ringing');
         setIsInCall(true);
         callStateRef.current = 'ringing';
+        callInitiatorRef.current = user.uid;
         const callData = await CallService.createCall(
             user.uid,
             user.displayName,
@@ -549,10 +594,15 @@ export function useCall(user, friend, chatId) {
             clearTimeout(callTimeoutRef.current);
             callTimeoutRef.current = null;
         }
+        callInitiatorRef.current = incomingCall.callerId;
+        // Clear incoming call state FIRST and IMMEDIATELY before doing anything else
+        setIncomingCall(null);
+        incomingCallRef.current = null;
+        callIdRef.current = incomingCall.callId;
         setCallState('connecting');
         callStateRef.current = 'connecting';
+        
         await CallService.acceptCall(incomingCall.callId, user.uid);
-        callIdRef.current = incomingCall.callId;
         await WebRTCService.initializeCall(
             incomingCall.callId,
             false,
@@ -572,9 +622,6 @@ export function useCall(user, friend, chatId) {
             setCallState('active');
             setCallStartTime(Date.now());
             callStateRef.current = 'active';
-            if (chatId) {
-            CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'started');
-            }
         });
         WebRTCService.setOnError((error) => {
             console.error('WebRTC error (receiver):', error);
@@ -589,8 +636,6 @@ export function useCall(user, friend, chatId) {
         
         listenForSignaling(incomingCall.callId);
         listenForWebRTCProgress(incomingCall.callId);
-        setIncomingCall(null);
-        incomingCallRef.current = null;
         setIsInCall(true);
         console.log('Call accepted successfully');
         } catch (error) {
@@ -611,7 +656,10 @@ export function useCall(user, friend, chatId) {
             clearTimeout(callTimeoutRef.current);
             callTimeoutRef.current = null;
         }
+        
+        // Decline the call (safe - won't error if already ended)
         await CallService.declineCall(incomingCall.callId, user.uid);
+        
         if (chatId) {
             CallService.sendCallNotification(chatId, user.uid, incomingCall.callerId, 'missed');
         }
@@ -656,6 +704,7 @@ export function useCall(user, friend, chatId) {
     try {
         const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
         
+        // Stop ringtone first and completely
         stopRingtone();
         
         if (callTimeoutRef.current) {
@@ -683,8 +732,17 @@ export function useCall(user, friend, chatId) {
         await CallService.endCall(callIdToEnd, user.uid, duration, 'ended');
         }
 
-        if (callState === 'active' && chatId && friend) {
-        CallService.sendCallNotification(chatId, user.uid, friend.uid, 'ended', duration);
+        if (callState === 'active' && chatId && friend && !endNotifiedRef.current) {
+        const initiatorId = callInitiatorRef.current || incomingCallRef.current?.callerId || user.uid;
+        CallService.sendCallNotification(
+            chatId,
+            user.uid,
+            friend.uid,
+            'ended',
+            duration,
+            { callerId: initiatorId }
+        );
+        endNotifiedRef.current = true;
         }
 
         console.log('Call ended successfully', {
@@ -696,6 +754,7 @@ export function useCall(user, friend, chatId) {
     } catch (error) {
         console.error('Error ending call:', error);
     } finally {
+        // Clear all call state
         setCallState('idle');
         setIsInCall(false);
         setIncomingCall(null);
@@ -704,6 +763,9 @@ export function useCall(user, friend, chatId) {
         setCallDuration(0);
         setCallStartTime(null);
         callStateRef.current = 'idle';
+        
+        // Stop ringtone one more time to be sure
+        stopRingtone();
     }
     };
 

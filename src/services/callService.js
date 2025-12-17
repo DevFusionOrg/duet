@@ -118,7 +118,8 @@ class CallService {
       const callData = snapshot.val();
       
       if (!callData) {
-        throw new Error('Call not found');
+        console.log('Call already ended, skipping decline');
+        return; // Call already ended, no need to decline
       }
 
       await update(callRef, {
@@ -232,18 +233,18 @@ class CallService {
       } else if (type === 'ended') {
         if (duration > 0) {
           messageText = `Audio call: ${this.formatDuration(duration)}`;
-          senderId = userId;
           callAction = 'ended';
         } else {
           messageText = 'Audio call ended';
-          senderId = userId;
           callAction = 'ended';
         }
         
         if (callData && callData.callerId) {
           callInitiatorId = callData.callerId;
+          senderId = callInitiatorId; // Show on initiator's side
         } else {
           callInitiatorId = userId;
+          senderId = userId;
         }
       } else if (type === 'missed') {
         messageText = 'Missed audio call';
@@ -303,18 +304,18 @@ class CallService {
       } else if (type === 'ended') {
         if (duration > 0) {
           messageText = `Video call: ${this.formatDuration(duration)}`;
-          senderId = userId;
           callAction = 'ended';
         } else {
           messageText = 'Video call ended';
-          senderId = userId;
           callAction = 'ended';
         }
         
         if (callData && callData.callerId) {
           callInitiatorId = callData.callerId;
+          senderId = callInitiatorId; // Show on initiator's side
         } else {
           callInitiatorId = userId;
+          senderId = userId;
         }
       } else if (type === 'missed') {
         messageText = 'Missed video call';

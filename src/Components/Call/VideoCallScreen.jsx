@@ -13,7 +13,7 @@ const VideoCallScreen = ({
   callDuration = 0,
   localStream,
   remoteStream,
-  isMuted = false,
+  isMuted = false, // Ensure isMuted prop is defined and defaults to false
   isVideoEnabled = true,
   isSpeaker = false,
   isInitiator = true,
@@ -100,8 +100,8 @@ const VideoCallScreen = ({
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture();
         setIsLocalPIP(false);
-      } else if (localVideoRef.current) {
-        await localVideoRef.current.requestPictureInPicture();
+      } else if (remoteVideoRef.current) {
+        await remoteVideoRef.current.requestPictureInPicture();
         setIsLocalPIP(true);
       }
     } catch (error) {
@@ -154,34 +154,21 @@ const VideoCallScreen = ({
   return (
     <div className="video-call-screen-overlay">
       <div className="video-call-screen">
-        {/* Main remote video */}
+        {/* Main remote video (fullscreen) */}
         <div className="remote-video-container">
           <video 
             ref={remoteVideoRef}
             className="remote-video"
             autoPlay
             playsInline
-            muted={isSpeaker}
+            // Do NOT mute remote video; we need to hear the other user
+            muted={false}
           />
           
           {/* Remote user info */}
           <div className="remote-user-info">
-            <h2 className="remote-user-name">{friend?.displayName || 'Connecting...'}</h2>
-            {callState === 'active' && <CallTimer duration={callDuration} />}
-            
-            {callState === 'active' && (
-              <div className="connection-quality">
-                <div 
-                  className="quality-indicator" 
-                  style={{ backgroundColor: getQualityColor(connectionQuality) }}
-                />
-                <span className="quality-text">
-                  {connectionQuality === 'excellent' ? 'Excellent' :
-                   connectionQuality === 'good' ? 'Good' :
-                   connectionQuality === 'poor' ? 'Poor' : 'Very Poor'}
-                </span>
-              </div>
-            )}
+            <h2 className="remote-user-name">{friend?.displayName || 'User'}</h2>
+            {callState === 'active' && isInitiator && <div className="call-timer"><CallTimer duration={callDuration} /></div>}
           </div>
         </div>
 
@@ -200,27 +187,12 @@ const VideoCallScreen = ({
             className="local-video"
             autoPlay
             playsInline
-            muted
+            muted={isSpeaker}
           />
           
-          {/* Local video overlay */}
+          {/* Local user info in PiP */}
           <div className="local-video-overlay">
-            {!isVideoEnabled && (
-              <div className="camera-off-indicator">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                  <path d="M3.27 2L2 3.27L4.73 6H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12c.2 0 .39-.08.53-.22l2.46 2.46L21 20.73 3.27 2zM20 6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8.99L20 6z"/>
-                </svg>
-                <span>Camera Off</span>
-              </div>
-            )}
-            
-            {isMuted && (
-              <div className="mic-off-indicator">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                  <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.55-.9L19.73 21 21 19.73 4.27 3z"/>
-                </svg>
-              </div>
-            )}
+            <h3 className="pip-user-name">You</h3>
             
             <button 
               className="pip-toggle-btn"
