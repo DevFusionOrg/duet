@@ -56,9 +56,12 @@ export function useVideoCall(user, friend, chatId) {
   const startVideoCall = useCallback(async () => {
     console.log('🎬 Starting video call to:', friend?.displayName);
 
+    // Ensure clean state before starting
     if (callStateRef.current !== 'idle') {
-      console.log('Already in a call');
-      return;
+      console.log('Cleaning up previous call state...');
+      cleanupCallState();
+      // Small delay to ensure cleanup completes
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
 
     const hasPermissions = await checkPermissions();
@@ -71,6 +74,26 @@ export function useVideoCall(user, friend, chatId) {
       callStateRef.current = 'initiating';
       setCallState('initiating');
       
+      // Get local video stream immediately so caller can see themselves
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: {
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            facingMode: 'user',
+            frameRate: { ideal: 30, max: 60 }
+          }
+        });
+        setLocalStream(stream);
+        console.log('📹 Local stream acquired for caller preview');
+      } catch (error) {
+        console.error('Failed to get media:', error);
+        alert('Cannot access camera/microphone. Please check permissions.');
+        cleanupCallState();
+        return;
+      }
+      
       const callData = await callService.createVideoCall(
         user.uid,
         user.displayName || user.email,
@@ -81,8 +104,9 @@ export function useVideoCall(user, friend, chatId) {
       callIdRef.current = callData.callId;
       console.log('📞 Video call created:', callData.callId);
       
+      // Setup callbacks BEFORE listening for acceptance
       setupWebRTCCallbacks();
-      playRingtone('outgoing');
+      // Don't play ringtone for the caller - only the receiver should hear it
       
       // Setup acceptance listener
       callAcceptListenerRef.current = listenForCallAcceptance(callData.callId);
@@ -131,6 +155,11 @@ export function useVideoCall(user, friend, chatId) {
         setCallState('connecting');
         
         try {
+          // Stop the preview stream before initializing WebRTC with a new one
+          if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+          }
+          
           const stream = await WebRTCService.initializeVideoCall(
             callId,
             true,
@@ -144,7 +173,19 @@ export function useVideoCall(user, friend, chatId) {
           
         } catch (error) {
           console.error('❌ WebRTC init error:', error);
-          endVideoCall();
+          // Set error state and let user know
+          callStateRef.current = 'error';
+          setCallState('error');
+          alert('Failed to initialize video call. Please try again.');
+          // Clean up the call
+          if (callIdRef.current) {
+            try {
+              await callService.endCall(callIdRef.current, user.uid, 0, 'failed');
+            } catch (e) {
+              console.warn('Error ending call:', e);
+            }
+          }
+          cleanupCallState();
         }
         
       } else if (callData.status === 'declined') {
@@ -157,7 +198,10 @@ export function useVideoCall(user, friend, chatId) {
         
       } else if (callData.status === 'ended') {
         console.log('📞 Call ended by other side');
-        endVideoCall();
+        if (callStateRef.current !== 'idle' && callStateRef.current !== 'ended') {
+          callStateRef.current = 'ended';
+          setIsVideoCallActive(false);
+        }
       }
       // NOTE: We don't handle 'ringing' status - that's the initial state
     });
@@ -184,7 +228,11 @@ export function useVideoCall(user, friend, chatId) {
       callIdRef.current = callData.callId;
       stopRingtone();
       
+      // Setup callbacks BEFORE initializing WebRTC
       setupWebRTCCallbacks();
+      
+      // Small delay to ensure callbacks are registered
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       const stream = await WebRTCService.initializeVideoCall(
         callData.callId,
@@ -195,10 +243,9 @@ export function useVideoCall(user, friend, chatId) {
       );
       
       setLocalStream(stream);
-      setIsVideoCallActive(true);
       setIncomingVideoCall(null);
       
-      console.log('✅ Call accepted successfully');
+      console.log('✅ Call accepted successfully - waiting for WebRTC connection');
       
     } catch (error) {
       console.error('❌ Error accepting video call:', error);
@@ -248,12 +295,18 @@ export function useVideoCall(user, friend, chatId) {
     WebRTCService.setOnError((error) => {
       console.error('❌ WebRTC error:', error);
       alert('Video call connection failed. Please try again.');
-      endVideoCall();
+      // Don't call endVideoCall here, let the user decide
+      callStateRef.current = 'error';
+      setCallState('error');
     });
 
     WebRTCService.setOnClose(() => {
       console.log('📞 WebRTC connection closed');
-      endVideoCall();
+      // Only end if we're currently in a call
+      if (callStateRef.current !== 'idle' && callStateRef.current !== 'ended') {
+        callStateRef.current = 'ended';
+        setIsVideoCallActive(false);
+      }
     });
 
     WebRTCService.setOnDisconnect(() => {
@@ -266,14 +319,13 @@ export function useVideoCall(user, friend, chatId) {
   const playRingtone = useCallback((type = 'incoming') => {
     stopRingtone();
     
-    const ringtoneUrl = type === 'incoming' 
-      ? '/audio/incoming-call.mp3' 
-      : '/audio/outgoing-call.mp3';
+    // Use the ringtone.mp3 file in public folder for both incoming and outgoing
+    const ringtoneUrl = '/ringtone.mp3';
     
     try {
       const audio = new Audio(ringtoneUrl);
       audio.loop = true;
-      audio.volume = 0.7;
+      audio.volume = type === 'incoming' ? 0.7 : 0.5; // Slightly quieter for outgoing
       audio.play().catch(e => console.log('Ringtone play failed:', e));
       ringtoneRef.current = audio;
     } catch (error) {
@@ -468,15 +520,27 @@ export function useVideoCall(user, friend, chatId) {
     };
   }, [callState, callStartTime]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount - using ref to avoid dependency issues
   useEffect(() => {
     return () => {
+      // Only cleanup if there's actually an active call
       if (callStateRef.current !== 'idle' && callStateRef.current !== 'ended') {
-        endVideoCall();
+        // Stop ringtone
+        if (ringtoneRef.current) {
+          ringtoneRef.current.pause();
+          ringtoneRef.current.currentTime = 0;
+          ringtoneRef.current = null;
+        }
+        
+        // Cleanup WebRTC if needed
+        try {
+          WebRTCService.endCall();
+        } catch (error) {
+          console.warn('Error ending WebRTC on unmount:', error);
+        }
       }
-      stopRingtone();
     };
-  }, [endVideoCall, stopRingtone]);
+  }, []); // Empty dependency array - only runs on unmount
 
   return {
     // State

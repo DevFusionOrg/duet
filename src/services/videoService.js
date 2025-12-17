@@ -87,14 +87,16 @@ export const videoService = {
       const videoTrack = currentStream.getVideoTracks()[0];
       if (!videoTrack) return null;
 
-      // Get current constraints
-      const currentConstraints = videoTrack.getConstraints();
+      // Determine new facing mode
+      const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
       
       // Create new stream with opposite facing mode
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          ...currentConstraints,
-          facingMode: facingMode === 'user' ? 'environment' : 'user'
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 60 },
+          facingMode: newFacingMode
         },
         audio: false
       });
@@ -111,7 +113,7 @@ export const videoService = {
       return {
         success: true,
         stream: currentStream,
-        facingMode: facingMode === 'user' ? 'environment' : 'user'
+        facingMode: newFacingMode
       };
     } catch (error) {
       console.error('Error switching camera:', error);
