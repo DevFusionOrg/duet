@@ -38,7 +38,7 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
           >
             <div className="friend-avatar-section">
               <img 
-                src={friend.photoURL} 
+                src={friend.photoURL || '/default-avatar.png'} 
                 alt={friend.displayName}
                 className="friend-avatar"
                 onError={(e) => {

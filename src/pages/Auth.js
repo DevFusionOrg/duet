@@ -297,7 +297,7 @@ function Auth() {
       <div className="auth-footer">
         <div className="devfusion-logo">
           <img src="/DevFusion.png" alt="DevFusion" className="devfusion-logo-img" />
-          <span className="devfusion-text">Devfusion</span>
+          <span className="devfusion-text">DevFusion</span>
         </div>
       </div>
     </div>

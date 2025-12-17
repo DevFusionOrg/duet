@@ -59,6 +59,10 @@ function ProfilePopup({
               src={profile.photoURL || "/default-avatar.png"}
               alt={profile.displayName}
               className="profile-picture-large"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = '/default-avatar.png';
+              }}
             />
           </div>
 

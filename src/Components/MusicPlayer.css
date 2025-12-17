@@ -4,20 +4,22 @@
   right: 0;
   left: 0;
   width: 100%;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   z-index: 998;
-  padding: 8px;
+  padding: 12px 16px;
   box-sizing: border-box;
   transition: all 200ms ease;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .controls{
+  display: flex;
   align-items: center;
+  gap: 12px;
 }
 
 .currentSong {
@@ -36,24 +38,25 @@
 }
 
 .closeButton {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
-  color: #374151;
-  font-size: 16px;
+  color: #6b7280;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 150ms ease;
+  border-radius: 50%;
+  transition: all 200ms ease;
   flex-shrink: 0;
+  padding: 0;
 }
 
 .closeButton:hover,
 .closeButton:focus {
-  background: rgba(0,0,0,0.05);
+  background: rgba(0, 0, 0, 0.08);
+  color: #374151;
   outline: none;
 }
 
@@ -77,95 +80,71 @@
 .searchInput {
   flex: 1;
   padding: 8px 12px;
-  border: 1.5px solid #e6e6e6;
-  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 20px;
   font-size: 14px;
   outline: none;
   min-width: 0;
   box-sizing: border-box;
   height: 36px;
-  transition: all 150ms ease;
+  transition: all 200ms ease;
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .searchInput:focus {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124,58,237,0.08);
+  border-color: rgba(0, 0, 0, 0.24);
+  background: #fff;
 }
 
 .searchButton {
-  padding: 8px 16px;
-  background-color: #7c3aed;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
+  /* Removed - using music-control-button instead */
+}
+
+.music-control-button {
+  width: 36px;
   height: 36px;
-  min-width: 80px;
-  transition: all 150ms ease;
-  flex-shrink: 0;
-}
-
-.searchButton:hover:not(:disabled) {
-  background-color: #6d28d9;
-}
-
-.stopButton {
-  background-color: #ef4444;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  height: 36px;
-  transition: all 150ms ease;
-  flex-shrink: 0;
-}
-
-.stopButton:hover:not(:disabled) {
-  background-color: #dc2626;
-}
-
-.searchButton:disabled,
-.searchInput:disabled,
-.stopButton:disabled,
-.closeButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.playerControls {
-  display: none;
-}
-
-.statusIndicator {
-  width: 8px;
-  height: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
   border-radius: 50%;
-  background: #10b981;
-  margin-right: 8px;
+  cursor: pointer;
+  color: #111827;
+  transition: all 200ms ease;
   flex-shrink: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
-.statusIndicator.stopped {
-  background: #6b7280;
+.music-control-button:hover:not(:disabled) {
+  background: #e5e7eb;
+  transform: scale(1.05);
 }
 
-.statusIndicator.playing {
-  background: #10b981;
-  animation: pulse 1.5s infinite;
+.music-control-button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
-.pauseButton{
-  background-color: red;
-  border: none;
-  border-radius: 5px;
+.music-control-button svg,
+.music-control-button svg path {
+  color: currentColor;
+  fill: currentColor;
 }
 
-.playButton{
-  background-color: #10b981;
-  border:none;
-  border-radius: 5px;
+.music-control-button.stop-button {
+  color: #ef4444;
+}
+
+.music-control-button.stop-button:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.music-control-button:disabled,
+.searchInput:disabled,
+.closeButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 @keyframes pulse {
