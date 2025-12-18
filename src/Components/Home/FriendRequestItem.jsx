@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import UserBadge from "../UserBadge";
 
 function FriendRequestItem({
   request,
@@ -55,7 +56,10 @@ function FriendRequestItem({
               }}
             />
             <div className="request-details">
-              <h4>{requesterProfile.displayName}</h4>
+              <h4 className="badge-with-name">
+                {requesterProfile.displayName}
+                {(() => { const displayBadge = requesterProfile.badge || (requesterProfile.username === 'ashwinirai492' ? 'tester' : null); return displayBadge ? <UserBadge badge={displayBadge} size="small" /> : null; })()}
+              </h4>
               <p className="request-username">@{requesterProfile.username}</p>
               {requesterProfile.bio && (
                 <p className="request-bio">

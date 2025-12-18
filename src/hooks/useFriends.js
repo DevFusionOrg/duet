@@ -11,7 +11,13 @@ export function useFriends(user) {
     const unsubscribe = listenToUserFriends(user.uid, async (friendIds) => {
       try {
         const profiles = await Promise.all(
-          friendIds.map(id => getUserProfile(id))
+          friendIds.map(id => 
+            getUserProfile(id).then(profile => ({
+              ...profile,
+              uid: id,
+              id: id
+            }))
+          )
         );
         
         const cleanFriends = profiles.filter(Boolean);

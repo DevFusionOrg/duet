@@ -2,12 +2,12 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Chat from "./Chat";
 import '../styles/Home.css';
-import FriendsView from '../Components/Home/FriendsView';
 import ChatsView from '../Components/Home/ChatsView';
+import FriendsView from '../Components/Home/FriendsView';
 import ProfileView from '../Components/Home/ProfileView';
 import SearchView from '../Components/Home/SearchView';
 import NotificationsView from '../Components/Home/NotificationsView';
-import ProfilePopup from '../Components/Home/ProfilePopup';
+// Removed ProfilePopup usage
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
 import { useProfiles } from "../hooks/useProfiles";
@@ -24,8 +24,7 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const { unreadFriendsCount } = useUnreadCount(user);
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [activeView, setActiveView] = useState('friends');
-  const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [selectedProfile, setSelectedProfile] = useState(null);
+  // Removed profile popup state
   const [pendingFriendId, setPendingFriendId] = useState(null);
   const loading = friendsLoading;
 
@@ -43,17 +42,7 @@ function Home({ user, isDarkMode, toggleTheme }) {
     setSelectedFriend(null);
   };
 
-  const handleFriendCardClick = (friend, e) => {
-    if (!e.target.closest('.chat-button')) {
-      setSelectedProfile(friend);
-      setShowProfilePopup(true);
-    }
-  };
-
-  const handleCloseProfilePopup = () => {
-    setShowProfilePopup(false);
-    setSelectedProfile(null);
-  };
+  const handleFriendCardClick = () => {};
 
   const getDisplayName = () => {
     return userProfile?.displayName || user?.displayName || "User";
@@ -202,6 +191,9 @@ function Home({ user, isDarkMode, toggleTheme }) {
               onStartChat={handleStartChat}
               onFriendCardClick={handleFriendCardClick}
               friendsOnlineStatus={friendsOnlineStatus}
+              currentUserId={user.uid}
+              hideGrid={true}
+              hideHeading={true}
             />
           ) : activeView === 'chats' ? (
             <ChatsView 
@@ -220,15 +212,7 @@ function Home({ user, isDarkMode, toggleTheme }) {
         </div>
       </div>
 
-      {showProfilePopup && (
-        <ProfilePopup 
-          friend={selectedProfile}
-          currentUserId={user.uid}
-          isOwnProfile={false}
-          onClose={handleCloseProfilePopup}
-          friendsOnlineStatus={friendsOnlineStatus}
-        />
-      )}
+      {/* ProfilePopup removed as requested */}
     </div>
   );
 }

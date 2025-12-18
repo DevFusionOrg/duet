@@ -356,10 +356,13 @@
 @media (max-width: 480px) {
   .auth-container {
     padding: 12px;
+    overflow-x: hidden;
   }
 
   .auth-card {
     padding: 32px 20px;
+    width: calc(100% - 40px);
+    max-width: calc(100% - 40px);
   }
 
   .auth-app-name {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { deleteFriend, getUserProfile } from "../../firebase/firestore";
+import UserBadge from "../UserBadge";
 
 function ProfilePopup({
   friend,
@@ -69,7 +70,10 @@ function ProfilePopup({
           <div className="profile-info">
             <div className="info-field">
               <label>Name:</label>
-              <span>{profile.displayName}</span>
+              <span className="badge-with-name">
+                {profile.displayName}
+                {profile.badge && <UserBadge badge={profile.badge} size="small" />}
+              </span>
             </div>
 
             <div className="info-field">
