@@ -90,11 +90,15 @@ class WebRTCService {
       // Get user media with video if video call
       const mediaConstraints = {
         audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 48000,
-          channelCount: 1
+          echoCancellation: { ideal: true, exact: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
+          googEchoCancellation: { ideal: true },
+          googAutoGainControl: { ideal: true },
+          googNoiseSuppression: { ideal: true },
+          googHighpassFilter: { ideal: true },
+          sampleRate: { ideal: 48000 },
+          channelCount: { ideal: 1 }
         },
         video: isVideoCall ? {
           width: { ideal: 1280, max: 1920 },
