@@ -90,13 +90,16 @@ class WebRTCService {
       // Get user media with video if video call
       const mediaConstraints = {
         audio: {
-          echoCancellation: { ideal: true, exact: true },
-          noiseSuppression: { ideal: true },
-          autoGainControl: { ideal: true },
-          googEchoCancellation: { ideal: true },
-          googAutoGainControl: { ideal: true },
-          googNoiseSuppression: { ideal: true },
-          googHighpassFilter: { ideal: true },
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true,
+          googTypingNoiseDetection: true,
+          googExperimentalAutoGainControl: true,
+          googExperimentalNoiseSuppression: true,
           sampleRate: { ideal: 48000 },
           channelCount: { ideal: 1 }
         },

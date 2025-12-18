@@ -11,6 +11,28 @@ function FriendRequestItem({
 }) {
   const [requesterProfile, setRequesterProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [showBadgeTooltip, setShowBadgeTooltip] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
+  const handleBadgeClick = (e, badgeName) => {
+    e.stopPropagation();
+    const badgeNames = { 
+      developer: 'Developer', 
+      support: 'Supporter', 
+      tester: 'Tester' 
+    };
+    setShowBadgeTooltip(badgeNames[badgeName] || badgeName);
+    
+    // Position tooltip above the badge
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltipPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top
+    });
+    
+    // Auto-hide tooltip after 3 seconds
+    setTimeout(() => setShowBadgeTooltip(null), 3000);
+  };
 
   useEffect(() => {
     const fetchRequesterProfile = async () => {
@@ -58,7 +80,21 @@ function FriendRequestItem({
             <div className="request-details">
               <h4 className="badge-with-name">
                 {requesterProfile.displayName}
-                {(() => { const displayBadge = requesterProfile.badge || (requesterProfile.username === 'ashwinirai492' ? 'tester' : null); return displayBadge ? <UserBadge badge={displayBadge} size="small" /> : null; })()}
+                {(() => { 
+                  const displayBadge = requesterProfile.badge || (requesterProfile.username === 'ashwinirai492' ? 'tester' : null); 
+                  if (!displayBadge) return null;
+                  const badgeNames = { developer: 'Developer', support: 'Supporter', tester: 'Tester' };
+                  return (
+                    <span 
+                      className="badge-tooltip-wrapper"
+                      title={badgeNames[displayBadge] || displayBadge}
+                      onClick={(e) => handleBadgeClick(e, displayBadge)}
+                      style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                    >
+                      <UserBadge badge={displayBadge} size="small" />
+                    </span>
+                  );
+                })()}
               </h4>
               <p className="request-username">@{requesterProfile.username}</p>
               {requesterProfile.bio && (
@@ -96,6 +132,21 @@ function FriendRequestItem({
           {loading ? "..." : "Reject"}
         </button>
       </div>
+
+      {showBadgeTooltip && (
+        <div 
+          className="badge-tooltip" 
+          style={{
+            position: 'fixed',
+            left: tooltipPosition.x,
+            top: tooltipPosition.y,
+            transform: 'translate(-50%, -100%)',
+            pointerEvents: 'none'
+          }}
+        >
+          {showBadgeTooltip}
+        </div>
+      )}
     </div>
   );
 }

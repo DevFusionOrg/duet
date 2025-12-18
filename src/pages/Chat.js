@@ -8,6 +8,7 @@ import CallScreen from '../Components/Call/CallScreen';
 import IncomingCallModal from '../Components/Call/IncomingCallModal';
 import MusicPlayer from "../Components/MusicPlayer";
 import VideoCallScreen from '../Components/Call/VideoCallScreen';
+import VoiceRecorder from '../Components/Chat/VoiceRecorder';
 
 import { useChatSetup } from "../hooks/useChatSetup";
 import { useChatMessages } from "../hooks/useChatMessages";
@@ -18,6 +19,7 @@ import { useVideoCall } from "../hooks/useVideoCall";
 
 import {
   sendMessage,
+  sendVoiceNote,
   markMessagesAsRead,
   saveMessage,
   unsaveMessage,
@@ -28,7 +30,7 @@ import {
   deleteChat,
   replyToMessage,
 } from "../firebase/firestore";
-import { openUploadWidget, getOptimizedImageUrl } from "../services/cloudinary";
+import { openUploadWidget, getOptimizedImageUrl, uploadVoiceNote } from "../services/cloudinary";
 import { notificationService } from "../services/notifications";
 import "../styles/Chat.css";
 
@@ -94,9 +96,13 @@ function Chat({ user, friend, onBack }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [pendingMessages, setPendingMessages] = useState([]);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [sendingVoice, setSendingVoice] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const componentMountedRef = useRef(true);
   const loading = setupLoading || messagesLoading;
 
   // Separate handlers for different call types
@@ -163,11 +169,29 @@ function Chat({ user, friend, onBack }) {
     loadCloudinaryScript();
   }, []);
 
+  // Auto-remove pending messages when real messages arrive
+  useEffect(() => {
+    if (messages.length > 0 && pendingMessages.length > 0) {
+      const latestMessage = messages[messages.length - 1];
+      // Check if the latest message matches any pending message
+      const matchingPending = pendingMessages.find(pm => 
+        pm.senderId === latestMessage.senderId &&
+        pm.text === latestMessage.text &&
+        Math.abs(new Date(latestMessage.timestamp?.toDate?.() || latestMessage.timestamp) - new Date(pm.timestamp)) < 5000
+      );
+      
+      if (matchingPending) {
+        setPendingMessages(prev => prev.filter(m => m.id !== matchingPending.id));
+      }
+    }
+  }, [messages, pendingMessages]);
+
   useEffect(() => {
     const handleVisibilityChange = () => {
+      // Only mark as read if page is visible AND this component is still mounted
       if (document.visibilityState === 'visible' && chatId && user?.uid) {
         markMessagesAsRead(chatId, user.uid);
-        notificationService.clearChatNotifications(chatId);
+        notificationService.clearAllNotifications(chatId);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -176,11 +200,31 @@ function Chat({ user, friend, onBack }) {
     };
   }, [chatId, user?.uid]);
 
+  // Only mark messages as read when Chat component is actively displayed
+  // Don't mark on mount - only when user returns to the chat
   useEffect(() => {
     if (!chatId || !user?.uid) return;
-    markMessagesAsRead(chatId, user.uid);
-    notificationService.clearChatNotifications(chatId);
+    
+    // Only mark as read if component is mounted and visible
+    if (!componentMountedRef.current) return;
+    
+    // Small delay to ensure component is mounted and visible
+    const timer = setTimeout(() => {
+      if (componentMountedRef.current) {
+        markMessagesAsRead(chatId, user.uid);
+        notificationService.clearAllNotifications(chatId);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [chatId, user?.uid]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      componentMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -286,6 +330,30 @@ function Chat({ user, friend, onBack }) {
     setUploadingImage(false);
   };
 
+  const handleVoiceRecordClick = () => {
+    setIsRecordingVoice(true);
+  };
+
+  const handleVoiceSend = async (audioBlob, duration) => {
+    setSendingVoice(true);
+    try {
+      const voiceData = await uploadVoiceNote(audioBlob);
+      await sendVoiceNote(chatId, user.uid, voiceData);
+      setIsRecordingVoice(false);
+      scrollToBottom();
+    } catch (error) {
+      console.error('Error sending voice note:', error);
+      alert('Error sending voice note: ' + error.message);
+    } finally {
+      setSendingVoice(false);
+    }
+  };
+
+  const handleVoiceCancel = () => {
+    setIsRecordingVoice(false);
+    setSendingVoice(false);
+  };
+
   useEffect(() => {
     const container = document.querySelector(".chat-messages-container");
 
@@ -311,25 +379,58 @@ function Chat({ user, friend, onBack }) {
     if (!text && !selectedImage) return;
 
     try {
+      // Create a local pending message for instant feedback (red dot)
+      const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      const basePending = {
+        id: tempId,
+        chatId,
+        senderId: user.uid,
+        senderName: user.displayName || user.username || 'You',
+        senderPhoto: user.photoURL || '',
+        text: text || '',
+        timestamp: new Date(),
+        read: false,
+        pending: true,
+        type: selectedImage ? 'image' : 'text'
+      };
+
+      let pendingMsg = basePending;
+      if (replyingTo) {
+        pendingMsg = {
+          ...basePending,
+          isReply: true,
+          originalMessageText: replyingTo.text || (replyingTo.image ? '📷 Image' : ''),
+          originalMessageType: replyingTo.type || 'text'
+        };
+      }
+
+      setPendingMessages((prev) => [...prev, pendingMsg]);
+
+      // Clear input immediately and keep focus for continuous typing
+      if (inputRef.current) {
+        inputRef.current.value = '';
+        inputRef.current.focus();
+      }
+      setNewMessage('');
+      if (replyingTo) setReplyText('');
+
+      // Firestore send
       if (replyingTo) {
         await replyToMessage(chatId, replyingTo.id, text, user.uid, selectedImage);
         setReplyingTo(null);
-        if (inputRef.current) {
-          inputRef.current.value = '';
-          setReplyText('');
-        }
       } else {
         await sendMessage(chatId, user.uid, text, selectedImage);
-        if (inputRef.current) {
-          inputRef.current.value = '';
-          setNewMessage('');
-        }
       }
+
+      // Remove pending placeholder when send completes
+      setPendingMessages((prev) => prev.filter((m) => m.id !== tempId));
       setSelectedImage(null);
       scrollToBottom();
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Error sending message: ' + error.message);
+      // On error, also remove pending placeholder
+      setPendingMessages((prev) => prev.filter((m) => !m.pending));
     }
   };
 
@@ -490,6 +591,11 @@ function Chat({ user, friend, onBack }) {
   };
 
   const handleStartReply = (message) => {
+    // Move any text already typed into the reply input, like WhatsApp/Instagram
+    const currentTyped = inputRef.current?.value || newMessage || '';
+    setReplyText(currentTyped);
+    setNewMessage('');
+    if (inputRef.current) inputRef.current.value = '';
     setReplyingTo(message);
     inputRef.current?.focus();
   };
@@ -535,14 +641,14 @@ function Chat({ user, friend, onBack }) {
       <ChatHeader {...chatHeaderProps} />
 
       <div className="chat-messages-container">
-        {messages.length === 0 ? (
+        {messages.length === 0 && pendingMessages.length === 0 ? (
           <div className="chat-no-messages">
             <p>No messages yet. Start the conversation!</p>
           </div>
         ) : (
-          messages.map((message, index) => {
-            const prev = index > 0 ? messages[index - 1] : null;
-            const showDateSeparator = !prev || !isSameDay(prev.timestamp, message.timestamp);
+          [...messages, ...pendingMessages].map((message, index, arr) => {
+            const prev = index > 0 ? arr[index - 1] : null;
+            const showDateSeparator = !prev || !isSameDay(prev?.timestamp, message.timestamp);
             
             return (
               <ChatMessage
@@ -607,29 +713,38 @@ function Chat({ user, friend, onBack }) {
         </button>
       )}
 
-      <ChatInput
-        user={user}
-        isBlocked={isBlocked}
-        replyingTo={replyingTo}
-        replyText={replyText}
-        newMessage={newMessage}
-        selectedImage={selectedImage}
-        uploadingImage={uploadingImage}
-        cloudinaryLoaded={cloudinaryLoaded}
-        loading={loading}
-        inputRef={inputRef}
-        onImageUploadClick={handleImageUploadClick}
-        onInputChange={(e) => {
-          if (isBlocked) return;
-          if (replyingTo) {
-            setReplyText(e.target.value);
-          } else {
-            setNewMessage(e.target.value);
-          }
-        }}
-        onCancelReply={handleCancelReply}
-        onSendMessage={handleSendMessage}
-      />
+      {isRecordingVoice ? (
+        <VoiceRecorder 
+          onSend={handleVoiceSend}
+          onCancel={handleVoiceCancel}
+          disabled={sendingVoice}
+        />
+      ) : (
+        <ChatInput
+          user={user}
+          isBlocked={isBlocked}
+          replyingTo={replyingTo}
+          replyText={replyText}
+          newMessage={newMessage}
+          selectedImage={selectedImage}
+          uploadingImage={uploadingImage}
+          cloudinaryLoaded={cloudinaryLoaded}
+          loading={loading}
+          inputRef={inputRef}
+          onImageUploadClick={handleImageUploadClick}
+          onVoiceRecordClick={handleVoiceRecordClick}
+          onInputChange={(e) => {
+            if (isBlocked) return;
+            if (replyingTo) {
+              setReplyText(e.target.value);
+            } else {
+              setNewMessage(e.target.value);
+            }
+          }}
+          onCancelReply={handleCancelReply}
+          onSendMessage={handleSendMessage}
+        />
+      )}
 
       <MusicPlayer
         chatId={chatId}

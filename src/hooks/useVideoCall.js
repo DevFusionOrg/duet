@@ -88,7 +88,7 @@ export function useVideoCall(user, friend, chatId) {
           }
         });
         setLocalStream(stream);
-        console.log('📹 Local stream acquired for caller preview');
+        console.log('Local stream acquired for caller preview');
       } catch (error) {
         console.error('Failed to get media:', error);
         alert('Cannot access camera/microphone. Please check permissions.');
@@ -105,7 +105,7 @@ export function useVideoCall(user, friend, chatId) {
 
       callIdRef.current = callData.callId;
       callInitiatorRef.current = user.uid;
-      console.log('📞 Video call created:', callData.callId);
+      console.log('Video call created:', callData.callId);
       
       // Setup callbacks BEFORE listening for acceptance
       setupWebRTCCallbacks();
@@ -143,10 +143,10 @@ export function useVideoCall(user, friend, chatId) {
       const callData = snapshot.val();
       if (!callData) return;
       
-      console.log('📞 Call status update:', callData.status);
+      console.log('Call status update:', callData.status);
       
       if (callData.status === 'accepted') {
-        console.log('✅ Call accepted!');
+        console.log('Call accepted!');
         
         // Clear timeout
         if (callTimeoutRef.current) {
@@ -193,15 +193,15 @@ export function useVideoCall(user, friend, chatId) {
         }
         
       } else if (callData.status === 'declined') {
-        console.log('📞 Call declined');
+        console.log('Call declined');
         handleCallDeclined(callId);
         
       } else if (callData.status === 'missed') {
-        console.log('📞 Call missed');
+        console.log('Call missed');
         handleCallMissed(callId);
         
       } else if (callData.status === 'ended') {
-        console.log('📞 Call ended by other side');
+        console.log('Call ended by other side');
         if (callStateRef.current !== 'idle' && callStateRef.current !== 'ended') {
           callStateRef.current = 'ended';
           setIsVideoCallActive(false);
@@ -216,7 +216,7 @@ export function useVideoCall(user, friend, chatId) {
   const acceptVideoCall = useCallback(async (callData) => {
     if (!callData || !user) return;
     
-    console.log('📞 Accepting video call:', callData.callId);
+    console.log('Accepting video call:', callData.callId);
 
     // Track who initiated the call so end-call logs stay on caller side
     callInitiatorRef.current = callData.callerId;
@@ -270,16 +270,16 @@ export function useVideoCall(user, friend, chatId) {
       return;
     }
     
-    console.log('🔧 Setting up WebRTC callbacks');
+    console.log('Setting up WebRTC callbacks');
     hasSetupCallbacksRef.current = true;
     
     WebRTCService.setOnRemoteStream((remoteStream) => {
-      console.log('📹 Remote video stream received');
+      console.log('Remote video stream received');
       setRemoteStream(remoteStream);
     });
 
     WebRTCService.setOnConnect(() => {
-      console.log('✅ Video call connected!');
+      console.log('Video call connected!');
       callStateRef.current = 'active';
       setCallState('active');
       setCallStartTime(Date.now());
@@ -298,7 +298,7 @@ export function useVideoCall(user, friend, chatId) {
     });
 
     WebRTCService.setOnError((error) => {
-      console.error('❌ WebRTC error:', error);
+      console.error('WebRTC error:', error);
       alert('Video call connection failed. Please try again.');
       // Don't call endVideoCall here, let the user decide
       callStateRef.current = 'error';
@@ -306,7 +306,7 @@ export function useVideoCall(user, friend, chatId) {
     });
 
     WebRTCService.setOnClose(() => {
-      console.log('📞 WebRTC connection closed - ending video call');
+      console.log('WebRTC connection closed - ending video call');
       // End the video call properly using ref to avoid circular dependency
       if (endVideoCallRef.current && callStateRef.current !== 'idle' && callStateRef.current !== 'ended' && callStateRef.current !== 'ending') {
         endVideoCallRef.current();
@@ -314,7 +314,7 @@ export function useVideoCall(user, friend, chatId) {
     });
 
     WebRTCService.setOnDisconnect(() => {
-      console.log('🔌 WebRTC disconnected');
+      console.log('WebRTC disconnected');
       setConnectionQuality('poor');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -409,11 +409,11 @@ export function useVideoCall(user, friend, chatId) {
   // End video call - FIXED (prevent multiple calls)
   const endVideoCall = useCallback(async () => {
     if (callStateRef.current === 'ended' || callStateRef.current === 'idle') {
-      console.log('⚠️ Call already ended or idle, skipping');
+      console.log('Call already ended or idle, skipping');
       return;
     }
 
-    console.log('📞 Ending video call... Current state:', callStateRef.current);
+    console.log('Ending video call... Current state:', callStateRef.current);
     callStateRef.current = 'ending';
     
     stopRingtone();
@@ -469,7 +469,7 @@ export function useVideoCall(user, friend, chatId) {
     }
     
     cleanupCallState();
-    console.log('✅ Video call ended');
+    console.log('Video call ended');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localStream, user, friend, chatId, callState, callStartTime, stopRingtone]);
 
@@ -509,14 +509,14 @@ export function useVideoCall(user, friend, chatId) {
 
       if (videoCalls.length > 0 && callStateRef.current === 'idle') {
         const videoCall = videoCalls[0];
-        console.log('📞 Incoming video call from:', videoCall.callerName);
+        console.log('Incoming video call from:', videoCall.callerName);
         setIncomingVideoCall(videoCall);
         
         playRingtone('incoming');
         
         callTimeoutRef.current = setTimeout(() => {
           if (callStateRef.current === 'idle' && incomingVideoCall) {
-            console.log('⏰ Auto-declining unanswered call');
+            console.log('Auto-declining unanswered call');
             declineVideoCall(videoCall.callId);
           }
         }, 60000);

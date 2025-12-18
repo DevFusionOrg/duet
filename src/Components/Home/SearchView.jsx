@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import UserBadge from "../UserBadge";
 
 function SearchView({ user }) {
@@ -7,6 +7,109 @@ function SearchView({ user }) {
   const [loading, setLoading] = useState(false);
   const [requestLoading, setRequestLoading] = useState({});
   const [message, setMessage] = useState("");
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const hasFetchedPending = useRef(false);
+
+  // Fetch pending friend requests sent by user
+  useEffect(() => {
+    if (!hasFetchedPending.current && user?.uid) {
+      hasFetchedPending.current = true;
+      fetchPendingRequests();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
+
+  const fetchPendingRequests = async () => {
+    try {
+      setLoadingPending(true);
+      const { db } = await import("../../firebase/firebase");
+      const { collection, getDocs } = await import("firebase/firestore");
+      
+      const usersRef = collection(db, 'users');
+      const usersSnap = await getDocs(usersRef);
+      
+      const pending = [];
+      
+      usersSnap.docs.forEach(doc => {
+        const userData = doc.data();
+        if (userData.friendRequests && Array.isArray(userData.friendRequests)) {
+          const hasPendingFromMe = userData.friendRequests.some(
+            req => req.from === user.uid && (req.status === 'pending' || !req.status)
+          );
+          
+          if (hasPendingFromMe && doc.id !== user.uid) {
+            pending.push({
+              uid: doc.id,
+              displayName: userData.displayName,
+              username: userData.username,
+              photoURL: userData.photoURL,
+              bio: userData.bio,
+              badge: userData.badge
+            });
+          }
+        }
+      });
+      
+      setPendingRequests(pending);
+    } catch (error) {
+      console.error('Error fetching pending requests:', error);
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  const handleCancelRequest = async (toUserId, toUserName) => {
+    setRequestLoading((prev) => ({ ...prev, [toUserId]: true }));
+    
+    try {
+      const { db } = await import("../../firebase/firebase");
+      const { doc, updateDoc, getDoc } = await import("firebase/firestore");
+      
+      // Get the recipient's current friend requests
+      const recipientRef = doc(db, 'users', toUserId);
+      const recipientSnap = await getDoc(recipientRef);
+      
+      if (recipientSnap.exists()) {
+        const recipientData = recipientSnap.data();
+        const updatedRequests = (recipientData.friendRequests || []).filter(
+          req => req.from !== user.uid
+        );
+        
+        // Update the recipient's friendRequests array
+        await updateDoc(recipientRef, {
+          friendRequests: updatedRequests
+        });
+      }
+
+      // Get the sender's current sent requests
+      const senderRef = doc(db, 'users', user.uid);
+      const senderSnap = await getDoc(senderRef);
+      
+      if (senderSnap.exists()) {
+        const senderData = senderSnap.data();
+        const updatedSentRequests = (senderData.sentFriendRequests || []).filter(
+          req => req.to !== toUserId
+        );
+        
+        // Update the sender's sentFriendRequests array
+        await updateDoc(senderRef, {
+          sentFriendRequests: updatedSentRequests
+        });
+      }
+      
+      // Remove from pending requests list
+      setPendingRequests(prev => prev.filter(r => r.uid !== toUserId));
+      setMessage(`Friend request to ${toUserName} cancelled!`);
+      
+      // Clear message after 3 seconds
+      setTimeout(() => setMessage(""), 3000);
+    } catch (error) {
+      console.error('Error cancelling friend request:', error);
+      setMessage('Error cancelling request: ' + error.message);
+    }
+    setRequestLoading((prev) => ({ ...prev, [toUserId]: false }));
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -83,6 +186,55 @@ function SearchView({ user }) {
       {message && (
         <div className={`search-message ${message.includes("Error") ? "search-message-error" : "search-message-success"}`}>
           {message}
+        </div>
+      )}
+
+      {/* Pending Friend Requests Section */}
+      {!loadingPending && pendingRequests.length > 0 && (
+        <div className="pending-requests-section">
+          <h2 className="pending-requests-title">Friend Requests Sent ({pendingRequests.length})</h2>
+          <div className="pending-requests-list">
+            {pendingRequests.map(request => (
+              <div key={request.uid} className="pending-request-item">
+                <img
+                  src={request.photoURL || '/default-avatar.png'}
+                  alt={request.displayName}
+                  className="pending-request-avatar"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/default-avatar.png";
+                  }}
+                />
+                <div className="pending-request-info">
+                  <h4 className="badge-with-name">
+                    {request.displayName}
+                    {(() => { const displayBadge = request.badge || (request.username === 'ashwinirai492' ? 'tester' : null); return displayBadge ? <UserBadge badge={displayBadge} size="small" /> : null; })()}
+                  </h4>
+                  <p className="pending-request-username">@{request.username}</p>
+                  {request.bio && (
+                    <p className="pending-request-bio">{request.bio}</p>
+                  )}
+                </div>
+                <div className="pending-request-actions">
+                  <span className="status-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Pending
+                  </span>
+                  <button
+                    className="cancel-request-btn"
+                    onClick={() => handleCancelRequest(request.uid, request.displayName)}
+                    disabled={requestLoading[request.uid]}
+                    title="Cancel request"
+                  >
+                    {requestLoading[request.uid] ? '...' : '✕'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

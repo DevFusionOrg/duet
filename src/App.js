@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { SplashScreen } from "@capacitor/splash-screen";
 import { auth } from "./firebase/firebase";
 import { createUserProfile, setUserOnlineStatus } from "./firebase/firestore";
 import Auth from "./pages/Auth";
@@ -6,6 +8,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import SecurityWarning from "./Components/SecurityWarning";
+import UpdateChecker from "./Components/UpdateChecker";
 import "./App.css";
 import { initPushNotifications } from "./push-init";
 
@@ -21,6 +24,55 @@ function App() {
 
   const pushInitCalledRef = useRef(false);
 
+  // Disable zoom and zoom gestures globally
+  useEffect(() => {
+    // Prevent double-tap zoom
+    let lastTouchEnd = 0;
+    const preventZoom = (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    };
+
+    // Prevent pinch-to-zoom (only when using 2+ fingers, but allow normal scroll)
+    const preventPinchZoom = (e) => {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    };
+
+    // Prevent keyboard zoom shortcuts (Ctrl/Cmd +, -, =, 0)
+    const preventKeyboardZoom = (e) => {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0')
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    // Prevent wheel zoom (Ctrl/Cmd + scroll)
+    const preventWheelZoom = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchend', preventZoom);
+    document.addEventListener('touchmove', preventPinchZoom, { passive: false });
+    document.addEventListener('keydown', preventKeyboardZoom);
+    document.addEventListener('wheel', preventWheelZoom, { passive: false });
+
+    return () => {
+      document.removeEventListener('touchend', preventZoom);
+      document.removeEventListener('touchmove', preventPinchZoom);
+      document.removeEventListener('keydown', preventKeyboardZoom);
+      document.removeEventListener('wheel', preventWheelZoom);
+    };
+  }, []);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
@@ -30,25 +82,70 @@ function App() {
     setIsDarkMode(prev => !prev);
   };
 
-  // Handle Android back button - prevent app from closing
+  // Disable text selection / copy on Android (Capacitor) outside inputs
   useEffect(() => {
-    const handleBackButton = async () => {
-      if (window.Capacitor) {
-        try {
-          const { App } = await import('@capacitor/app');
-          App.addListener('backButton', ({ canGoBack }) => {
-            if (window.history.length > 1) {
-              window.history.back();
-            }
-            // Don't call App.exitApp() - let the app stay open
-          });
-        } catch (error) {
-          console.error('Error setting up back button handler:', error);
-        }
+    const platform = (typeof Capacitor !== 'undefined' && Capacitor.getPlatform) ? Capacitor.getPlatform() : 'web';
+    if (platform !== 'android') return;
+
+    document.body.classList.add('no-text-select');
+
+    const preventContext = (e) => {
+      e.preventDefault();
+    };
+    const preventCopyCut = (e) => {
+      e.preventDefault();
+    };
+    const preventSelectStart = (e) => {
+      const el = e.target;
+      const tag = (el?.tagName || '').toLowerCase();
+      const isEditable = el?.isContentEditable;
+      if (tag !== 'input' && tag !== 'textarea' && !isEditable) {
+        e.preventDefault();
       }
     };
 
-    handleBackButton();
+    document.addEventListener('contextmenu', preventContext);
+    document.addEventListener('copy', preventCopyCut);
+    document.addEventListener('cut', preventCopyCut);
+    document.addEventListener('selectstart', preventSelectStart);
+
+    return () => {
+      document.body.classList.remove('no-text-select');
+      document.removeEventListener('contextmenu', preventContext);
+      document.removeEventListener('copy', preventCopyCut);
+      document.removeEventListener('cut', preventCopyCut);
+      document.removeEventListener('selectstart', preventSelectStart);
+    };
+  }, []);
+
+  // Handle Android back button - prevent app from closing
+  useEffect(() => {
+    let removeListener;
+
+    const setupBackButtonHandler = async () => {
+      try {
+        const platform = (typeof Capacitor !== 'undefined' && Capacitor.getPlatform) ? Capacitor.getPlatform() : 'web';
+        if (platform !== 'android') return;
+
+        const { App } = await import('@capacitor/app');
+        const backHandler = App.addListener('backButton', ({ canGoBack }) => {
+          if (window.history.length > 1 && canGoBack !== false) {
+            window.history.back();
+          }
+          // If cannot go back, swallow the event to prevent exiting the app
+        });
+
+        removeListener = () => backHandler?.remove();
+      } catch (error) {
+        console.error('Error setting up back button handler:', error);
+      }
+    };
+
+    setupBackButtonHandler();
+
+    return () => {
+      if (removeListener) removeListener();
+    };
   }, []);
 
   useEffect(() => {
@@ -59,6 +156,11 @@ function App() {
       if (currentUser) {
         createUserProfile(currentUser).catch(console.error);
         setUserOnlineStatus(currentUser.uid, true).catch(console.error);
+      }
+
+      // Hide splash screen after auth state is determined
+      if (Capacitor.isNativePlatform()) {
+        SplashScreen.hide().catch(console.error);
       }
     });
 
@@ -83,7 +185,8 @@ function App() {
 
     const updateOnlineStatus = async (isOnline) => {
       try {
-        await setUserOnlineStatus(user.uid, isOnline);
+        // Use immediate flag for offline status to ensure it updates right away
+        await setUserOnlineStatus(user.uid, isOnline, !isOnline);
       } catch (error) {
         console.error("Error updating online status:", error);
       }
@@ -103,7 +206,8 @@ function App() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
 
       if (user) {
-        setUserOnlineStatus(user.uid, false).catch((error) => {
+        // Immediate update when component unmounts
+        setUserOnlineStatus(user.uid, false, true).catch((error) => {
           console.error("Error setting offline status on cleanup:", error);
         });
       }
@@ -143,6 +247,12 @@ function App() {
             <span></span>
           </div>
         </div>
+        <div className="app-loading-footer">
+          <div className="devfusion-logo">
+            <img src="/DevFusion.png" alt="DevFusion" className="devfusion-logo-img" />
+            <span className="devfusion-text">DevFusion</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -167,6 +277,7 @@ function App() {
     return (
       <>
         <SecurityWarning />
+        <UpdateChecker showButton={false} />
         <Auth />
       </>
     );
@@ -175,6 +286,7 @@ function App() {
   return (
     <>
       <SecurityWarning />
+      <UpdateChecker showButton={false} />
       <Router>
         <Routes>
           <Route path="/" element={<Home user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />

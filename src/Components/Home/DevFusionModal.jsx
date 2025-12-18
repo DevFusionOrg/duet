@@ -116,6 +116,7 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
     };
 
     fetchUserUIDs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const isFriend = (teamMemberId) => userFriends.includes(teamMemberId);

@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { Device } from "@capacitor/device";
+import { notificationService } from "../services/notifications";
 
 function compareSemver(a = "0.0.0", b = "0.0.0") {
   const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
@@ -18,8 +19,9 @@ function compareSemver(a = "0.0.0", b = "0.0.0") {
 }
 
 const DISMISSED_VERSION_KEY = "updateDismissedVersion";
+const NOTIFIED_VERSION_KEY = "updateNotifiedVersion";
 
-export default function UpdateChecker({ className }) {
+export default function UpdateChecker({ className, showButton = true }) {
   const [installedVersion, setInstalledVersion] = useState(null);
   const [latestInfo, setLatestInfo] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -90,12 +92,32 @@ export default function UpdateChecker({ className }) {
   }, [installedVersion]);
 
   useEffect(() => {
-    if (!updateAvailable || !latestInfo?.version) return;
+    if (!latestInfo?.version) return;
+    if (!updateAvailable) return;
+
+    // Show modal if not dismissed
     const dismissed = localStorage.getItem(DISMISSED_VERSION_KEY);
-    if (dismissed === latestInfo.version) {
-      return;
+    if (dismissed !== latestInfo.version) {
+      setModalOpen(true);
     }
-    setModalOpen(true);
+
+    // Send a system notification once per version
+    const notified = localStorage.getItem(NOTIFIED_VERSION_KEY);
+    if (notified !== latestInfo.version) {
+      (async () => {
+        try {
+          await notificationService.requestPermission();
+          notificationService.showNotification("Update available " + latestInfo.version, {
+            body: latestInfo.notes || "Tap to download and install.",
+            data: { url: latestInfo.apkUrl, version: latestInfo.version },
+            tag: "update-" + latestInfo.version
+          });
+          localStorage.setItem(NOTIFIED_VERSION_KEY, latestInfo.version);
+        } catch (e) {
+          // ignore
+        }
+      })();
+    }
   }, [updateAvailable, latestInfo]);
 
   const closeModal = useCallback(() => {
@@ -110,16 +132,18 @@ export default function UpdateChecker({ className }) {
 
   return (
     <>
-      <div className={className ? className : "update-checker"}>
-        <button
-          className="profile-action-button update-check-button"
-          onClick={checkForUpdates}
-          disabled={loading}
-        >
-          {loading ? "Checking…" : "Check for updates"}
-          {!loading && updateAvailable && <span className="update-badge">New</span>}
-        </button>
-      </div>
+      {showButton && (
+        <div className={className ? className : "update-checker"}>
+          <button
+            className="profile-action-button update-check-button"
+            onClick={checkForUpdates}
+            disabled={loading}
+          >
+            {loading ? "Checking…" : "Check for updates"}
+            {!loading && updateAvailable && <span className="update-badge">New</span>}
+          </button>
+        </div>
+      )}
 
       {modalOpen && (
         <div className="update-modal-overlay" onClick={closeModal}>
@@ -160,7 +184,7 @@ export default function UpdateChecker({ className }) {
                         setModalOpen(false);
                       }}
                     >
-                      Download latest APK
+                      Update now
                     </a>
                   </>
                 ) : (

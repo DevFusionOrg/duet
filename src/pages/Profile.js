@@ -15,7 +15,6 @@ import PasswordChange from '../Components/Profile/PasswordChange';
 import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
 import FriendsView from '../Components/Home/FriendsView';
-import UpdateChecker from "../Components/UpdateChecker";
 import { Device } from "@capacitor/device";
 import { useProfiles } from "../hooks/useProfiles";
 import { useBlockedUsers } from "../hooks/useBlockedUsers";
@@ -29,7 +28,6 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
   const { uid } = useParams();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState('profile');
   const [showSettings, setShowSettings] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [installedVersion, setInstalledVersion] = useState(null);
@@ -148,7 +146,6 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
     setEditing(!editing);
     setChangingPassword(false);
     setMessage("");
-    setActiveTab('profile');
   };
 
   const handlePasswordChange = async (e) => {
