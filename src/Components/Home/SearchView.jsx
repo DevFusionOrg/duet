@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import UserBadge from "../UserBadge";
 
 function SearchView({ user }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -65,13 +66,14 @@ function SearchView({ user }) {
     return (
       userProfile.friendRequests &&
       userProfile.friendRequests.some(
-        (req) => req.from === currentUserId && req.status === "pending",
+        (req) => req.from === currentUserId && (req.status === "pending" || !req.status)
       )
     );
   };
 
   const isAlreadyFriend = (userProfile, currentUserId) => {
-    return userProfile.friends && userProfile.friends.includes(currentUserId);
+    // Check if currentUserId is in the user's friends array
+    return userProfile.friends && Array.isArray(userProfile.friends) && userProfile.friends.includes(currentUserId);
   };
 
   return (
@@ -121,7 +123,10 @@ function SearchView({ user }) {
               }}
               />
               <div className="search-result-info">
-                <h4>{result.displayName}</h4>
+                <h4 className="badge-with-name">
+                  {result.displayName}
+                  {(() => { const displayBadge = result.badge || (result.username === 'ashwinirai492' ? 'tester' : null); return displayBadge ? <UserBadge badge={displayBadge} size="small" /> : null; })()}
+                </h4>
                 <p className="search-result-username">@{result.username}</p>
                 {result.bio && (
                   <p className="search-result-bio">{result.bio}</p>

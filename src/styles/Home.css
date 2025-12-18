@@ -111,7 +111,6 @@
 
 .nav-item:hover {
   color: var(--home-text);
-  background: var(--home-hover-bg);
 }
 
 .nav-item.active {
@@ -284,6 +283,10 @@
   object-fit: cover;
 }
 
+.friend-avatar-section .user-badge {
+  display: none;
+}
+
 .online-indicator {
   width: 8px;
   height: 8px;
@@ -339,8 +342,8 @@
   align-items: center;
   gap: 6px;
   padding: 10px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: transparent;
+  color: var(--home-text-muted);
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -348,11 +351,28 @@
   font-weight: 600;
   transition: all 0.3s ease;
   white-space: nowrap;
+  opacity: 0.7;
 }
 
 .chat-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  color: var(--home-text);
+  opacity: 1;
+}
+
+.remove-friend-btn {
+  background: transparent;
+  border: none;
+  color: #ff4757;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.9;
+}
+
+.remove-friend-btn:hover {
+  background: var(--home-hover-bg);
+  opacity: 1;
 }
 
 .chat-icon { font-size: 1rem; }
@@ -369,11 +389,76 @@
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
+  gap: 12px;
 }
 
 .chat-item:hover {
   transform: translateX(5px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.chat-item:hover .chat-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-item.pinned {
+  border-left: 4px solid #00a8e8;
+  background: linear-gradient(90deg, rgba(0, 168, 232, 0.05) 0%, transparent 100%);
+}
+
+.pin-indicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #00a8e8;
+  padding: 5px;
+}
+
+.chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 1; /* always visible */
+  transition: opacity 0.2s ease;
+  margin-left: auto;
+}
+
+.chat-action-btn {
+  background: none;
+  border: 1px solid var(--home-border);
+  color: var(--home-text-muted);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.chat-item:hover .chat-action-btn {
+  opacity: 1;
+  background: var(--home-hover-bg);
+}
+
+.chat-action-btn:hover {
+  background: var(--home-hover-bg);
+  color: #00a8e8;
+  border-color: #00a8e8;
+  opacity: 1;
+}
+
+.chat-action-btn.pin-btn:hover {
+  color: #00a8e8;
+}
+
+.chat-action-btn.mute-btn:hover {
+  color: #ff9800;
 }
 
 .chat-avatar-section {
@@ -388,6 +473,10 @@
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #f0f0f0;
+}
+
+.chat-avatar-section .user-badge {
+  display: none;
 }
 
 .chat-info { flex: 1; min-width: 0; }
@@ -1392,6 +1481,27 @@
   height: 80px;
   width: 80px;
   left: 0;
+}
+
+.company-logo-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.company-logo-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.company-logo-btn:active {
+  transform: scale(0.98);
 }
 
 .appname{

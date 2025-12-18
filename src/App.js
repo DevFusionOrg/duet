@@ -30,6 +30,27 @@ function App() {
     setIsDarkMode(prev => !prev);
   };
 
+  // Handle Android back button - prevent app from closing
+  useEffect(() => {
+    const handleBackButton = async () => {
+      if (window.Capacitor) {
+        try {
+          const { App } = await import('@capacitor/app');
+          App.addListener('backButton', ({ canGoBack }) => {
+            if (window.history.length > 1) {
+              window.history.back();
+            }
+            // Don't call App.exitApp() - let the app stay open
+          });
+        } catch (error) {
+          console.error('Error setting up back button handler:', error);
+        }
+      }
+    };
+
+    handleBackButton();
+  }, []);
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       setUser(currentUser);
