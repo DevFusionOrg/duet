@@ -190,7 +190,7 @@ const VideoCallScreen = ({
             className="local-video"
             autoPlay
             playsInline
-            muted={isSpeaker}
+            muted={true}
           />
           
           {/* Local user info in PiP */}

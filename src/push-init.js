@@ -91,6 +91,12 @@ export async function initPushNotifications() {
   });
 
   PushNotifications.addListener("pushNotificationReceived", (notification) => {
+    const data = notification?.data || {};
+    if (data.type === "message_read") {
+      // Clear delivered notifications when read receipts arrive (app not opened)
+      clearDeliveredNotifications();
+      return;
+    }
     console.log("[push-init] Notification received in foreground:", notification);
   });
 
@@ -98,9 +104,24 @@ export async function initPushNotifications() {
     console.log("[push-init] Notification action performed:", action);
 
     const data = action.notification?.data || {};
+    if (data.type === "message_read") {
+      clearDeliveredNotifications();
+      return;
+    }
+
     const chatId = data.chatId;
     if (chatId) {
       console.log("[push-init] Should navigate to chat:", chatId);
+    }
+
+    // Open URL if provided (e.g., app update APK link)
+    const url = data.url;
+    if (url) {
+      try {
+        window.open(url, '_blank');
+      } catch (err) {
+        console.warn('[push-init] Failed to open URL from notification', err);
+      }
     }
 
     dispatchNotificationClick(data);

@@ -93,8 +93,15 @@ class WebRTCService {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 48000,
-          channelCount: 1
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true,
+          googTypingNoiseDetection: true,
+          googExperimentalAutoGainControl: true,
+          googExperimentalNoiseSuppression: true,
+          sampleRate: { ideal: 48000 },
+          channelCount: { ideal: 1 }
         },
         video: isVideoCall ? {
           width: { ideal: 1280, max: 1920 },

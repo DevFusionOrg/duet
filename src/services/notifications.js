@@ -1,3 +1,6 @@
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
+
 class NotificationService {
   constructor() {
     this.isSupported = 'Notification' in window;
@@ -34,7 +37,9 @@ class NotificationService {
       window.focus();
       notification.close();
       
-      if (options.data && options.data.chatId) {
+      if (options.data && options.data.url) {
+        try { window.open(options.data.url, '_blank'); } catch (e) {}
+      } else if (options.data && options.data.chatId) {
         window.dispatchEvent(new CustomEvent('notification-click', {
           detail: options.data
         }));
@@ -68,10 +73,31 @@ class NotificationService {
         return;
       }
 
-      const notifications = await registration.getNotifications({ tag: `chat-${chatId}` });
-      notifications.forEach((notification) => notification.close());
+      // getNotifications({ tag }) only matches exact tags, so also fetch all and prefix-match
+      const notifications = await registration.getNotifications();
+      notifications.forEach((notification) => {
+        const tag = notification.tag || '';
+        if (tag === `chat-${chatId}` || tag.startsWith(`chat-${chatId}-`)) {
+          notification.close();
+        }
+      });
     } catch (err) {
       console.error("[notifications] Failed to clear chat notifications", err);
+    }
+  }
+
+  async clearAllNotifications(chatId) {
+    // Clear web/desktop notifications by tag
+    await this.clearChatNotifications(chatId);
+
+    // Clear delivered native notifications on Android/iOS
+    try {
+      const platform = (typeof Capacitor !== 'undefined' && Capacitor.getPlatform) ? Capacitor.getPlatform() : 'web';
+      if (platform === 'android' || platform === 'ios') {
+        await PushNotifications.removeAllDeliveredNotifications();
+      }
+    } catch (err) {
+      console.warn('[notifications] Failed to clear native notifications', err);
     }
   }
 }
