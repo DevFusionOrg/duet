@@ -7,6 +7,8 @@ import FriendsView from '../Components/Home/FriendsView';
 import ProfileView from '../Components/Home/ProfileView';
 import SearchView from '../Components/Home/SearchView';
 import NotificationsView from '../Components/Home/NotificationsView';
+import SuggestedFriends from '../Components/Home/SuggestedFriends';
+import RecentlyActiveFriends from '../Components/Home/RecentlyActiveFriends';
 // Removed ProfilePopup usage
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
@@ -185,22 +187,41 @@ function Home({ user, isDarkMode, toggleTheme }) {
       <div className="main-content">
         <div className="content-area">
           {activeView === 'friends' ? (
-            <FriendsView 
-              friends={filteredFriends}
-              loading={loading} 
-              onStartChat={handleStartChat}
-              onFriendCardClick={handleFriendCardClick}
-              friendsOnlineStatus={friendsOnlineStatus}
-              currentUserId={user.uid}
-              hideGrid={true}
-              hideHeading={true}
-            />
+            <>
+              <FriendsView 
+                friends={filteredFriends}
+                loading={loading} 
+                onStartChat={handleStartChat}
+                onFriendCardClick={handleFriendCardClick}
+                friendsOnlineStatus={friendsOnlineStatus}
+                currentUserId={user.uid}
+                hideGrid={true}
+                hideHeading={true}
+              />
+              <div style={{ paddingLeft: '20px', paddingRight: '20px' }}>
+                {filteredFriends.length > 0 && (
+                  <RecentlyActiveFriends 
+                    key="recently-active"
+                    friends={filteredFriends}
+                    friendsOnlineStatus={friendsOnlineStatus}
+                    onStartChat={handleStartChat}
+                  />
+                )}
+                <SuggestedFriends 
+                  key="suggested-friends"
+                  user={user}
+                  currentFriends={filteredFriends}
+                  friendRequests={userProfile?.friendRequests || []}
+                />
+              </div>
+            </>
           ) : activeView === 'chats' ? (
             <ChatsView 
               chats={chats} 
               loading={loading} 
               onStartChat={handleStartChat}
               friendsOnlineStatus={friendsOnlineStatus}
+              user={user}
             />
           ) : activeView === 'search' ? (
             <SearchView user={user} />

@@ -18,6 +18,22 @@ messaging.onBackgroundMessage((payload) => {
   const data = payload.data || {};
   const type = data.type || 'chat_message';
 
+  // If this is a read receipt, close existing chat notifications and skip showing a new one
+  if (type === 'message_read') {
+    const chatId = data.chatId;
+    if (chatId && self.registration?.getNotifications) {
+      self.registration.getNotifications().then((notifications) => {
+        notifications.forEach((n) => {
+          const tag = n.tag || '';
+          if (tag === `chat-${chatId}` || tag.startsWith(`chat-${chatId}-`)) {
+            n.close();
+          }
+        });
+      });
+    }
+    return;
+  }
+
   let notificationTitle = data.senderName || payload.notification?.title || 'New Message';
   let notificationBody = payload.notification?.body || data.message || 'You have a new message';
   let tag = 'chat-notification';

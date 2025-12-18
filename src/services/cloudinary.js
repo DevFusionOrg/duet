@@ -128,3 +128,39 @@ export const extractPublicIdFromUrl = (url) => {
   
   return match ? match[1] : null;
 };
+
+// VOICE NOTE UPLOAD (duet-voice folder)
+export const uploadVoiceNote = async (audioBlob) => {
+  return new Promise((resolve, reject) => {
+    const cloudName = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = "duet_voice"; // You'll need to create this preset in Cloudinary
+    
+    const formData = new FormData();
+    formData.append('file', audioBlob);
+    formData.append('upload_preset', uploadPreset);
+    formData.append('folder', 'duet-voice');
+    formData.append('resource_type', 'video'); // Audio files use 'video' resource type in Cloudinary
+
+    fetch(`https://api.cloudinary.com/v1_1/${cloudName}/upload`, {
+      method: 'POST',
+      body: formData
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          reject(new Error(data.error.message));
+        } else {
+          resolve({
+            url: data.secure_url,
+            publicId: data.public_id,
+            duration: data.duration,
+            format: data.format,
+            bytes: data.bytes
+          });
+        }
+      })
+      .catch(error => {
+        reject(error);
+      });
+  });
+};

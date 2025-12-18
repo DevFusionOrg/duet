@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import UserBadge from '../UserBadge';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { db } from '../../firebase/firebase';
 
-function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
+function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user }) {
   const [pinnedChatId, setPinnedChatId] = useState(localStorage.getItem('pinnedChatId') || null);
-  const [mutedChats, setMutedChats] = useState(() => {
-    const saved = localStorage.getItem('mutedChats');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [mutedChats, setMutedChats] = useState([]);
+
+  // Load muted chats from Firestore
+  useEffect(() => {
+    if (!user?.uid) return;
+    
+    const loadMutedChats = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setMutedChats(userData.mutedChats || []);
+        }
+      } catch (error) {
+        console.error('Error loading muted chats:', error);
+      }
+    };
+    
+    loadMutedChats();
+  }, [user?.uid]);
 
   const formatChatTimestamp = (timestamp) => {
     if (!timestamp) return 'New';
@@ -44,14 +62,27 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
     }
   };
 
-  const handleToggleMute = (e, chatId) => {
+  const handleToggleMute = async (e, chatId) => {
     e.stopPropagation();
+    if (!user?.uid) return;
+    
     const isMuted = mutedChats.includes(chatId);
     const newMuted = isMuted 
       ? mutedChats.filter(id => id !== chatId)
       : [...mutedChats, chatId];
+    
     setMutedChats(newMuted);
-    localStorage.setItem('mutedChats', JSON.stringify(newMuted));
+    
+    // Save to Firestore
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        mutedChats: newMuted
+      });
+    } catch (error) {
+      console.error('Error updating muted chats:', error);
+      // Revert on error
+      setMutedChats(mutedChats);
+    }
   };
 
   // Sort chats: pinned chat first, then others by most recent
@@ -126,9 +157,6 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
                     {chat.otherParticipant.displayName}
                     {displayBadge && <UserBadge badge={displayBadge} size="small" />}
                   </h4>
-                  <span className="chat-time">
-                    {formatChatTimestamp(chat.lastMessageAt)}
-                  </span>
                 </div>
                 <p className="last-message">
                   {lastMessagePreview.length > 40 
@@ -137,40 +165,45 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus }) {
                 </p>
               </div>
               
-              <div className="chat-actions">
-                <button
-                  className="chat-action-btn pin-btn"
-                  onClick={(e) => handlePinChat(e, chat.id)}
-                  title={isPinned ? 'Unpin chat' : 'Pin chat'}
-                  aria-label={isPinned ? 'Unpin chat' : 'Pin chat'}
-                  style={{ color: isPinned ? '#00a8e8' : undefined }}
-                >
-                  {/* Pushpin icon */}
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M16 3v5l4 4v2h-7l-2 7-2-7H2v-2l4-4V3h10z" />
-                  </svg>
-                </button>
-                <button
-                  className="chat-action-btn mute-btn"
-                  onClick={(e) => handleToggleMute(e, chat.id)}
-                  title={isMuted ? 'Unmute notifications' : 'Mute notifications'}
-                  aria-label={isMuted ? 'Unmute notifications' : 'Mute notifications'}
-                  style={{ color: isMuted ? '#ff4757' : undefined }}
-                >
-                  {/* Bell / Bell-off icon */}
-                  {isMuted ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 8a6 6 0 10-12 0c0 4-2 6-2 6h16s-2-2-2-6" fill="none" />
-                      <path d="M13.73 21a2 2 0 01-3.46 0" />
-                      <line x1="2" y1="2" x2="22" y2="22" />
+              <div className="chat-actions-group">
+                <div className="chat-actions">
+                  <button
+                    className="chat-action-btn pin-btn"
+                    onClick={(e) => handlePinChat(e, chat.id)}
+                    title={isPinned ? 'Unpin chat' : 'Pin chat'}
+                    aria-label={isPinned ? 'Unpin chat' : 'Pin chat'}
+                    style={{ color: isPinned ? '#00a8e8' : undefined }}
+                  >
+                    {/* Pushpin icon */}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 3v5l4 4v2h-7l-2 7-2-7H2v-2l4-4V3h10z" />
                     </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 8a6 6 0 10-12 0c0 4-2 6-2 6h16s-2-2-2-6" />
-                      <path d="M13.73 21a2 2 0 01-3.46 0" />
-                    </svg>
-                  )}
-                </button>
+                  </button>
+                  <button
+                    className="chat-action-btn mute-btn"
+                    onClick={(e) => handleToggleMute(e, chat.id)}
+                    title={isMuted ? 'Unmute notifications' : 'Mute notifications'}
+                    aria-label={isMuted ? 'Unmute notifications' : 'Mute notifications'}
+                    style={{ color: isMuted ? '#ff4757' : undefined }}
+                  >
+                    {/* Bell / Bell-off icon */}
+                    {isMuted ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 8a6 6 0 10-12 0c0 4-2 6-2 6h16s-2-2-2-6" fill="none" />
+                        <path d="M13.73 21a2 2 0 01-3.46 0" />
+                        <line x1="2" y1="2" x2="22" y2="22" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 8a6 6 0 10-12 0c0 4-2 6-2 6h16s-2-2-2-6" />
+                        <path d="M13.73 21a2 2 0 01-3.46 0" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                <span className="chat-time">
+                  {formatChatTimestamp(chat.lastMessageAt)}
+                </span>
               </div>
               
               {chat.unreadCount > 0 && !isMuted && (

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import DevFusionModal from './DevFusionModal';
 import UserBadge from '../UserBadge';
+import FriendProfilePopup from '../FriendProfilePopup';
 import { deleteFriend } from '../../firebase/firestore';
 
 function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friendsOnlineStatus, currentUserId, hideHeaders = false, hideHeading = false, hideGrid = false, allowRemove = false }) {
   const [showDevFusionModal, setShowDevFusionModal] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState(null);
 
   if (loading) {
     return (
@@ -15,15 +17,7 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
     );
   }
 
-  if (friends.length === 0) {
-    return (
-      <div className="empty-state">
-        <div className="empty-icon">👥</div>
-        <h3>No Friends Yet</h3>
-        <p>Go to the Search page to find and add friends!</p>
-      </div>
-    );
-  }
+  // Removed empty state - show header and recommendations instead
 
   return (
     <div className="friends-container">
@@ -52,7 +46,11 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
           <div 
             key={friend.uid} 
             className="friend-card"
-            onClick={(e) => onFriendCardClick(friend, e)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedFriend(friend);
+            }}
+            style={{ cursor: 'pointer' }}
           >
             <div className="friend-avatar-section">
               <img 
@@ -122,6 +120,14 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
           isOpen={showDevFusionModal}
           onClose={() => setShowDevFusionModal(false)}
           currentUserId={currentUserId}
+        />
+      )}
+
+      {selectedFriend && (
+        <FriendProfilePopup
+          friend={selectedFriend}
+          onClose={() => setSelectedFriend(null)}
+          onStartChat={onStartChat}
         />
       )}
     </div>

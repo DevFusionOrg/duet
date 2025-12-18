@@ -207,10 +207,10 @@ class CallService {
       // Only create message for actual calls (with duration) or missed calls
       if (type === 'ended') {
         if (duration > 0) {
-          messageText = `📞 Call`;
+          messageText = `Call (${this.formatDuration(duration)})`;
           callAction = 'ended';
         } else {
-          messageText = `📞 Missed call`;
+          messageText = `Missed call`;
           callAction = 'missed';
         }
         
@@ -222,7 +222,7 @@ class CallService {
           senderId = userId;
         }
       } else if (type === 'missed') {
-        messageText = `📞 Missed call`;
+        messageText = `Missed call`;
         senderId = friendId;
         callAction = 'missed';
         callInitiatorId = friendId;
@@ -240,7 +240,7 @@ class CallService {
           callDuration: duration,
           callInitiatorId: callInitiatorId,
           read: false,
-          deletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          deletionTime: new Date(Date.now() + 12 * 60 * 60 * 1000),
           isCallLog: true
         });
 
@@ -274,10 +274,10 @@ class CallService {
       // Only create message for actual calls (with duration) or missed calls
       if (type === 'ended') {
         if (duration > 0) {
-          messageText = `📹 Call`;
+          messageText = `Video call (${this.formatDuration(duration)})`;
           callAction = 'ended';
         } else {
-          messageText = `📹 Missed call`;
+          messageText = `Missed video call`;
           callAction = 'missed';
         }
         
@@ -289,7 +289,7 @@ class CallService {
           senderId = userId;
         }
       } else if (type === 'missed') {
-        messageText = `📹 Missed call`;
+        messageText = `Missed video call`;
         senderId = friendId;
         callAction = 'missed';
         callInitiatorId = friendId;
@@ -307,7 +307,7 @@ class CallService {
           callDuration: duration,
           callInitiatorId: callInitiatorId,
           read: false,
-          deletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          deletionTime: new Date(Date.now() + 12 * 60 * 60 * 1000),
           isCallLog: true
         });
 

@@ -18,6 +18,15 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Disable selection/copy on Android app outside editable fields */
+body.no-text-select,
+body.no-text-select *:not(input):not(textarea):not([contenteditable="true"]) {
+  -webkit-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
 .app-loading {
   display: flex;
   justify-content: center;
@@ -77,10 +86,12 @@ body {
 
 .app-loading {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   width: 100%;
+  position: relative;
 }
 
 .app-loading-content {
@@ -89,6 +100,36 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
+  flex: 1;
+}
+
+.app-loading-footer {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+}
+
+.devfusion-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.devfusion-logo-img {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+}
+
+.devfusion-text {
+  font-size: 14px;
+  color: #999;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
 .animated-logo {

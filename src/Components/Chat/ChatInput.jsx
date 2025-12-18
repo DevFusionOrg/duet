@@ -14,7 +14,8 @@ function ChatInput({
   onImageUploadClick,
   onInputChange,
   onCancelReply,
-  onSendMessage
+  onSendMessage,
+  onVoiceRecordClick
 }) {
 
   const handleSubmit = (e) => {
@@ -27,6 +28,12 @@ function ChatInput({
     onImageUploadClick();
   };
 
+  const handleVoiceRecord = () => {
+    if (onVoiceRecordClick) {
+      onVoiceRecordClick();
+    }
+  };
+
   return (
     <>
       {replyingTo && (
@@ -36,7 +43,9 @@ function ChatInput({
             <button onClick={onCancelReply} className="reply-cancel-button">✕</button>
           </div>
           <div className="original-message-preview">
-            {replyingTo.type === 'image' ? '📷 Image' : (replyingTo.text || '').substring(0, 50)}
+            {replyingTo.type === 'image' ? '📷 Image' : 
+             replyingTo.type === 'voice' ? '🎤 Voice message' : 
+             (replyingTo.text || '').substring(0, 50)}
           </div>
         </div>
       )}
@@ -56,6 +65,19 @@ function ChatInput({
               <path d="M23 4v2h-3v3h-2V6h-3V4h3V1h2v3h3zm-8.5 7a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm.5 2l-1.5 2-2.25-3-3.25 4.5h11L17 11l-2-2zm-8-9h8v2H7c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8h2v8c0 2.2-1.8 4-4 4H7c-2.2 0-4-1.8-4-4V8c0-2.2 1.8-4 4-4z"/>
             </svg>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleVoiceRecord}
+          disabled={loading || isBlocked || uploadingImage}
+          className="chat-voice-record-button"
+          title={isBlocked ? "You have blocked this user" : "Record voice note"}
+        >
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+          </svg>
         </button>
 
         <input

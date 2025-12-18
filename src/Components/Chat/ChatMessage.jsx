@@ -1,4 +1,5 @@
 import React from "react";
+import VoiceNotePlayer from './VoiceNotePlayer';
 
 function ChatMessage({ 
   message, 
@@ -42,14 +43,18 @@ function ChatMessage({
         <span className="chat-saved-indicator">⭐</span>
       )}
       {message.senderId === user.uid && (
-        <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
-          {isSeenByRecipient ? (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="8" cy="8" r="7" fill="#000000ff" />
-              <path d="M5 8L7 10L11 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          ) : ''}
-        </span>
+        message.pending ? (
+          <span className="chat-pending-indicator" title="Sending..."></span>
+        ) : (
+          <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
+            {isSeenByRecipient ? (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="8" cy="8" r="7" fill="#000000ff" />
+                <path d="M5 8L7 10L11 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : ''}
+          </span>
+        )
       )}
     </div>
   );
@@ -86,11 +91,28 @@ function ChatMessage({
         <div className="reply-indicator">
           <span className="reply-icon">Replied to</span>
           <div className="quoted-message">
-            {message.originalMessageType === 'image' ? '📷 Image' : message.originalMessageText}
+            {message.originalMessageType === 'image' ? '📷 Image' : 
+             message.originalMessageType === 'voice' ? '🎤 Voice message' : 
+             message.originalMessageText}
           </div>
         </div>
       )
     );
+
+    if (message.type === "voice" && message.voice) {
+      return (
+        <div className="chat-voice-message">
+          {renderReplyIndicator()}
+          
+          <VoiceNotePlayer 
+            voiceUrl={message.voice.url} 
+            duration={message.voice.duration}
+          />
+          
+          {renderMessageStatus(message, isSeenByRecipient)}
+        </div>
+      );
+    }
 
     if (message.type === "image" && message.image) {
       return (
