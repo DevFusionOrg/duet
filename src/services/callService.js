@@ -15,8 +15,6 @@ class CallService {
   // Create a new audio call
   async createCall(callerId, callerName, receiverId, receiverName) {
     try {
-      console.log('📞 Creating audio call from', callerName, 'to', receiverName);
-      
       const callId = `${callerId}_${receiverId}_${Date.now()}`;
       
       const callData = {
@@ -36,7 +34,6 @@ class CallService {
       // Create call in Realtime Database
       const callRef = ref(database, `activeCalls/${callId}`);
       await set(callRef, callData);
-      console.log('✅ Audio call created:', callId);
 
       return { callId, ...callData };
     } catch (error) {
@@ -48,8 +45,6 @@ class CallService {
   // Create a video call
   async createVideoCall(callerId, callerName, receiverId, receiverName) {
     try {
-      console.log('📹 Creating video call from', callerName, 'to', receiverName);
-      
       const callId = `${callerId}_${receiverId}_${Date.now()}`;
       
       const callData = {
@@ -69,7 +64,6 @@ class CallService {
       // Create call in Realtime Database
       const callRef = ref(database, `activeCalls/${callId}`);
       await set(callRef, callData);
-      console.log('✅ Video call created:', callId);
 
       return { callId, ...callData };
     } catch (error) {
@@ -81,8 +75,6 @@ class CallService {
   // Accept call
   async acceptCall(callId, receiverId) {
     try {
-      console.log('📞 Accepting call:', callId);
-      
       const callRef = ref(database, `activeCalls/${callId}`);
       const snapshot = await get(callRef);
       const callData = snapshot.val();
@@ -100,7 +92,6 @@ class CallService {
         acceptedAt: Date.now()
       });
 
-      console.log('✅ Call accepted');
       return callData;
     } catch (error) {
       console.error('❌ Error accepting call:', error);
@@ -111,14 +102,11 @@ class CallService {
   // Decline call
   async declineCall(callId, receiverId) {
     try {
-      console.log('📞 Declining call:', callId);
-      
       const callRef = ref(database, `activeCalls/${callId}`);
       const snapshot = await get(callRef);
       const callData = snapshot.val();
       
       if (!callData) {
-        console.log('Call already ended, skipping decline');
         return; // Call already ended, no need to decline
       }
 
@@ -132,7 +120,6 @@ class CallService {
         remove(callRef).catch(() => {});
       }, 30000);
 
-      console.log('✅ Call declined');
     } catch (error) {
       console.error('❌ Error declining call:', error);
       throw error;
@@ -142,14 +129,11 @@ class CallService {
   // End call
   async endCall(callId, userId, duration = 0, status = 'ended') {
     try {
-      console.log('📞 Ending call:', callId, 'status:', status);
-      
       const callRef = ref(database, `activeCalls/${callId}`);
       const snapshot = await get(callRef);
       const callData = snapshot.val();
 
       if (!callData) {
-        console.log('Call already ended');
         return;
       }
 
@@ -173,7 +157,6 @@ class CallService {
         remove(callRef).catch(() => {});
       }, 3000);
 
-      console.log('✅ Call ended:', finalStatus);
       
     } catch (error) {
       console.error('❌ Error ending call:', error);
@@ -182,8 +165,6 @@ class CallService {
 
   // Listen for incoming calls
   listenForIncomingCalls(userId, callback) {
-    console.log('👂 Setting up call listener for user:', userId);
-    
     const callsRef = ref(database, 'activeCalls');
     
     const unsubscribe = onValue(callsRef, (snapshot) => {
@@ -200,7 +181,6 @@ class CallService {
         });
       }
       
-      console.log('📞 Incoming calls for', userId, ':', incomingCalls.length);
       callback(incomingCalls);
     }, (error) => {
       console.error('❌ Error listening for calls:', error);
@@ -214,7 +194,6 @@ class CallService {
   async sendCallNotification(chatId, userId, friendId, type, duration = 0, callData = null) {
     try {
       if (!chatId) {
-        console.log('No chatId for call notification');
         return;
       }
 
@@ -225,56 +204,53 @@ class CallService {
       let callAction = '';
       let callInitiatorId = '';
       
-      if (type === 'started') {
-        messageText = 'Audio call started';
-        senderId = userId;
-        callAction = 'started';
-        callInitiatorId = userId;
-      } else if (type === 'ended') {
+      // Only create message for actual calls (with duration) or missed calls
+      if (type === 'ended') {
         if (duration > 0) {
-          messageText = `Audio call: ${this.formatDuration(duration)}`;
+          messageText = `Call (${this.formatDuration(duration)})`;
           callAction = 'ended';
         } else {
-          messageText = 'Audio call ended';
-          callAction = 'ended';
+          messageText = `Missed call`;
+          callAction = 'missed';
         }
         
         if (callData && callData.callerId) {
           callInitiatorId = callData.callerId;
-          senderId = callInitiatorId; // Show on initiator's side
+          senderId = callInitiatorId;
         } else {
           callInitiatorId = userId;
           senderId = userId;
         }
       } else if (type === 'missed') {
-        messageText = 'Missed audio call';
+        messageText = `Missed call`;
         senderId = friendId;
         callAction = 'missed';
         callInitiatorId = friendId;
       }
 
-      await addDoc(messagesRef, {
-        senderId: senderId,
-        text: messageText,
-        timestamp: new Date(),
-        type: 'call',
-        callType: type,
-        callAction: callAction,
-        callDuration: duration,
-        callInitiatorId: callInitiatorId,
-        read: false,
-        deletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        isCallLog: true
-      });
+      // Only send message if it's a valid type
+      if (messageText) {
+        await addDoc(messagesRef, {
+          senderId: senderId,
+          text: messageText,
+          timestamp: new Date(),
+          type: 'call',
+          callType: type,
+          callAction: callAction,
+          callDuration: duration,
+          callInitiatorId: callInitiatorId,
+          read: false,
+          deletionTime: new Date(Date.now() + 12 * 60 * 60 * 1000),
+          isCallLog: true
+        });
 
-      // Update chat last message
-      const chatRef = doc(db, 'chats', chatId);
-      await updateDoc(chatRef, {
-        lastMessage: messageText,
-        lastMessageAt: new Date()
-      });
-
-      console.log('📢 Call notification sent:', type, 'initiator:', callInitiatorId);
+        // Update chat last message
+        const chatRef = doc(db, 'chats', chatId);
+        await updateDoc(chatRef, {
+          lastMessage: messageText,
+          lastMessageAt: new Date()
+        });
+      }
 
     } catch (error) {
       console.error('❌ Error sending call notification:', error);
@@ -285,7 +261,6 @@ class CallService {
   async sendVideoCallNotification(chatId, userId, friendId, type, duration = 0, callData = null) {
     try {
       if (!chatId) {
-        console.log('No chatId for video call notification');
         return;
       }
 
@@ -296,56 +271,53 @@ class CallService {
       let callAction = '';
       let callInitiatorId = '';
       
-      if (type === 'started') {
-        messageText = 'Video call started';
-        senderId = userId;
-        callAction = 'started';
-        callInitiatorId = userId;
-      } else if (type === 'ended') {
+      // Only create message for actual calls (with duration) or missed calls
+      if (type === 'ended') {
         if (duration > 0) {
-          messageText = `Video call: ${this.formatDuration(duration)}`;
+          messageText = `Video call (${this.formatDuration(duration)})`;
           callAction = 'ended';
         } else {
-          messageText = 'Video call ended';
-          callAction = 'ended';
+          messageText = `Missed video call`;
+          callAction = 'missed';
         }
         
         if (callData && callData.callerId) {
           callInitiatorId = callData.callerId;
-          senderId = callInitiatorId; // Show on initiator's side
+          senderId = callInitiatorId;
         } else {
           callInitiatorId = userId;
           senderId = userId;
         }
       } else if (type === 'missed') {
-        messageText = 'Missed video call';
+        messageText = `Missed video call`;
         senderId = friendId;
         callAction = 'missed';
         callInitiatorId = friendId;
       }
 
-      await addDoc(messagesRef, {
-        senderId: senderId,
-        text: messageText,
-        timestamp: new Date(),
-        type: 'video-call',
-        callType: type,
-        callAction: callAction,
-        callDuration: duration,
-        callInitiatorId: callInitiatorId,
-        read: false,
-        deletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        isCallLog: true
-      });
+      // Only send message if it's a valid type
+      if (messageText) {
+        await addDoc(messagesRef, {
+          senderId: senderId,
+          text: messageText,
+          timestamp: new Date(),
+          type: 'video-call',
+          callType: type,
+          callAction: callAction,
+          callDuration: duration,
+          callInitiatorId: callInitiatorId,
+          read: false,
+          deletionTime: new Date(Date.now() + 12 * 60 * 60 * 1000),
+          isCallLog: true
+        });
 
-      // Update chat last message
-      const chatRef = doc(db, 'chats', chatId);
-      await updateDoc(chatRef, {
-        lastMessage: messageText,
-        lastMessageAt: new Date()
-      });
-
-      console.log('📹 Video call notification sent:', type, 'initiator:', callInitiatorId);
+        // Update chat last message
+        const chatRef = doc(db, 'chats', chatId);
+        await updateDoc(chatRef, {
+          lastMessage: messageText,
+          lastMessageAt: new Date()
+        });
+      }
 
     } catch (error) {
       console.error('❌ Error sending video call notification:', error);

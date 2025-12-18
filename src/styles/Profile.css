@@ -26,7 +26,6 @@
 /* Container & Header */
 .profile-container {
   margin: 0 auto;
-  min-height: 100vh;
   background: var(--profile-card-bg);
   color: var(--profile-text-main);
 }
@@ -157,10 +156,6 @@
 }
 
 @media (max-width: 480px) {
-  .profile-summary {
-    flex-direction: column;
-    align-items: flex-start;
-  }
   .profile-summary-right {
     width: 100%;
   }
@@ -697,6 +692,33 @@
   font-size: 14px;
   line-height: 1.5;
   color: var(--profile-text-muted);
+}
+
+/* Role chip next to name */
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.role-chip-developer {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.role-chip-support {
+  background: linear-gradient(135deg, #faa61a 0%, #f08000 100%);
+  border: 1px solid rgba(240, 128, 0, 0.35);
+}
+
+.role-chip-tester {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  border: 1px solid rgba(109, 40, 217, 0.35);
 }
 
 /* Password Section */
@@ -1353,3 +1375,83 @@
 }
 .error { color: #c0392b; }
 .notes { color: #444; font-size: 13px; }
+
+/* Summary Card Button */
+.summary-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.summary-button:hover {
+  transform: scale(1.05);
+}
+
+/* Friends Modal */
+.profile-friends-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.profile-friends-modal-content {
+  background: var(--profile-card-bg);
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.friends-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--profile-border);
+  position: sticky;
+  top: 0;
+  background: var(--profile-card-bg);
+}
+
+.friends-modal-header h3 {
+  margin: 0;
+  color: var(--profile-text-main);
+  font-size: 1.2rem;
+}
+
+.friends-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--profile-text-muted);
+  transition: color 0.2s ease;
+  padding: 4px;
+}
+
+.friends-modal-close:hover {
+  color: var(--profile-text-main);
+}
+
+.profile-friends-modal-content .friends-container {
+  padding: 0;
+}
+
+.profile-friends-modal-content .home-title {
+  display: none;
+}
+
+/* Settings Inline Section */
+.profile-settings-inline {
+  padding: 24px;
+  border-top: 1px solid var(--profile-border);
+  margin-top: 24px;
+}

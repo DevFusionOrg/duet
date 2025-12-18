@@ -431,6 +431,15 @@
   margin-left: 4px;
 }
 
+.chat-pending-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background-color: #ef4444; /* red dot while sending */
+}
+
 .chat-sent-message .chat-read-indicator.seen {
   color: var(--chat-text) !important;
 }
@@ -703,6 +712,12 @@
   gap: 8px;
 }
 
+.chat-voice-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .chat-image {
   max-width: 300px;
   max-height: 300px;
@@ -745,6 +760,43 @@
 .chat-image-upload-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.chat-voice-record-button {
+  background: transparent;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--chat-icon-color);
+  transition: color 0.2s, transform 0.2s, opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-voice-record-button:hover:not(:disabled) {
+  color: #667eea;
+  transform: scale(1.1);
+}
+
+.chat-voice-record-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-loading-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(102, 126, 234, 0.3);
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 768px) {

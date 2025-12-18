@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   updatePassword,
   EmailAuthProvider,
@@ -14,19 +14,22 @@ import ProfileDisplay from '../Components/Profile/ProfileDisplay';
 import PasswordChange from '../Components/Profile/PasswordChange';
 import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
-import UpdateChecker from "../Components/UpdateChecker";
+import FriendsView from '../Components/Home/FriendsView';
 import { Device } from "@capacitor/device";
 import { useProfiles } from "../hooks/useProfiles";
 import { useBlockedUsers } from "../hooks/useBlockedUsers";
 import { useProfilePicture } from "../hooks/useProfilePicture";
+import { useFriends } from "../hooks/useFriends";
+import { useFriendsOnlineStatus } from "../hooks/useFriendsOnlineStatus";
 
 import "../styles/Profile.css";
 
 export default function Profile({ user, isDarkMode, toggleTheme }) {
   const { uid } = useParams();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState('profile');
   const [showSettings, setShowSettings] = useState(false);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [installedVersion, setInstalledVersion] = useState(null);
   const [updateInfo, setUpdateInfo] = useState({ loading: false, latest: null, apkUrl: null, hasUpdate: false, error: null });
   const [passwordData, setPasswordData] = useState({
@@ -65,6 +68,22 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
     handleProfilePictureUpload,
     handleRemoveProfilePicture
   } = useProfilePicture(user, setProfile, setMessage);
+
+  // Friends hooks for displaying friends list in modal
+  const { friends, loading: friendsLoading } = useFriends(user);
+  const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
+
+  const handleFriendCardClick = (friend, e) => {
+    if (!e.target.closest('.chat-button')) {
+      // Could open profile popup here if needed
+    }
+  };
+
+  const handleStartChat = (friend) => {
+    if (!friend || !friend.uid) return;
+    // SPA navigate to Home with query params (no full refresh)
+    navigate(`/?senderId=${encodeURIComponent(friend.uid)}&view=chats`);
+  };
 
   useEffect(() => {
     // Preload Cloudinary script when profile page loads
@@ -127,7 +146,6 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
     setEditing(!editing);
     setChangingPassword(false);
     setMessage("");
-    setActiveTab('profile');
   };
 
   const handlePasswordChange = async (e) => {
@@ -234,12 +252,14 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
 
   return (
     <div className="profile-container">
-      <ProfileHeader
-        username={profile?.username}
-        onOpenSettings={() => setShowSettings((s) => !s)}
-        onToggleTheme={toggleTheme}
-        isDarkMode={isDarkMode}
-      />
+      {isOwnProfile && (
+        <ProfileHeader
+          username={profile?.username}
+          onOpenSettings={() => setShowSettings((s) => !s)}
+          onToggleTheme={toggleTheme}
+          isDarkMode={isDarkMode}
+        />
+      )}
 
       <div className="profile-summary">
         <div className="profile-summary-left">
@@ -290,14 +310,14 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
           )}
         </div>
         <div className="profile-summary-right">
-          <div className="summary-card">
+          <button 
+            className="summary-card summary-button"
+            onClick={() => setShowFriendsModal(true)}
+            title="Click to view friends"
+          >
             <div className="summary-number">{profile.friends ? profile.friends.length : 0}</div>
             <div className="summary-label">Friends</div>
-          </div>
-          <div className="summary-card">
-            <div className="summary-number">{profile.friendRequests ? profile.friendRequests.length : 0}</div>
-            <div className="summary-label">Requests</div>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -312,81 +332,29 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
           {message}
         </div>
       )}
-      <div className="profile-tab-panel">
-        {activeTab === 'profile' && (
-          <>
-            {editing ? (
-              <ProfileForm
-                formData={formData}
-                loading={loading}
-                onFormChange={handleFormChange}
-                onSubmit={handleUpdateWithEdit}
-                onCancel={() => setEditing(false)}
-              />
-            ) : (
-              <ProfileDisplay
-                profile={profile}
-                isOwnProfile={isOwnProfile}
-                user={user}
-                blockedUsers={blockedUsers}
-                loadingBlockedUsers={loadingBlockedUsers}
-                onShowBlockedUsers={() => setShowBlockedUsers(true)}
-                editing={editing}
-                onToggleEdit={handleToggleEdit}
-              />
-            )}
-          </>
-        )}
 
-        {activeTab === 'security' && (
-          <>
-            <div style={{ marginBottom: 12 }}>
-              <button
-                className="profile-password-button"
-                onClick={() => setChangingPassword(prev => !prev)}
-              >
-                {changingPassword ? 'Close Change Password' : 'Change Password'}
-              </button>
-            </div>
+      {editing ? (
+        <ProfileForm
+          formData={formData}
+          loading={loading}
+          onFormChange={handleFormChange}
+          onSubmit={handleUpdateWithEdit}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <ProfileDisplay
+          profile={profile}
+          isOwnProfile={isOwnProfile}
+          user={user}
+          blockedUsers={blockedUsers}
+          loadingBlockedUsers={loadingBlockedUsers}
+          onShowBlockedUsers={() => setShowBlockedUsers(true)}
+          editing={editing}
+          onToggleEdit={handleToggleEdit}
+        />
+      )}
 
-            {changingPassword && (
-              <PasswordChange
-                passwordData={passwordData}
-                loading={passwordLoading}
-                onPasswordChange={handlePasswordDataChange}
-                onCancel={handlePasswordCancel}
-                onSubmit={handlePasswordChange}
-              />
-            )}
-
-            <BlockedUsersSection
-              blockedUsers={blockedUsers}
-              loadingBlockedUsers={loadingBlockedUsers}
-              onShowBlockedUsers={() => setShowBlockedUsers(true)}
-              isOwnProfile={isOwnProfile}
-            />
-          </>
-        )}
-
-        {activeTab === 'updates' && (
-          <div className="profile-actions-row">
-            <UpdateChecker />
-            <button
-              onClick={async () => {
-                try {
-                  await signOut(auth);
-                  window.location.href = "/";
-                } catch (error) {
-                  console.error("Error logging out:", error);
-                }
-              }}
-              className="profile-action-button profile-logout-button"
-            >
-              Logout
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Inline settings removed; available via Settings button only */}
 
       {showSettings && (
         <div className="profile-settings-overlay" onClick={() => setShowSettings(false)}>
@@ -465,6 +433,31 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
               Logout
             </button>
           </div>
+          </div>
+        </div>
+      )}
+
+      {/* Friends Modal */}
+      {showFriendsModal && isOwnProfile && (
+        <div className="profile-friends-modal-overlay" onClick={() => setShowFriendsModal(false)}>
+          <div className="profile-friends-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="friends-modal-header">
+              <h3>Friends ({friends?.length || 0})</h3>
+              <button 
+                className="friends-modal-close"
+                onClick={() => setShowFriendsModal(false)}
+              >✕</button>
+            </div>
+            <FriendsView 
+              friends={friends}
+              loading={friendsLoading}
+              onStartChat={handleStartChat}
+              onFriendCardClick={handleFriendCardClick}
+              friendsOnlineStatus={friendsOnlineStatus}
+              currentUserId={user?.uid}
+              hideHeaders={true}
+              allowRemove={true}
+            />
           </div>
         </div>
       )}

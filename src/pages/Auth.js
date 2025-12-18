@@ -6,6 +6,7 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithCredential,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth, googleProvider } from "../firebase/firebase";
 import { createUserProfile } from "../firebase/firestore";
@@ -20,6 +21,9 @@ function Auth() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   const deriveUsernameFromEmail = (emailStr) => {
     if (!emailStr) return "";
@@ -132,6 +136,62 @@ function Auth() {
     setIsLogin((prev) => !prev);
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    
+    if (!forgotPasswordEmail.trim()) {
+      setError("Please enter your email address");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      await sendPasswordResetEmail(auth, forgotPasswordEmail);
+      setResetEmailSent(true);
+      setError("");
+      
+      // Auto-close success message after 8 seconds
+      setTimeout(() => {
+        setShowForgotPassword(false);
+        setResetEmailSent(false);
+        setForgotPasswordEmail("");
+      }, 8000);
+    } catch (err) {
+      console.error("Password reset error:", err);
+      
+      let errorMessage = "Failed to send password reset email. ";
+      if (err.code === 'auth/user-not-found') {
+        errorMessage += "No account found with this email address.";
+      } else if (err.code === 'auth/invalid-email') {
+        errorMessage += "Invalid email address.";
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMessage += "Too many requests. Please try again later.";
+      } else {
+        errorMessage += (err.message || String(err));
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openForgotPasswordModal = () => {
+    setShowForgotPassword(true);
+    setForgotPasswordEmail(email); // Pre-fill with current email if any
+    setError("");
+    setResetEmailSent(false);
+  };
+
+  const closeForgotPasswordModal = () => {
+    setShowForgotPassword(false);
+    setForgotPasswordEmail("");
+    setError("");
+    setResetEmailSent(false);
+  };
+
   return (
     <div className="auth-container">
       <div className="auth-top-header">
@@ -187,6 +247,17 @@ function Auth() {
                 )}
               </button>
             </form>
+
+            <div className="auth-forgot-password-container">
+              <button
+                type="button"
+                onClick={openForgotPasswordModal}
+                className="auth-forgot-password-link"
+                disabled={loading}
+              >
+                Forgot Password?
+              </button>
+            </div>
 
             <div className="auth-divider">
               <span className="auth-divider-text">or</span>
@@ -300,6 +371,90 @@ function Auth() {
           <span className="devfusion-text">DevFusion</span>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="auth-modal-overlay" onClick={closeForgotPasswordModal}>
+          <div className="auth-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="auth-modal-close" 
+              onClick={closeForgotPasswordModal}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            
+            <h2 className="auth-modal-title">Reset Password</h2>
+            
+            {resetEmailSent ? (
+              <div className="auth-reset-success">
+                <div className="auth-success-icon">✓</div>
+                <p className="auth-success-message">
+                  Password reset email sent successfully!
+                </p>
+                <p className="auth-success-submessage">
+                  Please check your inbox at <strong>{forgotPasswordEmail}</strong>
+                </p>
+                <p className="auth-spam-notice">
+                  ⚠️ Don't forget to check your <strong>spam/junk folder</strong> if you don't see the email in a few minutes.
+                </p>
+                <button 
+                  onClick={closeForgotPasswordModal}
+                  className="auth-modal-ok-button"
+                >
+                  OK
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="auth-modal-description">
+                  Enter your email address and we'll send you a link to reset your password.
+                </p>
+                
+                {error && <div className="auth-error">{error}</div>}
+                
+                <form onSubmit={handleForgotPassword} className="auth-modal-form">
+                  <div className="auth-input-group">
+                    <label className="auth-label">Email Address</label>
+                    <input
+                      type="email"
+                      value={forgotPasswordEmail}
+                      onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      className="auth-input"
+                      required
+                      disabled={loading}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="auth-modal-buttons">
+                    <button
+                      type="button"
+                      onClick={closeForgotPasswordModal}
+                      className="auth-modal-cancel-button"
+                      disabled={loading}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="auth-modal-submit-button"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <span className="auth-loading-spinner"></span>
+                      ) : (
+                        "Send Reset Link"
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
