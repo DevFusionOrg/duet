@@ -11,7 +11,7 @@ const CallControls = ({
 }) => {
   return (
     <div className="call-controls">
-      {/* Only show mute and speaker when call is active */}
+      {}
       {showAllControls && (
         <>
           <button 
@@ -33,7 +33,7 @@ const CallControls = ({
         </>
       )}
 
-      {/* End Call Button - always visible */}
+      {}
       <button 
         className="call-control-button call-end-button"
         onClick={onEndCall}

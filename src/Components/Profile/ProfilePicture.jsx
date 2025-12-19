@@ -10,16 +10,14 @@ function ProfilePicture({
   onUploadPicture,
   onRemovePicture
 }) {
-  // Function to get optimized profile picture URL
+  
   const getOptimizedUrl = (url) => {
     if (!url) return url;
-    
-    // If it's already a Cloudinary URL with transformations, use as is
+
     if (url.includes('/upload/') && url.includes('/duet-dp/')) {
       return url;
     }
-    
-    // If it's a Cloudinary URL without proper transformations, add them
+
     if (url.includes('cloudinary.com')) {
       const publicIdMatch = url.match(/\/upload\/(?:v\d+\/)?(.+)$/);
       if (publicIdMatch && publicIdMatch[1]) {

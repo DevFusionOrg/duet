@@ -73,7 +73,6 @@ class NotificationService {
         return;
       }
 
-      // getNotifications({ tag }) only matches exact tags, so also fetch all and prefix-match
       const notifications = await registration.getNotifications();
       notifications.forEach((notification) => {
         const tag = notification.tag || '';
@@ -87,10 +86,9 @@ class NotificationService {
   }
 
   async clearAllNotifications(chatId) {
-    // Clear web/desktop notifications by tag
+    
     await this.clearChatNotifications(chatId);
 
-    // Clear delivered native notifications on Android/iOS
     try {
       const platform = (typeof Capacitor !== 'undefined' && Capacitor.getPlatform) ? Capacitor.getPlatform() : 'web';
       if (platform === 'android' || platform === 'ios') {

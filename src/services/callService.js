@@ -12,7 +12,6 @@ class CallService {
     this.activeCallsRef = ref(database, 'activeCalls');
   }
 
-  // Create a new audio call
   async createCall(callerId, callerName, receiverId, receiverName) {
     try {
       const callId = `${callerId}_${receiverId}_${Date.now()}`;
@@ -31,7 +30,6 @@ class CallService {
         duration: 0
       };
 
-      // Create call in Realtime Database
       const callRef = ref(database, `activeCalls/${callId}`);
       await set(callRef, callData);
 
@@ -42,7 +40,6 @@ class CallService {
     }
   }
 
-  // Create a video call
   async createVideoCall(callerId, callerName, receiverId, receiverName) {
     try {
       const callId = `${callerId}_${receiverId}_${Date.now()}`;
@@ -61,7 +58,6 @@ class CallService {
         duration: 0
       };
 
-      // Create call in Realtime Database
       const callRef = ref(database, `activeCalls/${callId}`);
       await set(callRef, callData);
 
@@ -72,7 +68,6 @@ class CallService {
     }
   }
 
-  // Accept call
   async acceptCall(callId, receiverId) {
     try {
       const callRef = ref(database, `activeCalls/${callId}`);
@@ -99,7 +94,6 @@ class CallService {
     }
   }
 
-  // Decline call
   async declineCall(callId, receiverId) {
     try {
       const callRef = ref(database, `activeCalls/${callId}`);
@@ -107,7 +101,7 @@ class CallService {
       const callData = snapshot.val();
       
       if (!callData) {
-        return; // Call already ended, no need to decline
+        return; 
       }
 
       await update(callRef, {
@@ -115,7 +109,6 @@ class CallService {
         endedAt: Date.now()
       });
 
-      // Remove after delay
       setTimeout(() => {
         remove(callRef).catch(() => {});
       }, 30000);
@@ -126,7 +119,6 @@ class CallService {
     }
   }
 
-  // End call
   async endCall(callId, userId, duration = 0, status = 'ended') {
     try {
       const callRef = ref(database, `activeCalls/${callId}`);
@@ -137,7 +129,6 @@ class CallService {
         return;
       }
 
-      // Validate user
       const isParticipant = callData.callerId === userId || callData.receiverId === userId;
       if (!isParticipant) {
         console.warn('User not authorized to end this call');
@@ -152,18 +143,15 @@ class CallService {
         duration: duration || 0
       });
 
-      // Remove after delay
       setTimeout(() => {
         remove(callRef).catch(() => {});
       }, 3000);
 
-      
     } catch (error) {
       console.error('❌ Error ending call:', error);
     }
   }
 
-  // Listen for incoming calls
   listenForIncomingCalls(userId, callback) {
     const callsRef = ref(database, 'activeCalls');
     
@@ -174,7 +162,7 @@ class CallService {
       if (calls) {
         Object.keys(calls).forEach(callId => {
           const call = calls[callId];
-          // Only show ringing calls for this user
+          
           if (call.receiverId === userId && call.status === 'ringing') {
             incomingCalls.push({ ...call, callId });
           }
@@ -190,7 +178,6 @@ class CallService {
     return unsubscribe;
   }
 
-  // Send call notification to chat
   async sendCallNotification(chatId, userId, friendId, type, duration = 0, callData = null) {
     try {
       if (!chatId) {
@@ -203,8 +190,7 @@ class CallService {
       let senderId = '';
       let callAction = '';
       let callInitiatorId = '';
-      
-      // Only create message for actual calls (with duration) or missed calls
+
       if (type === 'ended') {
         if (duration > 0) {
           messageText = `Call (${this.formatDuration(duration)})`;
@@ -228,7 +214,6 @@ class CallService {
         callInitiatorId = friendId;
       }
 
-      // Only send message if it's a valid type
       if (messageText) {
         await addDoc(messagesRef, {
           senderId: senderId,
@@ -244,7 +229,6 @@ class CallService {
           isCallLog: true
         });
 
-        // Update chat last message
         const chatRef = doc(db, 'chats', chatId);
         await updateDoc(chatRef, {
           lastMessage: messageText,
@@ -257,7 +241,6 @@ class CallService {
     }
   }
 
-  // Send video call notification to chat
   async sendVideoCallNotification(chatId, userId, friendId, type, duration = 0, callData = null) {
     try {
       if (!chatId) {
@@ -270,8 +253,7 @@ class CallService {
       let senderId = '';
       let callAction = '';
       let callInitiatorId = '';
-      
-      // Only create message for actual calls (with duration) or missed calls
+
       if (type === 'ended') {
         if (duration > 0) {
           messageText = `Video call (${this.formatDuration(duration)})`;
@@ -295,7 +277,6 @@ class CallService {
         callInitiatorId = friendId;
       }
 
-      // Only send message if it's a valid type
       if (messageText) {
         await addDoc(messagesRef, {
           senderId: senderId,
@@ -311,7 +292,6 @@ class CallService {
           isCallLog: true
         });
 
-        // Update chat last message
         const chatRef = doc(db, 'chats', chatId);
         await updateDoc(chatRef, {
           lastMessage: messageText,
@@ -332,7 +312,6 @@ class CallService {
   }
 }
 
-// Initialize service
 const callServiceInstance = new CallService();
 
 export default callServiceInstance;

@@ -24,7 +24,7 @@ function ChatInput({
   };
 
   const handleImageUpload = async () => {
-    // Just call the parent's handler
+    
     onImageUploadClick();
   };
 

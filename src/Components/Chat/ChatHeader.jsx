@@ -1,5 +1,5 @@
 import React from "react";
-import VideoCallButton from '../Call/VideoCallButton'; // ADD THIS
+import VideoCallButton from '../Call/VideoCallButton'; 
 import UserBadge from '../UserBadge';
 
 function ChatHeader({ 
@@ -16,11 +16,11 @@ function ChatHeader({
   onDeleteChat,
   onToggleMusicPlayer,
   onInitiateAudioCall,
-  onInitiateVideoCall, // NEW: Add this prop
+  onInitiateVideoCall, 
   loading,
   isInCall,
   callState,
-  isVideoCallActive // NEW: Add this prop
+  isVideoCallActive 
 }) {
 
   const getLastSeenText = () => {

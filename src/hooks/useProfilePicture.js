@@ -14,19 +14,17 @@ export function useProfilePicture(user, setProfile, setMessage) {
     setMessage("");
 
     try {
-      // Use profile picture specific upload widget
+      
       const result = await openProfilePictureUploadWidget();
       
       if (result) {
-        // Generate optimized profile picture URL
-        const optimizedUrl = getOptimizedProfilePictureUrl(result.public_id, 200);
         
-        // Update Firebase Auth profile
+        const optimizedUrl = getOptimizedProfilePictureUrl(result.public_id, 200);
+
         await updateProfile(user, {
           photoURL: optimizedUrl
         });
 
-        // Update Firestore user document
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, {
           photoURL: optimizedUrl,

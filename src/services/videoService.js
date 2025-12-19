@@ -2,9 +2,7 @@ import WebRTCService from './webrtc';
 import callService from './callService';
 
 export const videoService = {
-  /**
-   * Check if camera and microphone permissions are granted
-   */
+  
   async checkMediaPermissions() {
     try {
       const cameraPermission = await navigator.permissions.query({ name: 'camera' });
@@ -16,14 +14,11 @@ export const videoService = {
         canAsk: cameraPermission.state !== 'denied' && microphonePermission.state !== 'denied'
       };
     } catch (error) {
-      // Fallback for browsers that don't support permissions API
+      
       return { camera: 'prompt', microphone: 'prompt', canAsk: true };
     }
   },
 
-  /**
-   * Request camera and microphone access
-   */
   async requestMediaAccess(constraints = {}) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -59,9 +54,6 @@ export const videoService = {
     }
   },
 
-  /**
-   * Get user-friendly error message
-   */
   getPermissionError(error) {
     switch(error.name) {
       case 'NotAllowedError':
@@ -79,18 +71,13 @@ export const videoService = {
     }
   },
 
-  /**
-   * Switch between front and back camera
-   */
   async switchCamera(currentStream, facingMode = 'user') {
     try {
       const videoTrack = currentStream.getVideoTracks()[0];
       if (!videoTrack) return null;
 
-      // Determine new facing mode
       const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
-      
-      // Create new stream with opposite facing mode
+
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280, max: 1920 },
@@ -102,12 +89,10 @@ export const videoService = {
       });
 
       const newVideoTrack = newStream.getVideoTracks()[0];
-      
-      // Replace track in existing stream
+
       currentStream.removeTrack(videoTrack);
       currentStream.addTrack(newVideoTrack);
-      
-      // Stop old track
+
       videoTrack.stop();
       
       return {
@@ -124,9 +109,6 @@ export const videoService = {
     }
   },
 
-  /**
-   * Adjust video quality based on network conditions
-   */
   async adjustVideoQuality(stream, quality = 'medium') {
     const videoTrack = stream.getVideoTracks()[0];
     if (!videoTrack) return false;
@@ -152,18 +134,14 @@ export const videoService = {
     }
   },
 
-  /**
-   * Start a video call
-   */
   async startVideoCall(callerId, callerName, receiverId, receiverName) {
     try {
-      // Request media access first
+      
       const mediaResult = await this.requestMediaAccess();
       if (!mediaResult.success) {
         throw new Error(mediaResult.error);
       }
 
-      // Create video call in Firebase
       const callData = await callService.createVideoCall(
         callerId,
         callerName,
@@ -185,9 +163,6 @@ export const videoService = {
     }
   },
 
-  /**
-   * Handle camera/mic toggle during call
-   */
   toggleMedia(stream, type) {
     if (!stream) return false;
     
@@ -195,21 +170,18 @@ export const videoService = {
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
-        return videoTrack.enabled; // true = video on
+        return videoTrack.enabled; 
       }
     } else if (type === 'audio') {
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
-        return audioTrack.enabled; // true = audio on
+        return audioTrack.enabled; 
       }
     }
     return false;
   },
 
-  /**
-   * Get available cameras
-   */
   async getAvailableCameras() {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -226,9 +198,6 @@ export const videoService = {
     }
   },
 
-  /**
-   * Switch to specific camera device
-   */
   async switchToCamera(stream, deviceId) {
     try {
       const videoTrack = stream.getVideoTracks()[0];
@@ -253,9 +222,6 @@ export const videoService = {
     }
   },
 
-  /**
-   * Handle picture-in-picture mode
-   */
   async togglePictureInPicture(videoElement) {
     if (!document.pictureInPictureEnabled) {
       return { success: false, error: 'Picture-in-Picture not supported' };

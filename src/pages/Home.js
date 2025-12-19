@@ -10,7 +10,7 @@ import NotificationsView from '../Components/Home/NotificationsView';
 import SuggestedFriends from '../Components/Home/SuggestedFriends';
 import RecentlyActiveFriends from '../Components/Home/RecentlyActiveFriends';
 import DevFusionModal from '../Components/Home/DevFusionModal';
-// Removed ProfilePopup usage
+
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
 import { useProfiles } from "../hooks/useProfiles";
@@ -27,7 +27,7 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const { unreadFriendsCount } = useUnreadCount(user);
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [activeView, setActiveView] = useState('friends');
-  // Removed profile popup state
+  
   const [pendingFriendId, setPendingFriendId] = useState(null);
   const [showConnectWithUs, setShowConnectWithUs] = useState(false);
   const loading = friendsLoading;
@@ -35,18 +35,17 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const pendingFriendRequestCount = (userProfile?.friendRequests || []).filter(
     (req) => (req.status || 'pending') === 'pending'
   ).length;
-  
-  // Show Connect with Us popup if user has no friends
+
   useEffect(() => {
     if (!loading) {
       if (friends.length === 0) {
-        // Show the popup automatically only if no friends
+        
         const timer = setTimeout(() => {
           setShowConnectWithUs(true);
-        }, 1000); // Small delay for better UX
+        }, 1000); 
         return () => clearTimeout(timer);
       } else {
-        // Don't show if user has friends
+        
         setShowConnectWithUs(false);
       }
     }
@@ -251,9 +250,9 @@ function Home({ user, isDarkMode, toggleTheme }) {
         </div>
       </div>
 
-      {/* ProfilePopup removed as requested */}
+      {}
       
-      {/* Connect with Us popup - shows until user has at least 1 friend */}
+      {}
       <DevFusionModal 
         isOpen={showConnectWithUs}
         onClose={() => setShowConnectWithUs(false)}

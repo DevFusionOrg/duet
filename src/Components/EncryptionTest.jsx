@@ -8,11 +8,6 @@ import {
 } from '../utils/encryption';
 import '../styles/EncryptionTest.css';
 
-/**
- * Encryption Test Component
- * Use this to verify encryption is working correctly
- * Remove this component in production
- */
 const EncryptionTest = () => {
   const [plaintext, setPlaintext] = useState('Hello, this is a secret message!');
   const [encrypted, setEncrypted] = useState('');
@@ -25,7 +20,7 @@ const EncryptionTest = () => {
     try {
       setStatus('Generating key...');
       const key = await generateChatKey();
-      setChatKey(key.substring(0, 20) + '...'); // Show partial key
+      setChatKey(key.substring(0, 20) + '...'); 
       await storeChatKey(testChatId, key);
       setStatus('✅ Key generated and stored!');
     } catch (error) {
@@ -68,21 +63,17 @@ const EncryptionTest = () => {
   const handleTestAll = async () => {
     try {
       setStatus('Running full test...');
-      
-      // 1. Generate key
+
       const key = await generateChatKey();
       await storeChatKey(testChatId, key);
       setChatKey(key.substring(0, 20) + '...');
-      
-      // 2. Encrypt
+
       const encryptedText = await encryptMessage(plaintext, key);
       setEncrypted(encryptedText);
-      
-      // 3. Decrypt
+
       const decryptedText = await decryptMessage(encryptedText, key);
       setDecrypted(decryptedText);
-      
-      // 4. Verify
+
       if (decryptedText === plaintext) {
         setStatus('✅ ALL TESTS PASSED! Encryption working correctly!');
       } else {

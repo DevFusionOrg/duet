@@ -93,7 +93,7 @@ export async function initPushNotifications() {
   PushNotifications.addListener("pushNotificationReceived", (notification) => {
     const data = notification?.data || {};
     if (data.type === "message_read") {
-      // Clear delivered notifications when read receipts arrive (app not opened)
+      
       clearDeliveredNotifications();
       return;
     }
@@ -114,7 +114,6 @@ export async function initPushNotifications() {
       console.log("[push-init] Should navigate to chat:", chatId);
     }
 
-    // Open URL if provided (e.g., app update APK link)
     const url = data.url;
     if (url) {
       try {
