@@ -293,7 +293,7 @@
 }
 
 .songNameText {
-  color: #ffffff;
+  color: var(--music-player-text);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;

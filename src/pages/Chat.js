@@ -9,6 +9,7 @@ import IncomingCallModal from '../Components/Call/IncomingCallModal';
 import MusicPlayer from "../Components/MusicPlayer";
 import VideoCallScreen from '../Components/Call/VideoCallScreen';
 import VoiceRecorder from '../Components/Chat/VoiceRecorder';
+import EncryptionIndicator from '../Components/Chat/EncryptionIndicator';
 
 import { useChatSetup } from "../hooks/useChatSetup";
 import { useChatMessages } from "../hooks/useChatMessages";
@@ -29,6 +30,8 @@ import {
   getBlockedUsers,
   deleteChat,
   replyToMessage,
+  setTypingStatus,
+  listenToTypingStatus,
 } from "../firebase/firestore";
 import { openUploadWidget, getOptimizedImageUrl, uploadVoiceNote } from "../services/cloudinary";
 import { notificationService } from "../services/notifications";
@@ -99,10 +102,14 @@ function Chat({ user, friend, onBack }) {
   const [pendingMessages, setPendingMessages] = useState([]);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [sendingVoice, setSendingVoice] = useState(false);
+  const [isFriendTyping, setIsFriendTyping] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const componentMountedRef = useRef(true);
+  const isInitialLoadRef = useRef(true);
+  const firstUnreadMessageRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
   const loading = setupLoading || messagesLoading;
 
   // Separate handlers for different call types
@@ -226,6 +233,31 @@ function Chat({ user, friend, onBack }) {
     };
   }, []);
 
+  // Listen to friend's typing status
+  useEffect(() => {
+    if (!chatId || !user?.uid) return;
+
+    const unsubscribe = listenToTypingStatus(chatId, user.uid, (isTyping) => {
+      setIsFriendTyping(isTyping);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [chatId, user?.uid]);
+
+  // Clear typing status when component unmounts or chat changes
+  useEffect(() => {
+    return () => {
+      if (chatId && user?.uid) {
+        setTypingStatus(chatId, user.uid, false);
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [chatId, user?.uid]);
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (showMessageMenu && !e.target.closest(".chat-dropdown-menu") && !e.target.closest(".chat-menu-arrow")) {
@@ -306,9 +338,33 @@ function Chat({ user, friend, onBack }) {
 
   useEffect(() => {
     if (messages.length > 0 && !loading) {
-      scrollToBottom();
+      if (isInitialLoadRef.current) {
+        // On initial load, find first unread message and position instantly
+        const firstUnread = messages.find(msg => !msg.read && msg.senderId !== user?.uid);
+        
+        // Use requestAnimationFrame to ensure DOM is ready but no visible scroll
+        requestAnimationFrame(() => {
+          if (firstUnread && firstUnreadMessageRef.current) {
+            // Position at first unread message instantly
+            firstUnreadMessageRef.current.scrollIntoView({ behavior: "instant", block: "start" });
+          } else {
+            // If no unread messages, position at bottom instantly
+            messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+          }
+          isInitialLoadRef.current = false;
+        });
+      } else {
+        // For subsequent updates, smooth scroll to bottom
+        scrollToBottom();
+      }
     }
-  }, [messages, loading]);
+  }, [messages, loading, user?.uid]);
+
+  // Reset initial load flag when chat changes
+  useEffect(() => {
+    isInitialLoadRef.current = true;
+    firstUnreadMessageRef.current = null;
+  }, [chatId]);
 
   const handleImageUploadClick = async () => {
     if (!cloudinaryLoaded) {
@@ -352,6 +408,33 @@ function Chat({ user, friend, onBack }) {
   const handleVoiceCancel = () => {
     setIsRecordingVoice(false);
     setSendingVoice(false);
+  };
+
+  const handleInputChange = (e) => {
+    if (isBlocked) return;
+    
+    const value = e.target.value;
+    if (replyingTo) {
+      setReplyText(value);
+    } else {
+      setNewMessage(value);
+    }
+
+    // Update typing status
+    if (chatId && user?.uid) {
+      // Set typing to true
+      setTypingStatus(chatId, user.uid, true);
+
+      // Clear existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Set timeout to clear typing status after 3 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        setTypingStatus(chatId, user.uid, false);
+      }, 3000);
+    }
   };
 
   useEffect(() => {
@@ -399,9 +482,24 @@ function Chat({ user, friend, onBack }) {
         pendingMsg = {
           ...basePending,
           isReply: true,
-          originalMessageText: replyingTo.text || (replyingTo.image ? '📷 Image' : ''),
-          originalMessageType: replyingTo.type || 'text'
+          originalMessageId: replyingTo.id,
+          originalSenderId: replyingTo.senderId,
+          originalMessageText: replyingTo.text || '',
+          originalMessageType: replyingTo.type || 'text',
         };
+        
+        // Include original image if replying to an image message
+        if (replyingTo.image) {
+          pendingMsg.originalMessageImage = {
+            url: replyingTo.image.url,
+            publicId: replyingTo.image.publicId,
+          };
+        }
+        
+        // Include current image if sending image in reply
+        if (selectedImage) {
+          pendingMsg.image = selectedImage;
+        }
       }
 
       setPendingMessages((prev) => [...prev, pendingMsg]);
@@ -412,12 +510,15 @@ function Chat({ user, friend, onBack }) {
         inputRef.current.focus();
       }
       setNewMessage('');
-      if (replyingTo) setReplyText('');
+      const wasReply = !!replyingTo;
+      if (replyingTo) {
+        setReplyText('');
+        setReplyingTo(null);
+      }
 
       // Firestore send
-      if (replyingTo) {
-        await replyToMessage(chatId, replyingTo.id, text, user.uid, selectedImage);
-        setReplyingTo(null);
+      if (wasReply) {
+        await replyToMessage(chatId, pendingMsg.originalMessageId, text, user.uid, selectedImage);
       } else {
         await sendMessage(chatId, user.uid, text, selectedImage);
       }
@@ -622,6 +723,7 @@ function Chat({ user, friend, onBack }) {
     onBack,
     isBlocked,
     isFriendOnline,
+    isFriendTyping,
     lastSeen,
     onToggleUserMenu: () => setShowUserMenu(!showUserMenu),
     showUserMenu,
@@ -641,6 +743,7 @@ function Chat({ user, friend, onBack }) {
       <ChatHeader {...chatHeaderProps} />
 
       <div className="chat-messages-container">
+        <EncryptionIndicator />
         {messages.length === 0 && pendingMessages.length === 0 ? (
           <div className="chat-no-messages">
             <p>No messages yet. Start the conversation!</p>
@@ -649,44 +752,50 @@ function Chat({ user, friend, onBack }) {
           [...messages, ...pendingMessages].map((message, index, arr) => {
             const prev = index > 0 ? arr[index - 1] : null;
             const showDateSeparator = !prev || !isSameDay(prev?.timestamp, message.timestamp);
+            const isFirstUnread = !message.read && message.senderId !== user?.uid && 
+              arr.slice(0, index).every(m => m.read || m.senderId === user?.uid);
             
             return (
-              <ChatMessage
+              <div
                 key={message.id}
-                message={message}
-                user={user}
-                friend={friend}
-                isFirstOfDay={showDateSeparator}
-                formatDateHeader={formatDateHeader}
-                formatTime={formatTime}
-                isMessageSaved={isMessageSaved}
-                isMessageEdited={isMessageEdited}
-                hoveredMessage={hoveredMessage}
-                editingMessageId={editingMessageId}
-                editText={editText}
-                selectedMessage={selectedMessage}
-                showMessageMenu={showMessageMenu}
-                onMessageHover={handleMessageHover}
-                onMessageLeave={handleMessageLeave}
-                onArrowClick={handleArrowClick}
-                onStartEdit={(value) => setEditText(value)}
-                onSaveEdit={handleSaveEdit}
-                onCancelEdit={handleCancelEdit}
-                onStartReply={handleStartReply}
-                renderMenuOptions={() => (
-                  <MessageMenu
-                    message={message}
-                    canEditMessage={canEditMessage}
-                    isMessageSaved={isMessageSaved}
-                    onCopyMessage={(text) => navigator.clipboard.writeText(text)}
-                    onForwardMessage={handleForwardClick}
-                    onSaveMessage={handleSaveMessage}
-                    onUnsaveMessage={handleUnsaveMessage}
-                    onStartEdit={handleStartEdit}
-                  />
-                )}
-                getOptimizedImageUrl={getOptimizedImageUrl}
-              />
+                ref={isFirstUnread ? firstUnreadMessageRef : null}
+              >
+                <ChatMessage
+                  message={message}
+                  user={user}
+                  friend={friend}
+                  isFirstOfDay={showDateSeparator}
+                  formatDateHeader={formatDateHeader}
+                  formatTime={formatTime}
+                  isMessageSaved={isMessageSaved}
+                  isMessageEdited={isMessageEdited}
+                  hoveredMessage={hoveredMessage}
+                  editingMessageId={editingMessageId}
+                  editText={editText}
+                  selectedMessage={selectedMessage}
+                  showMessageMenu={showMessageMenu}
+                  onMessageHover={handleMessageHover}
+                  onMessageLeave={handleMessageLeave}
+                  onArrowClick={handleArrowClick}
+                  onStartEdit={(value) => setEditText(value)}
+                  onSaveEdit={handleSaveEdit}
+                  onCancelEdit={handleCancelEdit}
+                  onStartReply={handleStartReply}
+                  renderMenuOptions={() => (
+                    <MessageMenu
+                      message={message}
+                      canEditMessage={canEditMessage}
+                      isMessageSaved={isMessageSaved}
+                      onCopyMessage={(text) => navigator.clipboard.writeText(text)}
+                      onForwardMessage={handleForwardClick}
+                      onSaveMessage={handleSaveMessage}
+                      onUnsaveMessage={handleUnsaveMessage}
+                      onStartEdit={handleStartEdit}
+                    />
+                  )}
+                  getOptimizedImageUrl={getOptimizedImageUrl}
+                />
+              </div>
             );
           })
         )}
@@ -733,14 +842,7 @@ function Chat({ user, friend, onBack }) {
           inputRef={inputRef}
           onImageUploadClick={handleImageUploadClick}
           onVoiceRecordClick={handleVoiceRecordClick}
-          onInputChange={(e) => {
-            if (isBlocked) return;
-            if (replyingTo) {
-              setReplyText(e.target.value);
-            } else {
-              setNewMessage(e.target.value);
-            }
-          }}
+          onInputChange={handleInputChange}
           onCancelReply={handleCancelReply}
           onSendMessage={handleSendMessage}
         />
