@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
@@ -31,14 +31,7 @@ const isMessagingSupported = () => {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
-
-// Initialize Firestore with modern cache configuration
-const db = getFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
-});
-
+const db = getFirestore(app);
 const database = getDatabase(app); 
 
 let messaging = null;
@@ -95,5 +88,14 @@ export const onMessageListener = () =>
     });
   });
 
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code === "failed-precondition") {
+    console.log(
+      "Multiple tabs open, persistence can only be enabled in one tab at a time.",
+    );
+  } else if (err.code === "unimplemented") {
+    console.log("The current browser doesn't support persistence.");
+  }
+});
 
 export { auth, googleProvider, db, database };
