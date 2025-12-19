@@ -12,12 +12,9 @@ export function useChatMessages(chatId, user, isActiveChatRef) {
     const unsubscribe = listenToChatMessages(chatId, user.uid, (chatMessages) => {
       setMessages(chatMessages);
       setLoading(false);
-      
-      // Only mark messages as read if:
-      // 1. Document is visible
-      // 2. This chat is the currently active/focused one
+
       if (document.visibilityState === "visible" && isActiveChatRef?.current) {
-        // Small delay to ensure messages are rendered and chat is actually visible
+        
         if (markAsReadTimeoutRef.current) {
           clearTimeout(markAsReadTimeoutRef.current);
         }

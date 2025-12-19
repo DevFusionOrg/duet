@@ -38,7 +38,7 @@ import { notificationService } from "../services/notifications";
 import "../styles/Chat.css";
 
 function Chat({ user, friend, onBack }) {
-  // Track if this chat component is currently active/mounted
+  
   const isActiveChatRef = useRef(true);
   
   const { chatId, friends, loading: setupLoading } = useChatSetup(user, friend);
@@ -62,9 +62,8 @@ function Chat({ user, friend, onBack }) {
     handleToggleSpeaker,
   } = useCall(user, friend, chatId);
 
-  // NEW: Video call hook - SEPARATE
   const {
-    // Video call state
+    
     isVideoCallActive,
     localStream,
     remoteStream,
@@ -74,8 +73,7 @@ function Chat({ user, friend, onBack }) {
     connectionQuality,
     callState: videoCallState,
     callDuration: videoCallDuration,
-    
-    // Video call actions
+
     startVideoCall,
     acceptVideoCall,
     endVideoCall,
@@ -115,7 +113,6 @@ function Chat({ user, friend, onBack }) {
   const typingTimeoutRef = useRef(null);
   const loading = setupLoading || messagesLoading;
 
-  // Set active state on mount
   useEffect(() => {
     isActiveChatRef.current = true;
     return () => {
@@ -123,7 +120,6 @@ function Chat({ user, friend, onBack }) {
     };
   }, [chatId]);
 
-  // Separate handlers for different call types
   const handleAudioCall = () => {
     initiateAudioCall();
   };
@@ -132,25 +128,22 @@ function Chat({ user, friend, onBack }) {
     startVideoCall();
   };
 
-  // Modify handleAcceptCall to handle both audio and video
   const handleAcceptCallWrapper = () => {
     if (incomingCall?.type === 'video') {
       acceptVideoCall(incomingCall);
     } else {
-      handleAcceptCall(); // Original audio call handler
+      handleAcceptCall(); 
     }
   };
 
-  // Modify to handle end call for both types
   const handleEndCallWrapper = () => {
     if (isVideoCallActive) {
       endVideoCall();
     } else {
-      handleEndCall(); // Original audio end call
+      handleEndCall(); 
     }
   };
 
-  // Add toggle functions for video calls
   const handleToggleVideo = () => {
     if (isVideoCallActive) {
       return toggleVideo();
@@ -162,7 +155,7 @@ function Chat({ user, friend, onBack }) {
     if (isVideoCallActive) {
       return toggleAudio();
     } else {
-      return handleToggleMute(); // Original audio mute
+      return handleToggleMute(); 
     }
   };
 
@@ -187,11 +180,10 @@ function Chat({ user, friend, onBack }) {
     loadCloudinaryScript();
   }, []);
 
-  // Auto-remove pending messages when real messages arrive
   useEffect(() => {
     if (messages.length > 0 && pendingMessages.length > 0) {
       const latestMessage = messages[messages.length - 1];
-      // Check if the latest message matches any pending message
+      
       const matchingPending = pendingMessages.find(pm => 
         pm.senderId === latestMessage.senderId &&
         pm.text === latestMessage.text &&
@@ -206,7 +198,7 @@ function Chat({ user, friend, onBack }) {
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      // Only mark as read if page is visible AND this chat is active
+      
       if (document.visibilityState === 'visible' && chatId && user?.uid && isActiveChatRef.current) {
         markMessagesAsRead(chatId, user.uid);
         notificationService.clearAllNotifications(chatId);
@@ -218,15 +210,11 @@ function Chat({ user, friend, onBack }) {
     };
   }, [chatId, user?.uid]);
 
-  // Only mark messages as read when Chat component is actively displayed
-  // Don't mark on mount - only when user returns to the chat
   useEffect(() => {
     if (!chatId || !user?.uid) return;
-    
-    // Only mark as read if component is mounted, visible, and is the active chat
+
     if (!componentMountedRef.current || !isActiveChatRef.current) return;
-    
-    // Small delay to ensure component is mounted and visible
+
     const timer = setTimeout(() => {
       if (componentMountedRef.current && isActiveChatRef.current) {
         markMessagesAsRead(chatId, user.uid);
@@ -237,14 +225,12 @@ function Chat({ user, friend, onBack }) {
     return () => clearTimeout(timer);
   }, [chatId, user?.uid]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       componentMountedRef.current = false;
     };
   }, []);
 
-  // Listen to friend's typing status
   useEffect(() => {
     if (!chatId || !user?.uid) return;
 
@@ -257,7 +243,6 @@ function Chat({ user, friend, onBack }) {
     };
   }, [chatId, user?.uid]);
 
-  // Clear typing status when component unmounts or chat changes
   useEffect(() => {
     return () => {
       if (chatId && user?.uid) {
@@ -350,28 +335,26 @@ function Chat({ user, friend, onBack }) {
   useEffect(() => {
     if (messages.length > 0 && !loading) {
       if (isInitialLoadRef.current) {
-        // On initial load, find first unread message and position instantly
-        const firstUnread = messages.find(msg => !msg.read && msg.senderId !== user?.uid);
         
-        // Use requestAnimationFrame to ensure DOM is ready but no visible scroll
+        const firstUnread = messages.find(msg => !msg.read && msg.senderId !== user?.uid);
+
         requestAnimationFrame(() => {
           if (firstUnread && firstUnreadMessageRef.current) {
-            // Position at first unread message instantly
+            
             firstUnreadMessageRef.current.scrollIntoView({ behavior: "instant", block: "start" });
           } else {
-            // If no unread messages, position at bottom instantly
+            
             messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
           }
           isInitialLoadRef.current = false;
         });
       } else {
-        // For subsequent updates, smooth scroll to bottom
+        
         scrollToBottom();
       }
     }
   }, [messages, loading, user?.uid]);
 
-  // Reset initial load flag when chat changes
   useEffect(() => {
     isInitialLoadRef.current = true;
     firstUnreadMessageRef.current = null;
@@ -431,17 +414,14 @@ function Chat({ user, friend, onBack }) {
       setNewMessage(value);
     }
 
-    // Update typing status
     if (chatId && user?.uid) {
-      // Set typing to true
+      
       setTypingStatus(chatId, user.uid, true);
 
-      // Clear existing timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
 
-      // Set timeout to clear typing status after 3 seconds of inactivity
       typingTimeoutRef.current = setTimeout(() => {
         setTypingStatus(chatId, user.uid, false);
       }, 3000);
@@ -473,7 +453,7 @@ function Chat({ user, friend, onBack }) {
     if (!text && !selectedImage) return;
 
     try {
-      // Create a local pending message for instant feedback (red dot)
+      
       const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       const basePending = {
         id: tempId,
@@ -498,16 +478,14 @@ function Chat({ user, friend, onBack }) {
           originalMessageText: replyingTo.text || '',
           originalMessageType: replyingTo.type || 'text',
         };
-        
-        // Include original image if replying to an image message
+
         if (replyingTo.image) {
           pendingMsg.originalMessageImage = {
             url: replyingTo.image.url,
             publicId: replyingTo.image.publicId,
           };
         }
-        
-        // Include current image if sending image in reply
+
         if (selectedImage) {
           pendingMsg.image = selectedImage;
         }
@@ -515,7 +493,6 @@ function Chat({ user, friend, onBack }) {
 
       setPendingMessages((prev) => [...prev, pendingMsg]);
 
-      // Clear input immediately and keep focus for continuous typing
       if (inputRef.current) {
         inputRef.current.value = '';
         inputRef.current.focus();
@@ -527,21 +504,19 @@ function Chat({ user, friend, onBack }) {
         setReplyingTo(null);
       }
 
-      // Firestore send
       if (wasReply) {
         await replyToMessage(chatId, pendingMsg.originalMessageId, text, user.uid, selectedImage);
       } else {
         await sendMessage(chatId, user.uid, text, selectedImage);
       }
 
-      // Remove pending placeholder when send completes
       setPendingMessages((prev) => prev.filter((m) => m.id !== tempId));
       setSelectedImage(null);
       scrollToBottom();
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Error sending message: ' + error.message);
-      // On error, also remove pending placeholder
+      
       setPendingMessages((prev) => prev.filter((m) => !m.pending));
     }
   };
@@ -703,7 +678,7 @@ function Chat({ user, friend, onBack }) {
   };
 
   const handleStartReply = (message) => {
-    // Move any text already typed into the reply input, like WhatsApp/Instagram
+    
     const currentTyped = inputRef.current?.value || newMessage || '';
     setReplyText(currentTyped);
     setNewMessage('');
@@ -727,7 +702,6 @@ function Chat({ user, friend, onBack }) {
     );
   }
 
-  // Update ChatHeader props
   const chatHeaderProps = {
     user,
     friend,
@@ -741,12 +715,12 @@ function Chat({ user, friend, onBack }) {
     onBlockUser: handleBlockUser,
     onDeleteChat: handleDeleteChat,
     onToggleMusicPlayer: () => setShowMusicPlayer(true),
-    onInitiateAudioCall: handleAudioCall, // Audio call handler
-    onInitiateVideoCall: handleVideoCall, // NEW: Video call handler
+    onInitiateAudioCall: handleAudioCall, 
+    onInitiateVideoCall: handleVideoCall, 
     loading,
-    isInCall: isInCall || isVideoCallActive, // Combined call state
-    callState: isVideoCallActive ? 'active' : callState, // Use appropriate state
-    isVideoCallActive // NEW: Pass video call state
+    isInCall: isInCall || isVideoCallActive, 
+    callState: isVideoCallActive ? 'active' : callState, 
+    isVideoCallActive 
   };
 
   return (
@@ -867,7 +841,7 @@ function Chat({ user, friend, onBack }) {
         onClose={() => setShowMusicPlayer(false)}
       />
       
-      {/* Audio Call Screen */}
+      {}
       {isInCall && friend && !isVideoCallActive && (
         <CallScreen
           friend={friend}
@@ -878,11 +852,11 @@ function Chat({ user, friend, onBack }) {
           onToggleMute={handleToggleAudio}
           onToggleSpeaker={handleToggleSpeaker}
           isInitiator={!incomingCall}
-          isVideoCall={false} // This is audio call
+          isVideoCall={false} 
         />
       )}
       
-      {/* Video Call Screen - Show during all video call states */}
+      {}
       {(isVideoCallActive || (videoCallState !== 'idle' && videoCallState !== 'ended')) && friend && (
         <VideoCallScreen
           friend={friend}
@@ -903,14 +877,14 @@ function Chat({ user, friend, onBack }) {
         />
       )}
       
-      {/* Update IncomingCallModal to handle video calls */}
+      {}
       {incomingCall && (
         <IncomingCallModal
           incomingCall={incomingCall}
           friend={friend}
           onAccept={handleAcceptCallWrapper}
           onDecline={handleDeclineCall}
-          isVideoCall={incomingCall?.type === 'video'} // Pass call type
+          isVideoCall={incomingCall?.type === 'video'} 
         />
       )}
       

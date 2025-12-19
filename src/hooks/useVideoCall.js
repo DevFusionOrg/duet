@@ -5,7 +5,7 @@ import { ref, onValue } from 'firebase/database';
 import { database } from '../firebase/firebase';
 
 export function useVideoCall(user, friend, chatId) {
-  // State
+  
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
@@ -19,7 +19,6 @@ export function useVideoCall(user, friend, chatId) {
   const [callDuration, setCallDuration] = useState(0);
   const [callStartTime, setCallStartTime] = useState(null);
 
-  // Refs
   const callIdRef = useRef(null);
   const callTimeoutRef = useRef(null);
   const callStateRef = useRef('idle');
@@ -29,7 +28,6 @@ export function useVideoCall(user, friend, chatId) {
   const endVideoCallRef = useRef(null);
   const callInitiatorRef = useRef(null);
 
-  // Simple permission check - NO MODAL
   const checkPermissions = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -54,15 +52,13 @@ export function useVideoCall(user, friend, chatId) {
     }
   };
 
-  // Start video call - FIXED
   const startVideoCall = useCallback(async () => {
     console.log('🎬 Starting video call to:', friend?.displayName);
 
-    // Ensure clean state before starting
     if (callStateRef.current !== 'idle') {
       console.log('Cleaning up previous call state...');
       cleanupCallState();
-      // Small delay to ensure cleanup completes
+      
       await new Promise(resolve => setTimeout(resolve, 50));
     }
 
@@ -75,8 +71,7 @@ export function useVideoCall(user, friend, chatId) {
     try {
       callStateRef.current = 'initiating';
       setCallState('initiating');
-      
-      // Get local video stream immediately so caller can see themselves
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
@@ -106,15 +101,11 @@ export function useVideoCall(user, friend, chatId) {
       callIdRef.current = callData.callId;
       callInitiatorRef.current = user.uid;
       console.log('Video call created:', callData.callId);
-      
-      // Setup callbacks BEFORE listening for acceptance
+
       setupWebRTCCallbacks();
-      // Don't play ringtone for the caller - only the receiver should hear it
-      
-      // Setup acceptance listener
+
       callAcceptListenerRef.current = listenForCallAcceptance(callData.callId);
-      
-      // Set timeout
+
       callTimeoutRef.current = setTimeout(() => {
         if (callStateRef.current === 'ringing') {
           console.log('⏰ Call timeout - no answer');
@@ -133,7 +124,6 @@ export function useVideoCall(user, friend, chatId) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, friend, chatId]);
 
-  // Listen for call acceptance - FIXED (doesn't end on ringing)
   const listenForCallAcceptance = useCallback((callId) => {
     console.log('🎯 Listening for acceptance of call:', callId);
     
@@ -147,8 +137,7 @@ export function useVideoCall(user, friend, chatId) {
       
       if (callData.status === 'accepted') {
         console.log('Call accepted!');
-        
-        // Clear timeout
+
         if (callTimeoutRef.current) {
           clearTimeout(callTimeoutRef.current);
           callTimeoutRef.current = null;
@@ -159,7 +148,7 @@ export function useVideoCall(user, friend, chatId) {
         setCallState('connecting');
         
         try {
-          // Stop the preview stream before initializing WebRTC with a new one
+          
           if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
           }
@@ -177,11 +166,11 @@ export function useVideoCall(user, friend, chatId) {
           
         } catch (error) {
           console.error('❌ WebRTC init error:', error);
-          // Set error state and let user know
+          
           callStateRef.current = 'error';
           setCallState('error');
           alert('Failed to initialize video call. Please try again.');
-          // Clean up the call
+          
           if (callIdRef.current) {
             try {
               await callService.endCall(callIdRef.current, user.uid, 0, 'failed');
@@ -207,18 +196,16 @@ export function useVideoCall(user, friend, chatId) {
           setIsVideoCallActive(false);
         }
       }
-      // NOTE: We don't handle 'ringing' status - that's the initial state
+      
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, friend]);
 
-  // Accept incoming video call - FIXED
   const acceptVideoCall = useCallback(async (callData) => {
     if (!callData || !user) return;
     
     console.log('Accepting video call:', callData.callId);
 
-    // Track who initiated the call so end-call logs stay on caller side
     callInitiatorRef.current = callData.callerId;
     
     try {
@@ -235,11 +222,9 @@ export function useVideoCall(user, friend, chatId) {
       await callService.acceptCall(callData.callId, user.uid);
       callIdRef.current = callData.callId;
       stopRingtone();
-      
-      // Setup callbacks BEFORE initializing WebRTC
+
       setupWebRTCCallbacks();
-      
-      // Small delay to ensure callbacks are registered
+
       await new Promise(resolve => setTimeout(resolve, 100));
       
       const stream = await WebRTCService.initializeVideoCall(
@@ -263,7 +248,6 @@ export function useVideoCall(user, friend, chatId) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Setup WebRTC callbacks - FIXED (setup only once)
   const setupWebRTCCallbacks = useCallback(() => {
     if (hasSetupCallbacksRef.current) {
       console.log('🔧 WebRTC callbacks already setup');
@@ -300,14 +284,14 @@ export function useVideoCall(user, friend, chatId) {
     WebRTCService.setOnError((error) => {
       console.error('WebRTC error:', error);
       alert('Video call connection failed. Please try again.');
-      // Don't call endVideoCall here, let the user decide
+      
       callStateRef.current = 'error';
       setCallState('error');
     });
 
     WebRTCService.setOnClose(() => {
       console.log('WebRTC connection closed - ending video call');
-      // End the video call properly using ref to avoid circular dependency
+      
       if (endVideoCallRef.current && callStateRef.current !== 'idle' && callStateRef.current !== 'ended' && callStateRef.current !== 'ending') {
         endVideoCallRef.current();
       }
@@ -320,17 +304,15 @@ export function useVideoCall(user, friend, chatId) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, friend, chatId]);
 
-  // Ringtone management
   const playRingtone = useCallback((type = 'incoming') => {
     stopRingtone();
-    
-    // Use the ringtone.mp3 file in public folder for both incoming and outgoing
+
     const ringtoneUrl = '/ringtone.mp3';
     
     try {
       const audio = new Audio(ringtoneUrl);
       audio.loop = true;
-      audio.volume = type === 'incoming' ? 0.7 : 0.5; // Slightly quieter for outgoing
+      audio.volume = type === 'incoming' ? 0.7 : 0.5; 
       audio.play().catch(e => console.log('Ringtone play failed:', e));
       ringtoneRef.current = audio;
     } catch (error) {
@@ -347,7 +329,6 @@ export function useVideoCall(user, friend, chatId) {
     }
   }, []);
 
-  // Handle call timeout
   const handleCallTimeout = useCallback(async (callId) => {
     if (!callId || !user) return;
     
@@ -365,7 +346,6 @@ export function useVideoCall(user, friend, chatId) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, friend, chatId]);
 
-  // Handle declined call
   const handleCallDeclined = useCallback((callId) => {
     if (callTimeoutRef.current) {
       clearTimeout(callTimeoutRef.current);
@@ -376,14 +356,12 @@ export function useVideoCall(user, friend, chatId) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle missed call
   const handleCallMissed = useCallback((callId) => {
     stopRingtone();
     cleanupCallState();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Decline video call
   const declineVideoCall = useCallback(async (callId) => {
     if (!callId || !user) return;
     
@@ -406,7 +384,6 @@ export function useVideoCall(user, friend, chatId) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, chatId, incomingVideoCall]);
 
-  // End video call - FIXED (prevent multiple calls)
   const endVideoCall = useCallback(async () => {
     if (callStateRef.current === 'ended' || callStateRef.current === 'idle') {
       console.log('Call already ended or idle, skipping');
@@ -473,12 +450,10 @@ export function useVideoCall(user, friend, chatId) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localStream, user, friend, chatId, callState, callStartTime, stopRingtone]);
 
-  // Update ref for use in callbacks
   useEffect(() => {
     endVideoCallRef.current = endVideoCall;
   }, [endVideoCall]);
 
-  // Cleanup call state (without ending WebRTC)
   const cleanupCallState = useCallback(() => {
     setIsVideoCallActive(false);
     setCallState('idle');
@@ -494,7 +469,6 @@ export function useVideoCall(user, friend, chatId) {
     hasSetupCallbacksRef.current = false;
   }, []);
 
-  // Listen for incoming video calls
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -532,7 +506,6 @@ export function useVideoCall(user, friend, chatId) {
     };
   }, [user?.uid, incomingVideoCall, playRingtone, stopRingtone, declineVideoCall]);
 
-  // Handle call duration
   useEffect(() => {
     let interval;
     if (callState === 'active' && callStartTime) {
@@ -546,19 +519,17 @@ export function useVideoCall(user, friend, chatId) {
     };
   }, [callState, callStartTime]);
 
-  // Cleanup on unmount - using ref to avoid dependency issues
   useEffect(() => {
     return () => {
-      // Only cleanup if there's actually an active call
+      
       if (callStateRef.current !== 'idle' && callStateRef.current !== 'ended') {
-        // Stop ringtone
+        
         if (ringtoneRef.current) {
           ringtoneRef.current.pause();
           ringtoneRef.current.currentTime = 0;
           ringtoneRef.current = null;
         }
-        
-        // Cleanup WebRTC if needed
+
         try {
           WebRTCService.endCall();
         } catch (error) {
@@ -566,10 +537,10 @@ export function useVideoCall(user, friend, chatId) {
         }
       }
     };
-  }, []); // Empty dependency array - only runs on unmount
+  }, []); 
 
   return {
-    // State
+    
     isVideoCallActive,
     localStream,
     remoteStream,
@@ -581,14 +552,12 @@ export function useVideoCall(user, friend, chatId) {
     callState,
     incomingVideoCall,
     callDuration,
-    
-    // Actions
+
     startVideoCall,
     acceptVideoCall,
     declineVideoCall: (callId) => declineVideoCall(callId || incomingVideoCall?.callId),
     endVideoCall,
-    
-    // Media controls
+
     toggleVideo: useCallback(() => {
       if (localStream) {
         const videoTrack = localStream.getVideoTracks()[0];
@@ -601,7 +570,7 @@ export function useVideoCall(user, friend, chatId) {
     
     toggleAudio: useCallback(() => {
       const muted = WebRTCService.toggleMute();
-      // WebRTCService.toggleMute returns true when muted
+      
       setIsAudioEnabled(!muted);
       return muted;
     }, []),

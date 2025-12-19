@@ -38,7 +38,6 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
     }
   ]);
 
-  // Fetch current user's friends list
   useEffect(() => {
     if (!currentUserId) return;
     
@@ -57,7 +56,6 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
     fetchUserFriends();
   }, [currentUserId]);
 
-  // Fetch user UIDs by username when modal opens
   useEffect(() => {
     if (!isOpen) return;
 
@@ -68,7 +66,7 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
           devFusionTeam.map(async (member) => {
             try {
               console.log('Searching for username:', member.username);
-              // Try to find user by username
+              
               const usersSnap = await getDocs(
                 query(
                   collection(db, 'users'),
@@ -92,7 +90,6 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
 
         console.log('Updated team with UIDs:', updatedTeam);
 
-        // Fetch profile pictures and set badges
         const teamWithPhotos = await Promise.all(
           updatedTeam.map(async (member) => {
             if (member.uid) {
@@ -102,8 +99,7 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
                 
                 if (userSnap.exists()) {
                   const userData = userSnap.data();
-                  
-                  // Set badge on user profile if not already set
+
                   const badge = member.role === 'Developer' ? 'developer' : 'support';
                   if (!userData.badge || userData.badge !== badge) {
                     await updateDoc(userRef, { badge, updatedAt: new Date() });
@@ -150,7 +146,7 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
 
     try {
       console.log('Calling sendFriendRequest with:', currentUserId, teamMember.uid);
-      // Use the proper sendFriendRequest function
+      
       await sendFriendRequest(currentUserId, teamMember.uid);
       
       setMessage(`Request sent to ${teamMember.name}!`);

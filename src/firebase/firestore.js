@@ -69,7 +69,6 @@ export const sendPushNotification = async (senderId, receiverId, message, chatId
     const senderData = senderSnap.data();
     const receiverData = receiverSnap.data();
 
-    // 🚫 Block checks (both directions)
     if (
       senderData.blockedUsers?.includes(receiverId) ||
       receiverData.blockedUsers?.includes(senderId)
@@ -107,7 +106,6 @@ export const sendPushNotification = async (senderId, receiverId, message, chatId
   }
 };
 
-
 export const listenToUserFriends = (userId, callback) => {
   const userRef = doc(db, "users", userId);
 
@@ -131,13 +129,11 @@ export const createUserProfile = async (user, username = null) => {
 
     if (userSnap.exists()) {
       const userData = userSnap.data();
-      
-      // Only update photoURL if user hasn't set a custom profile picture
+
       const updateData = {
         displayName: user.displayName,
       };
-      
-      // If user has never set a custom profile picture (no cloudinaryPublicId), update from Google
+
       if (!userData.cloudinaryPublicId) {
         updateData.photoURL = user.photoURL;
       }
@@ -146,7 +142,6 @@ export const createUserProfile = async (user, username = null) => {
       return;
     }
 
-    // Prefer email local-part on first creation; sanitize and fall back to uid slug
     const providerEmail = user?.providerData?.find((p) => p.email)?.email || "";
     const emailLocalPart = (user.email || providerEmail || "").split("@")[0];
     const displaySlug = (user.displayName || "")
@@ -170,7 +165,6 @@ export const createUserProfile = async (user, username = null) => {
     let finalUsername = baseUsername;
     let counter = 1;
 
-    // Find available username
     while (true) {
       const usernameRef = doc(db, "usernames", finalUsername);
       const usernameSnap = await getDoc(usernameRef);
@@ -182,7 +176,6 @@ export const createUserProfile = async (user, username = null) => {
       finalUsername = `${baseUsername}${counter++}`;
     }
 
-    // Create user document and username document together
     await runTransaction(db, async (transaction) => {
       const usernameRef = doc(db, "usernames", finalUsername);
       const usernameSnap = await transaction.get(usernameRef);
@@ -190,11 +183,9 @@ export const createUserProfile = async (user, username = null) => {
       if (usernameSnap.exists()) {
         throw new Error("Username taken during transaction");
       }
-      
-      // Create username document
+
       transaction.set(usernameRef, { uid: user.uid });
-      
-      // Create user document
+
       transaction.set(userRef, {
         uid: user.uid,
         displayName: user.displayName,
@@ -235,7 +226,6 @@ export const updateUsername = async (userId, newUsername) => {
 
     const oldUsername = userSnap.data().username;
 
-    // 🔐 Atomic username update
     await updateUsernameTransaction(userId, newUsername, oldUsername);
 
     await updateUsernameInChats(userId, oldUsername, newUsername);
@@ -393,7 +383,6 @@ export const searchUsers = async (searchTerm, excludeUserId = null) => {
 
       const otherUserData = docSnap.data();
 
-      // 🚫 Block checks (both directions)
       if (
         blockedUsers.includes(docSnap.id) ||
         otherUserData.blockedUsers?.includes(excludeUserId)
@@ -468,7 +457,6 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
       throw new Error("User not found");
     }
 
-    // 🚫 Block checks (both directions)
     if (
       fromUser?.blockedUsers?.includes(toUserId) ||
       toUserProfile?.blockedUsers?.includes(fromUserId)
@@ -553,7 +541,6 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
     const userData = userSnap.data();
     const fromUserData = fromUserSnap.data();
 
-    // 🚫 Block checks (both directions)
     if (
       userData.blockedUsers?.includes(requestFromId) ||
       fromUserData.blockedUsers?.includes(userId)
@@ -571,13 +558,11 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
 
     const batch = writeBatch(db);
 
-    // 1. Update user documents
     batch.update(userRef, {
       friends: arrayUnion(requestFromId),
       friendRequests: arrayRemove(requestToRemove),
     });
 
-    // Remove from sender's sent requests
     const sentRequestToRemove = fromUserData.sentFriendRequests?.find(
       (req) => req.to === userId && req.status === "pending"
     );
@@ -587,7 +572,6 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
       ...(sentRequestToRemove && { sentFriendRequests: arrayRemove(sentRequestToRemove) })
     });
 
-    // 2. Create friends subcollection previews
     batch.set(
       doc(db, "users", userId, "friends", requestFromId),
       {
@@ -644,7 +628,6 @@ export const rejectFriendRequest = async (userId, requestFromId) => {
       throw new Error("Friend request not found");
     }
 
-    // Remove from sender's sent requests
     const sentRequestToRemove = fromUserData?.sentFriendRequests?.find(
       (req) => req.to === userId && req.status === "pending"
     );
@@ -743,11 +726,9 @@ export const saveUserNotificationToken = async (userId, token) => {
 export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
     const receiverId = chatId.replace(senderId, '').replace('_', '');
-    
-    // Initialize encryption for this chat
+
     const chatKey = await initializeChatEncryption(chatId, db);
-    
-    // Parallel fetch sender and receiver data
+
     const [receiverSnap, senderSnap] = await Promise.all([
       getDoc(doc(db, "users", receiverId)),
       getDoc(doc(db, "users", senderId))
@@ -759,8 +740,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     
     const receiverData = receiverSnap.data();
     const senderData = senderSnap.exists() ? senderSnap.data() : {};
-    
-    // Check blocks
+
     if (receiverData.blockedUsers?.includes(senderId)) {
       throw new Error("You cannot send messages to this user. You have been blocked.");
     }
@@ -776,7 +756,6 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     const senderName = senderData?.displayName || senderData?.username || "Someone";
     const senderPhoto = senderData?.photoURL || "";
 
-    // Encrypt the message text
     const encryptedText = text ? await encryptMessage(text, chatKey) : "";
 
     const messageData = {
@@ -797,7 +776,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       originalText: encryptedText,
       canEditUntil: new Date(now.getTime() + 15 * 60 * 1000),
       isReply: false,
-      encrypted: true, // Flag to indicate this message is encrypted
+      encrypted: true, 
     };
 
     if (imageData) {
@@ -813,10 +792,8 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       messageData.type = "text";
     }
 
-    // Add message and update chat in parallel (non-blocking notification)
     const messageRef = await addDoc(messagesRef, messageData);
-    
-    // Update chat lastMessage (don't await - fire and forget for speed)
+
     const chatRef = doc(db, "chats", chatId);
     updateDoc(chatRef, {
       lastMessage: text || "📷 Image",
@@ -824,7 +801,6 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       lastMessageId: messageRef.id,
     }).catch(err => console.error("Error updating chat lastMessage:", err));
 
-    // Send notification async (non-blocking) with original text
     sendPushNotification(senderId, receiverId, { ...messageData, text: text || "" }, chatId).catch(
       err => console.error("Error sending push notification:", err)
     );
@@ -836,7 +812,6 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   }
 };
 
-// Send voice note message
 export const sendVoiceNote = async (chatId, senderId, voiceData) => {
   try {
     const receiverId = chatId.replace(senderId, '').replace('_', '');
@@ -898,7 +873,6 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
       isReply: false,
     };
 
-    // Send notification
     await sendPushNotification(senderId, receiverId, { ...messageData, text: "🎤 Voice message" }, chatId);
 
     const messageRef = await addDoc(messagesRef, messageData);
@@ -969,8 +943,7 @@ export const getChatMessages = async (chatId, currentUserId) => {
       const currentUserData = currentUserSnap.data();
       blockedUsers = currentUserData.blockedUsers || [];
     }
-    
-    // Initialize encryption for this chat
+
     const chatKey = await initializeChatEncryption(chatId, db);
     
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -996,7 +969,6 @@ export const getChatMessages = async (chatId, currentUserId) => {
         continue;
       }
 
-      // Decrypt message text if encrypted
       if (messageData.encrypted && messageData.text) {
         try {
           messageData.text = await decryptMessage(messageData.text, chatKey);
@@ -1005,7 +977,7 @@ export const getChatMessages = async (chatId, currentUserId) => {
           }
         } catch (error) {
           console.error('Failed to decrypt message:', error);
-          // Keep encrypted text if decryption fails
+          
         }
       }
 
@@ -1031,8 +1003,7 @@ export const listenToChatMessages = (chatId, currentUserId, callback) => {
       const userData = userSnap.data();
       blockedUsers = userData.blockedUsers || [];
     }
-    
-    // Initialize encryption for this chat
+
     const chatKey = await initializeChatEncryption(chatId, db);
     
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -1061,7 +1032,6 @@ export const listenToChatMessages = (chatId, currentUserId, callback) => {
           continue;
         }
 
-        // Decrypt message text if encrypted
         if (messageData.encrypted && messageData.text) {
           try {
             messageData.text = await decryptMessage(messageData.text, chatKey);
@@ -1070,7 +1040,7 @@ export const listenToChatMessages = (chatId, currentUserId, callback) => {
             }
           } catch (error) {
             console.error('Failed to decrypt message:', error);
-            // Keep encrypted text if decryption fails
+            
           }
         }
 
@@ -1137,12 +1107,11 @@ export const markMessagesAsRead = async (chatId, userId) => {
       messagesRef,
       where("senderId", "!=", userId),
       where("read", "==", false),
-      limit(50) // Only process most recent 50 unread messages at a time
+      limit(50) 
     );
 
     const querySnapshot = await getDocs(q);
-    
-    // Return early if no messages to mark
+
     if (querySnapshot.empty) {
       return 0;
     }
@@ -1325,7 +1294,7 @@ export const unsaveMessage = async (chatId, messageId) => {
 
 export const editMessage = async (chatId, messageId, newText, userId) => {
   try {
-    // Initialize encryption for this chat
+    
     const chatKey = await initializeChatEncryption(chatId, db);
     
     const messageRef = doc(db, "chats", chatId, "messages", messageId);
@@ -1356,11 +1325,10 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
 
     const editHistory = messageData.editHistory || [];
     editHistory.push({
-      previousText: messageData.text, // Keep encrypted text in history
+      previousText: messageData.text, 
       editedAt: new Date(),
     });
 
-    // Encrypt the new text
     const encryptedNewText = await encryptMessage(newText, chatKey);
 
     await updateDoc(messageRef, {
@@ -1372,7 +1340,7 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
     
     if (chatData.lastMessageId === messageId) {
       await updateDoc(chatRef, {
-        lastMessage: newText, // Plain text for preview
+        lastMessage: newText, 
         lastMessageAt: new Date(),
       });
     }
@@ -1456,7 +1424,7 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
       messageId,
       publicId: imageData.publicId,
       deletedAt: new Date(),
-      scheduledForDeletion: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12 hours from now
+      scheduledForDeletion: new Date(Date.now() + 12 * 60 * 60 * 1000), 
     });
 
     console.log("Cloudinary deletion tracked for:", imageData.publicId);
@@ -1465,7 +1433,6 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
   }
 };
 
-// Track online status updates with minimal debouncing (100ms)
 let lastSeenUpdateTimeout = null;
 
 export const setUserOnlineStatus = async (userId, isOnline, immediate = false) => {
@@ -1476,7 +1443,6 @@ export const setUserOnlineStatus = async (userId, isOnline, immediate = false) =
       lastSeen: new Date()
     };
 
-    // If going offline or immediate update needed, no debouncing
     if (!isOnline || immediate) {
       if (lastSeenUpdateTimeout) {
         clearTimeout(lastSeenUpdateTimeout);
@@ -1486,8 +1452,6 @@ export const setUserOnlineStatus = async (userId, isOnline, immediate = false) =
       return;
     }
 
-    // Minimal debounce for online status (100ms) to avoid excessive writes
-    // while still keeping status in sync
     if (lastSeenUpdateTimeout) {
       clearTimeout(lastSeenUpdateTimeout);
     }
@@ -1499,7 +1463,7 @@ export const setUserOnlineStatus = async (userId, isOnline, immediate = false) =
         console.error("Error in debounced status update:", error);
       }
       lastSeenUpdateTimeout = null;
-    }, 100); // 100ms debounce - fast enough for real-time feel
+    }, 100); 
   } catch (error) {
     console.error("Error updating online status:", error);
   }
@@ -1537,8 +1501,7 @@ export const deleteChat = async (chatId, userId) => {
     if (!chatSnap.exists() || !chatSnap.data().participants.includes(userId)) {
       throw new Error("Chat not found or unauthorized");
     }
-    
-    // Delete all messages first
+
     const messagesRef = collection(db, "chats", chatId, "messages");
     const messagesSnap = await getDocs(messagesRef);
     
@@ -1546,12 +1509,10 @@ export const deleteChat = async (chatId, userId) => {
     messagesSnap.docs.forEach(doc => {
       batch.delete(doc.ref);
     });
-    
-    // Delete the chat document
+
     batch.delete(chatRef);
     await batch.commit();
-    
-    // Delete encryption key from IndexedDB
+
     await deleteChatKey(chatId);
     
     return { success: true };
@@ -1577,7 +1538,6 @@ export const blockUser = async (userId, userToBlockId) => {
 
   const userData = userSnap.data();
 
-  // ✅ Already blocked → no-op
   if (userData.blockedUsers?.includes(userToBlockId)) {
     return { success: true };
   }
@@ -1599,7 +1559,6 @@ export const blockUser = async (userId, userToBlockId) => {
   batch.delete(doc(db, "users", userId, "friends", userToBlockId));
   batch.delete(doc(db, "users", userToBlockId, "friends", userId));
 
-  // Remove incoming requests
   const incomingRequests = userData.friendRequests || [];
   incomingRequests
     .filter((req) => req.from === userToBlockId)
@@ -1609,7 +1568,6 @@ export const blockUser = async (userId, userToBlockId) => {
       });
     });
 
-  // Remove outgoing requests
   const blockedUserSnap = await getDoc(blockedUserRef);
   if (blockedUserSnap.exists()) {
     const theirRequests = blockedUserSnap.data().friendRequests || [];
@@ -1654,7 +1612,7 @@ export const getBlockedUsers = async (userId) => {
 
 export const replyToMessage = async (chatId, originalMessageId, replyText, senderId, imageData = null) => {
   try {
-    // Initialize encryption for this chat
+    
     const chatKey = await initializeChatEncryption(chatId, db);
     
     const messagesRef = collection(db, "chats", chatId, "messages");
@@ -1667,8 +1625,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     }
     
     const originalMessage = originalMessageSnap.data();
-    
-    // Decrypt original message text if encrypted (for display in reply)
+
     let originalMessageText = originalMessage.text;
     if (originalMessage.encrypted && originalMessage.text) {
       try {
@@ -1680,8 +1637,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     
     const deletionTime = new Date();
     deletionTime.setHours(deletionTime.getHours() + 12);
-    
-    // Encrypt the reply text
+
     const encryptedReplyText = replyText ? await encryptMessage(replyText, chatKey) : "";
     
     const replyData = {
@@ -1701,7 +1657,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       isReply: true,
       originalMessageId: originalMessageId,
       originalSenderId: originalMessage.senderId,
-      originalMessageText: originalMessage.text, // Keep encrypted for consistency
+      originalMessageText: originalMessage.text, 
       originalMessageType: originalMessage.type,
       encrypted: true,
     };
@@ -1727,7 +1683,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     }
     
     const receiverId = chatId.replace(senderId, '').replace('_', '');
-    // Send notification with decrypted text
+    
     await sendPushNotification(senderId, receiverId, { ...replyData, text: replyText || "" }, chatId);
     
     const messageRef = await addDoc(messagesRef, replyData);
@@ -1823,7 +1779,6 @@ export const deleteFriend = async (userId, friendId, options = { deleteChat: tru
   }
 };
 
-// Typing status functions
 export const setTypingStatus = async (chatId, userId, isTyping) => {
   try {
     const chatRef = doc(db, "chats", chatId);
@@ -1844,13 +1799,12 @@ export const listenToTypingStatus = (chatId, userId, callback) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
       const typing = data.typing || {};
-      
-      // Check if the other user is typing (not the current user)
+
       const otherUserId = chatId.split('_').find(id => id !== userId);
       const otherUserTyping = typing[otherUserId];
       
       if (otherUserTyping) {
-        // Check if the typing timestamp is recent (within last 5 seconds)
+        
         const typingTime = otherUserTyping.toDate ? otherUserTyping.toDate() : new Date(otherUserTyping);
         const now = new Date();
         const diffSeconds = (now - typingTime) / 1000;

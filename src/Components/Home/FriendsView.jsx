@@ -17,8 +17,6 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
     );
   }
 
-  // Removed empty state - show header and recommendations instead
-
   return (
     <div className="friends-container">
       {!hideHeaders && (

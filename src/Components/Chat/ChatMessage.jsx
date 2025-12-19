@@ -62,8 +62,7 @@ function ChatMessage({
   const renderMessageContent = (message) => {
     const isCallMessage = message.type === 'call' || message.type === 'video-call';
     const isSeenByRecipient = message.senderId === user.uid && message.read === true;
-    
-    // Special rendering for call messages (both audio and video)
+
     if (isCallMessage) {
       return (
         <div className="call-message-content">

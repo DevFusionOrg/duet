@@ -14,10 +14,9 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   const wakeLockRef = useRef(null);
   const keepAwakeActive = useRef(false);
 
-  // Request wake lock for background audio
   const requestWakeLock = async () => {
     try {
-      // Use Capacitor KeepAwake plugin for native platforms
+      
       if (Capacitor.isNativePlatform()) {
         if (!keepAwakeActive.current) {
           await KeepAwake.keepAwake();
@@ -25,7 +24,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
           console.log('KeepAwake enabled for audio playback');
         }
       } else if ('wakeLock' in navigator) {
-        // Fallback to web Wake Lock API
+        
         wakeLockRef.current = await navigator.wakeLock.request('screen');
         console.log('Wake Lock acquired for audio playback');
       }
@@ -34,7 +33,6 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     }
   };
 
-  // Release wake lock
   const releaseWakeLock = async () => {
     try {
       if (Capacitor.isNativePlatform() && keepAwakeActive.current) {
@@ -51,13 +49,12 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     }
   };
 
-  // Handle visibility change to maintain audio in background
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.hidden && isPlaying && playerRef.current) {
-        // Keep playing in background
+        
         await requestWakeLock();
-        // Force play if paused
+        
         if (playerRef.current.getPlayerState && 
             playerRef.current.getPlayerState() !== window.YT?.PlayerState?.PLAYING) {
           playerRef.current.playVideo();
@@ -68,7 +65,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     };
 
     const handleAppStateChange = async () => {
-      // Additional handler for native app state changes
+      
       if (Capacitor.isNativePlatform()) {
         document.addEventListener('resume', () => {
           if (isPlaying && playerRef.current) {
@@ -298,13 +295,13 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
           onStateChange: (event) => {
             if (event.data === window.YT.PlayerState.PLAYING) {
               setIsPlaying(true);
-              requestWakeLock(); // Acquire wake lock when playing
+              requestWakeLock(); 
             } else if (
               event.data === window.YT.PlayerState.PAUSED ||
               event.data === window.YT.PlayerState.ENDED
             ) {
               setIsPlaying(false);
-              releaseWakeLock(); // Release wake lock when paused/ended
+              releaseWakeLock(); 
             }
           },
           onError: () => {

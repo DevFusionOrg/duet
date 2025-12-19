@@ -10,7 +10,7 @@ function VoiceNotePlayer({ voiceUrl, duration: initialDuration }) {
   const progressIntervalRef = useRef(null);
 
   useEffect(() => {
-    // Create audio element
+    
     const audio = new Audio(voiceUrl);
     audioRef.current = audio;
 

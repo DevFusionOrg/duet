@@ -8,7 +8,7 @@ export function useNotifications(user, chatId) {
 
   useEffect(() => {
     const initializeNotifications = async () => {
-      // Skip if Firebase Messaging is not supported in this environment
+      
       if (!messaging) {
         console.log("Firebase Messaging is not supported in this environment.");
         return;
@@ -39,7 +39,7 @@ export function useNotifications(user, chatId) {
 
   useEffect(() => {
     const setupForegroundMessages = async () => {
-      // Skip if Firebase Messaging is not supported
+      
       if (!messaging) {
         return;
       }

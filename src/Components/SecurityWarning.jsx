@@ -11,8 +11,7 @@ function SecurityWarning() {
     const warningInfo = secureOriginCheck.getWarningMessage();
     if (warningInfo) {
       setWarning(warningInfo);
-      
-      // Check if user previously dismissed this warning
+
       const dismissedKey = `security-warning-dismissed-${window.location.hostname}`;
       const wasDismissed = localStorage.getItem(dismissedKey);
       if (wasDismissed) {
@@ -51,7 +50,7 @@ function SecurityWarning() {
                 href={window.location.origin.replace(window.location.hostname, 'localhost')}
                 className="security-warning-link"
               >
-                http://localhost:3000
+                http:
               </a>
               {' '}instead, or{' '}
               <button 
@@ -135,7 +134,7 @@ function SecurityWarning() {
                   href={window.location.origin.replace(window.location.hostname, 'localhost')}
                   className="security-instructions-link"
                 >
-                  http://localhost:3000
+                  http:
                 </a>
                 {' '}for best experience without browser configuration.
               </div>

@@ -1,4 +1,4 @@
-// webrtc.js - stable WebRTC service for Duet with video support
+
 import { database } from '../firebase/firebase';
 import { ref, set, onValue, remove, off } from 'firebase/database';
 
@@ -13,50 +13,42 @@ class WebRTCService {
     this.isInitiator = false;
     this.remoteUserId = null;
 
-    // Callbacks
     this.onRemoteStreamCallback = null;
     this.onConnectCallback = null;
     this.onErrorCallback = null;
     this.onCloseCallback = null;
     this.onDisconnectCallback = null;
 
-    // State
     this.isNegotiating = false;
     this.hasRemoteDescription = false;
     this.pendingCandidates = [];
     this.connectionState = 'disconnected';
     this.isEnded = false;
 
-    // ICE gathering
     this.isIceGatheringComplete = false;
 
-    // Offer/answer tracking
     this.lastOffer = null;
     this.lastAnswer = null;
 
-    // Reconnection
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 3;
     this.reconnectTimer = null;
 
-    // Signal batching (for candidates)
     this.signalQueue = [];
     this.signalQueueTimer = null;
 
-    // Video call specific
     this.isVideoCall = false;
     this.isVideoEnabled = true;
     this.currentFacingMode = 'user';
   }
 
   async initializeCall(callId, isInitiator, userId, friendId, isVideoCall = false, videoConstraints = {}) {
-    // If a call is already active, end it first
+    
     if (this.peer && !this.isEnded) {
       console.warn('Call already initialized, cleaning up first');
       await this.endCall(false);
     }
 
-    // Reset state
     this.isEnded = false;
     this.callId = callId;
     this.isInitiator = isInitiator;
@@ -71,13 +63,11 @@ class WebRTCService {
     this.lastAnswer = null;
     this.signalQueue = [];
     this.isVideoCall = isVideoCall;
-    this.isVideoEnabled = isVideoCall; // Video starts enabled for video calls
+    this.isVideoEnabled = isVideoCall; 
     this.currentFacingMode = 'user';
 
-    // Signaling path
     this.signalingRef = ref(database, `callSignals/${callId}`);
 
-    // Only the initiator clears old signaling data
     if (isInitiator) {
       try {
         await remove(this.signalingRef);
@@ -87,7 +77,7 @@ class WebRTCService {
     }
 
     try {
-      // Get user media with video if video call
+      
       const mediaConstraints = {
         audio: {
           echoCancellation: true,
@@ -114,7 +104,6 @@ class WebRTCService {
 
       this.localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
 
-      // Debug track events
       this.localStream.getTracks().forEach(track => {
         track.onended = () => {
           console.log('Local track ended:', track.kind);
@@ -124,10 +113,8 @@ class WebRTCService {
         track.onunmute = () => console.log('Local track unmuted:', track.kind);
       });
 
-      // Create RTCPeerConnection
       this.createPeerConnection(this.localStream, isVideoCall);
 
-      // Start listening for signals
       this.listenForSignals();
 
       return this.localStream;
@@ -141,14 +128,13 @@ class WebRTCService {
     }
   }
 
-  // Initialize video call (convenience method)
   async initializeVideoCall(callId, isInitiator, userId, friendId, videoConstraints = {}) {
     return this.initializeCall(callId, isInitiator, userId, friendId, true, videoConstraints);
   }
 
   createPeerConnection(stream, isVideoCall = false) {
     try {
-      // Close existing peer if any
+      
       if (this.peer && this.peer.connectionState !== 'closed') {
         try {
           this.peer.close();
@@ -179,7 +165,6 @@ class WebRTCService {
       this.peer = new RTCPeerConnection(configuration);
       this.connectionState = 'new';
 
-      // Browser debugging
       if (navigator.userAgent.includes('Edg')) {
         console.log('🔍 Microsoft Edge detected, adding debug handlers');
         this.peer.onicecandidateerror = (event) => {
@@ -194,7 +179,6 @@ class WebRTCService {
       console.log('- RTCSessionDescription:', typeof RTCSessionDescription);
       console.log('- RTCIceCandidate:', typeof RTCIceCandidate);
 
-      // Reset negotiation state
       this.isNegotiating = false;
       this.hasRemoteDescription = false;
       this.pendingCandidates = [];
@@ -202,7 +186,6 @@ class WebRTCService {
       this.lastOffer = null;
       this.lastAnswer = null;
 
-      // Add local tracks
       stream.getTracks().forEach(track => {
         try {
           this.peer.addTrack(track, stream);
@@ -211,7 +194,6 @@ class WebRTCService {
         }
       });
 
-      // Remote stream handler
       this.peer.ontrack = (event) => {
         console.log('Received remote track:', event.track.kind);
         if (event.streams && event.streams[0]) {
@@ -230,7 +212,6 @@ class WebRTCService {
         }
       };
 
-      // ICE candidate handling (batched)
       let iceCandidateQueue = [];
       let iceCandidateTimer = null;
 
@@ -265,7 +246,6 @@ class WebRTCService {
         }
       };
 
-      // Negotiation – only initiator creates offers
       this.peer.onnegotiationneeded = async () => {
         console.log('onnegotiationneeded fired');
 
@@ -293,7 +273,6 @@ class WebRTCService {
         }
       };
 
-      // Connection state changes
       this.peer.onconnectionstatechange = () => {
         const state = this.peer.connectionState;
         console.log('Connection state changed:', state);
@@ -337,7 +316,6 @@ class WebRTCService {
         }
       };
 
-      // ICE connection state
       this.peer.oniceconnectionstatechange = () => {
         const state = this.peer.iceConnectionState;
         console.log('ICE connection state:', state);
@@ -378,7 +356,6 @@ class WebRTCService {
     }
   }
 
-  // Create offer (caller only)
   async createOffer(iceRestart = false) {
     if (this.isEnded) {
       console.log('Cannot create offer - call ended');
@@ -424,7 +401,6 @@ class WebRTCService {
     }
   }
 
-  // Create answer (callee)
   async createAnswer(offer) {
     if (this.isNegotiating || this.isEnded) {
       console.log('Cannot create answer - already negotiating or ended');
@@ -513,7 +489,7 @@ class WebRTCService {
       console.log('Processing signal:', signal.type, 'from:', signal.senderId);
 
       if (signal.type === 'offer' && !this.isInitiator) {
-        // Callee
+        
         if (this.lastOffer && this.lastOffer.sdp === signal.sdp) {
           console.log('Duplicate offer, ignoring');
           return;
@@ -523,7 +499,7 @@ class WebRTCService {
         await this.createAnswer(signal);
 
       } else if (signal.type === 'answer' && this.isInitiator) {
-        // Caller
+        
         if (this.lastAnswer && this.lastAnswer.sdp === signal.sdp) {
           console.log('Duplicate answer, ignoring');
           return;
@@ -572,9 +548,9 @@ class WebRTCService {
 
       } else if (signal.type === 'end-call') {
         console.log('Received end call signal from other user');
-        // Do not send another end-call back
+        
         await this.endCall(false);
-        // Trigger close callback to notify UI on receiving side
+        
         if (this.onCloseCallback) {
           setTimeout(() => {
             if (this.onCloseCallback) {
@@ -653,7 +629,6 @@ class WebRTCService {
     });
   }
 
-  // ICE restart → just another offer with iceRestart = true
   async restartIce() {
     if (!this.peer || this.isEnded) {
       return;
@@ -691,10 +666,9 @@ class WebRTCService {
 
   handleTrackEnded() {
     console.log('Track ended:', 'ignoring during call lifecycle');
-    // Do NOT auto-end call on track end
+    
   }
 
-  // sendSignalFlag = false when we are responding to remote end-call
   async endCall(sendSignalFlag = true) {
     if (this.isEnded) {
       return;
@@ -728,7 +702,7 @@ class WebRTCService {
           try {
             track.onended = null;
           } catch (error) {
-            // ignore
+            
           }
         });
       }
@@ -807,30 +781,27 @@ class WebRTCService {
     }
   }
 
-  // Mute / unmute local mic
   toggleMute() {
     if (!this.localStream) return false;
     const audioTrack = this.localStream.getAudioTracks()[0];
     if (audioTrack) {
       audioTrack.enabled = !audioTrack.enabled;
-      return !audioTrack.enabled; // true = muted
+      return !audioTrack.enabled; 
     }
     return false;
   }
 
-  // Toggle video on/off
   toggleVideo() {
     if (!this.localStream || !this.isVideoCall) return false;
     const videoTrack = this.localStream.getVideoTracks()[0];
     if (videoTrack) {
       videoTrack.enabled = !videoTrack.enabled;
       this.isVideoEnabled = videoTrack.enabled;
-      return !videoTrack.enabled; // true = video off
+      return !videoTrack.enabled; 
     }
     return false;
   }
 
-  // Switch camera between front and back
   async switchCamera(newFacingMode = 'user') {
     if (!this.localStream || !this.isVideoCall) return null;
     
@@ -838,7 +809,7 @@ class WebRTCService {
     if (!videoTrack) return null;
     
     try {
-      // Determine which facing mode to use
+      
       const facingMode = this.currentFacingMode === 'user' ? 'environment' : 'user';
       
       const newStream = await navigator.mediaDevices.getUserMedia({
@@ -873,7 +844,6 @@ class WebRTCService {
     }
   }
 
-  // Adjust video quality
   async adjustVideoQuality(width, height, frameRate) {
     if (!this.localStream || !this.isVideoCall) return false;
     

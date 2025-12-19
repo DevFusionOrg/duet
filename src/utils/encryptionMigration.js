@@ -1,23 +1,9 @@
-/**
- * Migration Utility for End-to-End Encryption
- * 
- * This script helps with managing the transition to encrypted messages.
- * 
- * NOTE: This is for reference only. Existing messages will remain unencrypted.
- * New messages will be automatically encrypted.
- * 
- * The system gracefully handles both encrypted and unencrypted messages:
- * - Old messages: Displayed as-is (no 'encrypted' flag)
- * - New messages: Automatically encrypted (has 'encrypted: true' flag)
- */
+
 
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { initializeChatEncryption } from './encryption';
 
-/**
- * Check if user has any existing chats
- */
 export const hasExistingChats = async (userId) => {
   try {
     const chatsRef = collection(db, 'chats');
@@ -30,10 +16,6 @@ export const hasExistingChats = async (userId) => {
   }
 };
 
-/**
- * Initialize encryption keys for all user's chats
- * Call this once after user logs in for the first time with encryption enabled
- */
 export const initializeAllChatKeys = async (userId, db) => {
   try {
     const chatsRef = collection(db, 'chats');
@@ -58,9 +40,6 @@ export const initializeAllChatKeys = async (userId, db) => {
   }
 };
 
-/**
- * Display encryption status notification to user
- */
 export const showEncryptionInfo = () => {
   const hasSeenInfo = localStorage.getItem('encryption-info-seen');
   
@@ -81,9 +60,6 @@ export const showEncryptionInfo = () => {
   return null;
 };
 
-/**
- * Get encryption statistics for debugging
- */
 export const getEncryptionStats = async (chatId) => {
   try {
     const messagesRef = collection(db, 'chats', chatId, 'messages');

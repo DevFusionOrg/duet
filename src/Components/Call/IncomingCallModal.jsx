@@ -9,15 +9,13 @@ const IncomingCallModal = ({
   friend = null
 }) => {
   const audioRef = useRef(null);
-  
-  // Use incomingCall data or friend prop
+
   const callerName = incomingCall?.callerName || friend?.displayName || 'Unknown';
   const callerPhoto = incomingCall?.callerPhoto || friend?.photoURL;
 
-  // Play ringing sound with better handling
   useEffect(() => {
     if (!incomingCall) {
-      // Stop audio when modal closes
+      
       if (audioRef.current) {
         try {
           audioRef.current.pause();
@@ -30,7 +28,7 @@ const IncomingCallModal = ({
     }
     
     try {
-      // Stop any existing audio first
+      
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
@@ -64,9 +62,8 @@ const IncomingCallModal = ({
     };
   }, [incomingCall]);
 
-  // Handle key events for accessibility
   useEffect(() => {
-    if (!incomingCall) return; // Don't add listeners if no incoming call
+    if (!incomingCall) return; 
     
     const handleKeyDown = (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -80,7 +77,6 @@ const IncomingCallModal = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [incomingCall, onAccept, onDecline]);
 
-  // Early return AFTER hooks
   if (!incomingCall) return null;
 
   return (
@@ -112,9 +108,9 @@ const IncomingCallModal = ({
           </div>
         </div>
 
-        {/* Updated: This matches the CSS structure */}
+        {}
         <div className="incoming-call-controls">
-          {/* Decline button container */}
+          {}
           <div className="call-button-container">
             <button 
               className="decline-call-button"
@@ -128,7 +124,7 @@ const IncomingCallModal = ({
             <span className="call-button-label">Decline</span>
           </div>
           
-          {/* Accept button container */}
+          {}
           <div className="call-button-container">
             <button 
               className="accept-call-button"
