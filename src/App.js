@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import SecurityWarning from "./Components/SecurityWarning";
 import UpdateChecker from "./Components/UpdateChecker";
+import LoadingScreen from "./Components/LoadingScreen";
 import "./App.css";
 import { initPushNotifications } from "./push-init";
 
@@ -238,11 +239,7 @@ function App() {
           <div className="animated-logo">
             <img src="/logo1921.png" alt="Duet Logo" className="logo-image" />
           </div>
-          <div className="loading-dots">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
+          <LoadingScreen message="Loading Duet..." size="medium" />
         </div>
         <div className="app-loading-footer">
           <div className="devfusion-logo">
