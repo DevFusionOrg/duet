@@ -74,14 +74,6 @@
 }
 
 /* Video call indicators */
-.video-call-indicator,
-.audio-call-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-weight: 500;
-}
 
 .video-call-indicator {
   color: #2196F3;

@@ -573,7 +573,6 @@
 .profile-password-button,
 .profile-password-cancel,
 .profile-fallback-button,
-.profile-manage-blocked-button,
 .unblock-user-button,
 .blocked-users-close-footer-button,
 .profile-logout-button {
@@ -636,16 +635,6 @@
 
 .profile-fallback-button:hover {
   background-color: #3367d6;
-}
-
-.profile-logout-button {
-  margin-top: 10px;
-  background-color: #ff4b4b;
-  color: #fff;
-}
-
-.profile-logout-button:hover {
-  background-color: #e63b3b;
 }
 
 /* Display Card */
@@ -955,13 +944,14 @@
   padding: 40px 20px;
 }
 
-.blocked-users-loading p,
-.no-blocked-users p {
+.blocked-users-loading p {
   margin: 0;
   font-size: 16px;
 }
 
 .no-blocked-users p {
+  margin: 0;
+  font-size: 16px;
   color: var(--profile-text-main);
 }
 
@@ -1072,16 +1062,8 @@
 }
 
 /* Focus states */
-.profile-input:focus-visible,
-.profile-edit-button:focus-visible,
-.profile-save-button:focus-visible,
-.profile-password-button:focus-visible,
-.profile-manage-blocked-button:focus-visible,
-.unblock-user-button:focus-visible,
-.blocked-users-close-button:focus-visible,
-.blocked-users-close-footer-button:focus-visible {
+.profile-input:focus-visible {
   outline: 2px solid var(--profile-accent-purple);
-  outline-offset: 2px;
 }
 
 /* Animations */
@@ -1216,12 +1198,6 @@
     font-size: 13px;
   }
 
-  .profile-edit-button,
-  .profile-save-button,
-  .profile-password-button {
-    padding: 10px 16px;
-    font-size: 13px;
-  }
 
   .profile-picture-actions {
     flex-direction: column;
@@ -1321,18 +1297,6 @@
   margin-top: 0;
 }
 
-.profile-logout-button {
-  padding: 8px 12px;
-  border-radius: 8px;
-  margin-top: 0;
-  display: inline-flex;
-  align-items: center;
-  background: #ff4b4b;
-  color: #fff;
-}
-.profile-actions-row .profile-logout-button {
-  margin-top: 0;
-}
 .update-badge {
   margin-left: 8px;
   background: #ff3b30;
