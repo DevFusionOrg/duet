@@ -1,0 +1,194 @@
+.encryption-test-container {
+  min-height: 100vh;
+  background: var(--background-color, #f5f5f5);
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.encryption-test-card {
+  background: var(--card-background, #ffffff);
+  border-radius: 16px;
+  padding: 30px;
+  max-width: 800px;
+  width: 100%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.encryption-test-card h2 {
+  margin: 0 0 8px 0;
+  color: var(--text-color, #333);
+  font-size: 28px;
+}
+
+.encryption-test-subtitle {
+  color: var(--text-secondary, #666);
+  margin: 0 0 30px 0;
+  font-size: 14px;
+}
+
+.encryption-test-section {
+  margin-bottom: 24px;
+}
+
+.encryption-test-section label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-color, #333);
+  font-size: 14px;
+}
+
+.encryption-test-section textarea,
+.encryption-test-section input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  background: var(--input-background, #f9f9f9);
+  color: var(--text-color, #333);
+  resize: vertical;
+  margin-bottom: 8px;
+}
+
+.encryption-test-section textarea:focus,
+.encryption-test-section input:focus {
+  outline: none;
+  border-color: var(--primary-color, #7c3aed);
+}
+
+.test-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--button-bg, #7c3aed);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.test-btn:hover {
+  background: var(--button-hover, #6d28d9);
+  transform: translateY(-1px);
+}
+
+.test-btn:active {
+  transform: translateY(0);
+}
+
+.test-btn.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 14px 32px;
+  font-size: 16px;
+}
+
+.encryption-test-actions {
+  display: flex;
+  justify-content: center;
+  margin: 30px 0;
+}
+
+.encryption-test-status {
+  padding: 16px;
+  border-radius: 8px;
+  margin: 20px 0;
+  font-weight: 600;
+  text-align: center;
+  background: var(--status-bg, #f0f0f0);
+  color: var(--text-color, #333);
+}
+
+.encryption-test-status.success {
+  background: #d4edda;
+  color: #155724;
+  border: 2px solid #c3e6cb;
+}
+
+.encryption-test-status.error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 2px solid #f5c6cb;
+}
+
+.encryption-test-info {
+  margin-top: 30px;
+  padding: 20px;
+  background: var(--info-bg, #f8f9fa);
+  border-radius: 8px;
+  border-left: 4px solid var(--primary-color, #7c3aed);
+}
+
+.encryption-test-info h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: var(--text-color, #333);
+}
+
+.encryption-test-info ol,
+.encryption-test-info ul {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.encryption-test-info li {
+  margin: 6px 0;
+  color: var(--text-secondary, #666);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.encryption-test-info .warning {
+  margin-top: 16px;
+  padding: 12px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  color: #856404;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Dark theme */
+[data-theme="dark"] .encryption-test-container {
+  --background-color: #1a1a2e;
+  --card-background: #16213e;
+  --text-color: #eaeaea;
+  --text-secondary: #a0a0a0;
+  --border-color: #2d3748;
+  --input-background: #1a202c;
+  --button-bg: #7c3aed;
+  --button-hover: #6d28d9;
+  --status-bg: #2d3748;
+  --info-bg: #1a202c;
+  --primary-color: #8b5cf6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .encryption-test-container {
+    padding: 10px;
+  }
+
+  .encryption-test-card {
+    padding: 20px;
+  }
+
+  .encryption-test-card h2 {
+    font-size: 24px;
+  }
+
+  .test-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .test-btn.primary {
+    padding: 12px 24px;
+    font-size: 15px;
+  }
+}

@@ -12,6 +12,7 @@ import { auth, googleProvider } from "../firebase/firebase";
 import { createUserProfile } from "../firebase/firestore";
 import { Capacitor } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
+import { Spinner } from "../Components/Spinner";
 import "../styles/Auth.css";
 
 function Auth() {
@@ -67,8 +68,7 @@ function Auth() {
       }
     } catch (err) {
       console.error("[Auth] Error signing in with Google:", err);
-      
-      // Provide more user-friendly error messages
+
       let errorMessage = "Error signing in with Google: ";
       if (err.code === 'auth/popup-blocked') {
         errorMessage += "Pop-up was blocked by your browser. Please allow pop-ups for this site.";
@@ -151,8 +151,7 @@ function Auth() {
       await sendPasswordResetEmail(auth, forgotPasswordEmail);
       setResetEmailSent(true);
       setError("");
-      
-      // Auto-close success message after 8 seconds
+
       setTimeout(() => {
         setShowForgotPassword(false);
         setResetEmailSent(false);
@@ -180,7 +179,7 @@ function Auth() {
 
   const openForgotPasswordModal = () => {
     setShowForgotPassword(true);
-    setForgotPasswordEmail(email); // Pre-fill with current email if any
+    setForgotPasswordEmail(email); 
     setError("");
     setResetEmailSent(false);
   };
@@ -241,7 +240,7 @@ function Auth() {
                 disabled={loading}
               >
                 {loading ? (
-                  <span className="auth-loading-spinner"></span>
+                  <Spinner size="small" inline={true} />
                 ) : (
                   "Sign In"
                 )}
@@ -326,7 +325,7 @@ function Auth() {
                 disabled={loading}
               >
                 {loading ? (
-                  <span className="auth-loading-spinner"></span>
+                  <Spinner size="small" inline={true} />
                 ) : (
                   "Create Account"
                 )}
@@ -372,7 +371,7 @@ function Auth() {
         </div>
       </div>
 
-      {/* Forgot Password Modal */}
+      {}
       {showForgotPassword && (
         <div className="auth-modal-overlay" onClick={closeForgotPasswordModal}>
           <div className="auth-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -443,7 +442,7 @@ function Auth() {
                       disabled={loading}
                     >
                       {loading ? (
-                        <span className="auth-loading-spinner"></span>
+                        <Spinner size="small" inline={true} />
                       ) : (
                         "Send Reset Link"
                       )}

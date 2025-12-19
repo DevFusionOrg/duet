@@ -11,7 +11,6 @@ function ProfilePopup({
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // 🔹 LOAD FULL PROFILE WHEN POPUP OPENS
   useEffect(() => {
     if (!friend?.uid) return;
 

@@ -1,14 +1,10 @@
-// mediaPermissions.js - UPDATED WITHOUT PERMISSION MODAL POPUP
+
 import { secureOriginCheck } from '../utils/secureOriginCheck';
 
 export const mediaPermissions = {
-  /**
-   * Simple permission check for video calls
-   * Returns { success: true } if permission granted
-   * Returns { success: false, error: errorName } if denied
-   */
+  
   async checkAndRequest(required = { video: true, audio: true }) {
-    // Check if on insecure origin (IP address)
+    
     if (!secureOriginCheck.isSecureOrigin()) {
       return {
         success: false,
@@ -31,8 +27,7 @@ export const mediaPermissions = {
           facingMode: 'user'
         } : false
       });
-      
-      // IMPORTANT: Stop tracks immediately
+
       stream.getTracks().forEach(track => track.stop());
       
       return { 
@@ -50,11 +45,8 @@ export const mediaPermissions = {
     }
   },
 
-  /**
-   * Simple error message (no popup)
-   */
   getSimpleErrorMessage(error) {
-    // Check if it's an IP address security issue
+    
     if (!secureOriginCheck.isSecureOrigin() && error.name === 'NotAllowedError') {
       return `Permissions blocked on IP address (${window.location.hostname}). Access via localhost or check browser settings.`;
     }
@@ -75,9 +67,6 @@ export const mediaPermissions = {
     }
   },
 
-  /**
-   * Comprehensive permission check
-   */
   async checkAllPermissions() {
     const results = {
       camera: await this.checkPermission('camera'),
@@ -92,9 +81,6 @@ export const mediaPermissions = {
     };
   },
 
-  /**
-   * Check specific permission
-   */
   async checkPermission(permissionName) {
     try {
       if (permissionName === 'camera' || permissionName === 'microphone') {
@@ -104,7 +90,7 @@ export const mediaPermissions = {
         return permission.state;
       }
     } catch (error) {
-      // Fallback: try to get media to check
+      
       try {
         const constraints = permissionName === 'camera' 
           ? { video: true } 
@@ -119,16 +105,10 @@ export const mediaPermissions = {
     }
   },
 
-  /**
-   * Check notification permission
-   */
   async checkNotificationPermission() {
     return Notification.permission;
   },
 
-  /**
-   * Request all media permissions and get stream
-   */
   async requestMediaPermissions() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -159,9 +139,6 @@ export const mediaPermissions = {
     }
   },
 
-  /**
-   * Get stream capabilities
-   */
   async getStreamCapabilities(stream) {
     const videoTrack = stream.getVideoTracks()[0];
     const audioTrack = stream.getAudioTracks()[0];
@@ -172,9 +149,6 @@ export const mediaPermissions = {
     };
   },
 
-  /**
-   * Get available media devices
-   */
   async getAvailableDevices() {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -189,9 +163,6 @@ export const mediaPermissions = {
     }
   },
 
-  /**
-   * Monitor permission changes
-   */
   onPermissionChange(permissionName, callback) {
     if (!navigator.permissions || !navigator.permissions.query) {
       return () => {};
@@ -208,9 +179,6 @@ export const mediaPermissions = {
     return () => {};
   },
 
-  /**
-   * Test audio/video quality
-   */
   async testMediaQuality(stream) {
     const videoTrack = stream.getVideoTracks()[0];
     const audioTrack = stream.getAudioTracks()[0];

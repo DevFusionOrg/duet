@@ -27,7 +27,6 @@ export function useCall(user, friend, chatId) {
     const callAcceptanceListenerRef = useRef(null);
     const callEndListenerRef = useRef(null);
 
-    // Define stopRingtone with useCallback to use it in effects
     const stopRingtone = useCallback(() => {
         if (ringtoneAudioRef.current) {
         try {
@@ -39,8 +38,7 @@ export function useCall(user, friend, chatId) {
             console.error('Error stopping ringtone:', error);
         }
         }
-        
-        // Also stop any Audio elements on the page that might be playing ringtone
+
         try {
             const allAudioElements = document.querySelectorAll('audio');
             allAudioElements.forEach(audio => {
@@ -84,8 +82,7 @@ export function useCall(user, friend, chatId) {
             const isActive = call.status === 'ringing';
             return isFromCurrentFriend && isForCurrentUser && isActive;
         });
-        
-        // Only set incoming call if we're in idle state
+
         if (relevantCalls.length > 0 && !incomingCall && callStateRef.current === 'idle' && !isInCall) {
             const newIncomingCall = relevantCalls[0];
             console.log('Setting incoming call from current friend:', newIncomingCall);
@@ -106,7 +103,7 @@ export function useCall(user, friend, chatId) {
             handleAutoDeclineCall(newIncomingCall.callId);
             }, 60000);
         } else if (relevantCalls.length === 0 && incomingCall && incomingCallRef.current) {
-            // If there are no calls but we have an incomingCall in state, clear it
+            
             console.log('No incoming calls from friend, clearing incomingCall state');
             setIncomingCall(null);
             incomingCallRef.current = null;
@@ -145,7 +142,6 @@ export function useCall(user, friend, chatId) {
         };
     }, [isInCall, callState, callStartTime]);
 
-    // Stop ringtone when call becomes active
     useEffect(() => {
         if (callState === 'active' || callState === 'connecting') {
         console.log('Call state changed to', callState, '- stopping ringtone');
@@ -153,7 +149,6 @@ export function useCall(user, friend, chatId) {
         }
     }, [callState, stopRingtone]);
 
-    // Clear incoming call when call ends
     useEffect(() => {
         if (callState === 'idle' || callState === 'ended') {
         console.log('Call ended, clearing incoming call state');
@@ -289,7 +284,7 @@ export function useCall(user, friend, chatId) {
 
     const checkMicrophonePermissions = async () => {
         try {
-            // First, check if permissions API is available
+            
             if (navigator.permissions && navigator.permissions.query) {
                 try {
                     const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
@@ -303,8 +298,7 @@ export function useCall(user, friend, chatId) {
                     console.log('Permission query not available, will try getUserMedia directly');
                 }
             }
-            
-            // Try to get the media stream (this will show permission prompt if not yet asked)
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             stream.getTracks().forEach(track => track.stop());
             console.log('✅ Microphone permission granted');
@@ -598,7 +592,7 @@ export function useCall(user, friend, chatId) {
             callTimeoutRef.current = null;
         }
         callInitiatorRef.current = incomingCall.callerId;
-        // Clear incoming call state FIRST and IMMEDIATELY before doing anything else
+        
         setIncomingCall(null);
         incomingCallRef.current = null;
         callIdRef.current = incomingCall.callId;
@@ -659,8 +653,7 @@ export function useCall(user, friend, chatId) {
             clearTimeout(callTimeoutRef.current);
             callTimeoutRef.current = null;
         }
-        
-        // Decline the call (safe - won't error if already ended)
+
         await CallService.declineCall(incomingCall.callId, user.uid);
         
         if (chatId) {
@@ -706,8 +699,7 @@ export function useCall(user, friend, chatId) {
     
     try {
         const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
-        
-        // Stop ringtone first and completely
+
         stopRingtone();
         
         if (callTimeoutRef.current) {
@@ -757,7 +749,7 @@ export function useCall(user, friend, chatId) {
     } catch (error) {
         console.error('Error ending call:', error);
     } finally {
-        // Clear all call state
+        
         setCallState('idle');
         setIsInCall(false);
         setIncomingCall(null);
@@ -766,8 +758,7 @@ export function useCall(user, friend, chatId) {
         setCallDuration(0);
         setCallStartTime(null);
         callStateRef.current = 'idle';
-        
-        // Stop ringtone one more time to be sure
+
         stopRingtone();
     }
     };
@@ -777,24 +768,23 @@ export function useCall(user, friend, chatId) {
     };
 
     const handleToggleSpeaker = async () => {
-        console.log('🎛️ Speaker button clicked, current isSpeaker:', isSpeaker);  // Add this
+        console.log('🎛️ Speaker button clicked, current isSpeaker:', isSpeaker);  
         try {
             const audioElement = document.querySelector('.remote-audio');
-            console.log('🔊 Audio element found:', !!audioElement);  // Add this
+            console.log('🔊 Audio element found:', !!audioElement);  
             if (!audioElement) return false;
-            
-            // Simply toggle mute instead of switching audio devices
+
             const newSpeakerState = !isSpeaker;
-            console.log('🔄 New speaker state:', newSpeakerState);  // Add this
+            console.log('🔄 New speaker state:', newSpeakerState);  
             setIsSpeaker(newSpeakerState);
             
             if (newSpeakerState) {
-                // Block audio (what you want when button is blue)
+                
                 audioElement.muted = true;
                 audioElement.volume = 0;
                 console.log('🔇 Audio muted and volume 0');
             } else {
-                // Unblock audio (what you want when button is white)
+                
                 audioElement.muted = false;
                 audioElement.volume = 1;
                 console.log('🔊 Audio unmuted and volume 1');
@@ -805,7 +795,7 @@ export function useCall(user, friend, chatId) {
             
         } catch (error) {
             console.error('❌ Error toggling speaker:', error);
-            // Revert state on error
+            
             setIsSpeaker(!isSpeaker);
             return isSpeaker;
         }

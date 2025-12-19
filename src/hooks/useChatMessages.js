@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { listenToChatMessages, markMessagesAsRead } from "../firebase/firestore";
 
-export function useChatMessages(chatId, user) {
+export function useChatMessages(chatId, user, isActiveChatRef) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const markAsReadTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!chatId || !user?.uid) return;
@@ -11,16 +12,27 @@ export function useChatMessages(chatId, user) {
     const unsubscribe = listenToChatMessages(chatId, user.uid, (chatMessages) => {
       setMessages(chatMessages);
       setLoading(false);
-      
-      if (document.visibilityState === "visible") {
-        markMessagesAsRead(chatId, user.uid);
+
+      if (document.visibilityState === "visible" && isActiveChatRef?.current) {
+        
+        if (markAsReadTimeoutRef.current) {
+          clearTimeout(markAsReadTimeoutRef.current);
+        }
+        markAsReadTimeoutRef.current = setTimeout(() => {
+          if (isActiveChatRef?.current && document.visibilityState === "visible") {
+            markMessagesAsRead(chatId, user.uid);
+          }
+        }, 300);
       }
     });
     
     return () => {
       if (unsubscribe) unsubscribe();
+      if (markAsReadTimeoutRef.current) {
+        clearTimeout(markAsReadTimeoutRef.current);
+      }
     };
-  }, [chatId, user?.uid]);
+  }, [chatId, user?.uid, isActiveChatRef]);
 
   return { messages, loading, setMessages };
 }

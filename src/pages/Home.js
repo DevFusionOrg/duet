@@ -1,38 +1,56 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, Suspense } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Chat from "./Chat";
 import '../styles/Home.css';
 import ChatsView from '../Components/Home/ChatsView';
 import FriendsView from '../Components/Home/FriendsView';
-import ProfileView from '../Components/Home/ProfileView';
 import SearchView from '../Components/Home/SearchView';
 import NotificationsView from '../Components/Home/NotificationsView';
 import SuggestedFriends from '../Components/Home/SuggestedFriends';
 import RecentlyActiveFriends from '../Components/Home/RecentlyActiveFriends';
-// Removed ProfilePopup usage
+import DevFusionModal from '../Components/Home/DevFusionModal';
+import LoadingScreen from '../Components/LoadingScreen';
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
 import { useProfiles } from "../hooks/useProfiles";
 import { useFriendsOnlineStatus } from "../hooks/useFriendsOnlineStatus";
 import { useUnreadCount } from "../hooks/useUnreadCount";
 
+const ProfileView = React.lazy(() => import('../Components/Home/ProfileView'));
+
 function Home({ user, isDarkMode, toggleTheme }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { friends, loading: friendsLoading } = useFriends(user);
-  const { chats } = useChats(user, friends);
+  const { chats, loading: chatsLoading } = useChats(user, friends);
   const { profile: userProfile,getProfilePictureUrl} = useProfiles(user);
   const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
   const { unreadFriendsCount } = useUnreadCount(user);
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [activeView, setActiveView] = useState('friends');
-  // Removed profile popup state
+  
   const [pendingFriendId, setPendingFriendId] = useState(null);
+  const [showConnectWithUs, setShowConnectWithUs] = useState(false);
   const loading = friendsLoading;
 
   const pendingFriendRequestCount = (userProfile?.friendRequests || []).filter(
     (req) => (req.status || 'pending') === 'pending'
   ).length;
+
+  useEffect(() => {
+    if (!loading) {
+      if (friends.length === 0) {
+        
+        const timer = setTimeout(() => {
+          setShowConnectWithUs(true);
+        }, 1000); 
+        return () => clearTimeout(timer);
+      } else {
+        
+        setShowConnectWithUs(false);
+      }
+    }
+  }, [friends.length, loading]);
   
   const handleFriendRequestUpdate = () => {};
 
@@ -218,7 +236,7 @@ function Home({ user, isDarkMode, toggleTheme }) {
           ) : activeView === 'chats' ? (
             <ChatsView 
               chats={chats} 
-              loading={loading} 
+              loading={chatsLoading} 
               onStartChat={handleStartChat}
               friendsOnlineStatus={friendsOnlineStatus}
               user={user}
@@ -228,12 +246,21 @@ function Home({ user, isDarkMode, toggleTheme }) {
           ) : activeView === 'notifications' ? (
             <NotificationsView user={user} onFriendRequestUpdate={handleFriendRequestUpdate} />
           ) : activeView === 'profile' ? (
-            <ProfileView user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+            <Suspense fallback={<LoadingScreen message="Loading profile..." size="medium" fullScreen={true} />}>
+              <ProfileView user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+            </Suspense>
           ) : null}
         </div>
       </div>
 
-      {/* ProfilePopup removed as requested */}
+      {}
+      
+      {}
+      <DevFusionModal 
+        isOpen={showConnectWithUs}
+        onClose={() => setShowConnectWithUs(false)}
+        currentUserId={user?.uid}
+      />
     </div>
   );
 }

@@ -19,6 +19,12 @@ import {
   serverTimestamp,
   limit,
 } from "firebase/firestore";
+import {
+  encryptMessage,
+  decryptMessage,
+  initializeChatEncryption,
+  deleteChatKey,
+} from "../utils/encryption";
 
 export const updateUsernameTransaction = async (
   uid,
@@ -63,7 +69,6 @@ export const sendPushNotification = async (senderId, receiverId, message, chatId
     const senderData = senderSnap.data();
     const receiverData = receiverSnap.data();
 
-    // 🚫 Block checks (both directions)
     if (
       senderData.blockedUsers?.includes(receiverId) ||
       receiverData.blockedUsers?.includes(senderId)
@@ -101,7 +106,6 @@ export const sendPushNotification = async (senderId, receiverId, message, chatId
   }
 };
 
-
 export const listenToUserFriends = (userId, callback) => {
   const userRef = doc(db, "users", userId);
 
@@ -116,6 +120,41 @@ export const listenToUserFriends = (userId, callback) => {
   });
 };
 
+export const getUserFriendsWithProfiles = async (friendIds) => {
+  if (!friendIds || friendIds.length === 0) return [];
+  
+  const uniqueIds = [...new Set(friendIds)];
+  const batches = [];
+  
+  for (let i = 0; i < uniqueIds.length; i += 10) {
+    batches.push(uniqueIds.slice(i, i + 10));
+  }
+  
+  try {
+    const results = await Promise.all(
+      batches.map(ids =>
+        getDocs(query(collection(db, 'users'), where('__name__', 'in', ids)))
+      )
+    );
+    
+    const profiles = [];
+    results.forEach(snapshot => {
+      snapshot.docs.forEach(doc => {
+        profiles.push({
+          ...doc.data(),
+          uid: doc.id,
+          id: doc.id
+        });
+      });
+    });
+    
+    return profiles;
+  } catch (error) {
+    console.error('Error fetching friend profiles in batch:', error);
+    return [];
+  }
+};
+
 export const createUserProfile = async (user, username = null) => {
   if (!user) return;
 
@@ -125,22 +164,25 @@ export const createUserProfile = async (user, username = null) => {
 
     if (userSnap.exists()) {
       const userData = userSnap.data();
-      
-      // Only update photoURL if user hasn't set a custom profile picture
+
       const updateData = {
         displayName: user.displayName,
       };
-      
-      // If user has never set a custom profile picture (no cloudinaryPublicId), update from Google
+
       if (!userData.cloudinaryPublicId) {
         updateData.photoURL = user.photoURL;
+      }
+
+      // Initialize isOnline field if it doesn't exist (for old users)
+      if (userData.isOnline === undefined) {
+        updateData.isOnline = false;
+        updateData.lastSeen = new Date();
       }
       
       await updateDoc(userRef, updateData);
       return;
     }
 
-    // Prefer email local-part on first creation; sanitize and fall back to uid slug
     const providerEmail = user?.providerData?.find((p) => p.email)?.email || "";
     const emailLocalPart = (user.email || providerEmail || "").split("@")[0];
     const displaySlug = (user.displayName || "")
@@ -164,7 +206,6 @@ export const createUserProfile = async (user, username = null) => {
     let finalUsername = baseUsername;
     let counter = 1;
 
-    // Find available username
     while (true) {
       const usernameRef = doc(db, "usernames", finalUsername);
       const usernameSnap = await getDoc(usernameRef);
@@ -176,7 +217,6 @@ export const createUserProfile = async (user, username = null) => {
       finalUsername = `${baseUsername}${counter++}`;
     }
 
-    // Create user document and username document together
     await runTransaction(db, async (transaction) => {
       const usernameRef = doc(db, "usernames", finalUsername);
       const usernameSnap = await transaction.get(usernameRef);
@@ -184,11 +224,9 @@ export const createUserProfile = async (user, username = null) => {
       if (usernameSnap.exists()) {
         throw new Error("Username taken during transaction");
       }
-      
-      // Create username document
+
       transaction.set(usernameRef, { uid: user.uid });
-      
-      // Create user document
+
       transaction.set(userRef, {
         uid: user.uid,
         displayName: user.displayName,
@@ -199,6 +237,8 @@ export const createUserProfile = async (user, username = null) => {
         friends: [],
         friendRequests: [],
         blockedUsers: [],
+        isOnline: false,
+        lastSeen: new Date(),
         createdAt: new Date(),
       });
     });
@@ -229,7 +269,6 @@ export const updateUsername = async (userId, newUsername) => {
 
     const oldUsername = userSnap.data().username;
 
-    // 🔐 Atomic username update
     await updateUsernameTransaction(userId, newUsername, oldUsername);
 
     await updateUsernameInChats(userId, oldUsername, newUsername);
@@ -387,7 +426,6 @@ export const searchUsers = async (searchTerm, excludeUserId = null) => {
 
       const otherUserData = docSnap.data();
 
-      // 🚫 Block checks (both directions)
       if (
         blockedUsers.includes(docSnap.id) ||
         otherUserData.blockedUsers?.includes(excludeUserId)
@@ -462,7 +500,6 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
       throw new Error("User not found");
     }
 
-    // 🚫 Block checks (both directions)
     if (
       fromUser?.blockedUsers?.includes(toUserId) ||
       toUserProfile?.blockedUsers?.includes(fromUserId)
@@ -547,7 +584,6 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
     const userData = userSnap.data();
     const fromUserData = fromUserSnap.data();
 
-    // 🚫 Block checks (both directions)
     if (
       userData.blockedUsers?.includes(requestFromId) ||
       fromUserData.blockedUsers?.includes(userId)
@@ -565,13 +601,11 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
 
     const batch = writeBatch(db);
 
-    // 1. Update user documents
     batch.update(userRef, {
       friends: arrayUnion(requestFromId),
       friendRequests: arrayRemove(requestToRemove),
     });
 
-    // Remove from sender's sent requests
     const sentRequestToRemove = fromUserData.sentFriendRequests?.find(
       (req) => req.to === userId && req.status === "pending"
     );
@@ -581,14 +615,13 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
       ...(sentRequestToRemove && { sentFriendRequests: arrayRemove(sentRequestToRemove) })
     });
 
-    // 2. Create friends subcollection previews
     batch.set(
       doc(db, "users", userId, "friends", requestFromId),
       {
         displayName: fromUserData.displayName,
         photoURL: fromUserData.photoURL || null,
         lastSeen: fromUserData.lastSeen || null,
-        online: fromUserData.online || false,
+        isOnline: fromUserData.isOnline || false,
         addedAt: serverTimestamp(),
       }
     );
@@ -599,7 +632,7 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
         displayName: userData.displayName,
         photoURL: userData.photoURL || null,
         lastSeen: userData.lastSeen || null,
-        online: userData.online || false,
+        isOnline: userData.isOnline || false,
         addedAt: serverTimestamp(),
       }
     );
@@ -638,7 +671,6 @@ export const rejectFriendRequest = async (userId, requestFromId) => {
       throw new Error("Friend request not found");
     }
 
-    // Remove from sender's sent requests
     const sentRequestToRemove = fromUserData?.sentFriendRequests?.find(
       (req) => req.to === userId && req.status === "pending"
     );
@@ -737,8 +769,9 @@ export const saveUserNotificationToken = async (userId, token) => {
 export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
     const receiverId = chatId.replace(senderId, '').replace('_', '');
-    
-    // Parallel fetch sender and receiver data
+
+    const chatKey = await initializeChatEncryption(chatId, db);
+
     const [receiverSnap, senderSnap] = await Promise.all([
       getDoc(doc(db, "users", receiverId)),
       getDoc(doc(db, "users", senderId))
@@ -750,8 +783,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     
     const receiverData = receiverSnap.data();
     const senderData = senderSnap.exists() ? senderSnap.data() : {};
-    
-    // Check blocks
+
     if (receiverData.blockedUsers?.includes(senderId)) {
       throw new Error("You cannot send messages to this user. You have been blocked.");
     }
@@ -767,12 +799,14 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     const senderName = senderData?.displayName || senderData?.username || "Someone";
     const senderPhoto = senderData?.photoURL || "";
 
+    const encryptedText = text ? await encryptMessage(text, chatKey) : "";
+
     const messageData = {
       senderId,
       senderName,
       senderPhoto,
       chatId,
-      text: text || "",
+      text: encryptedText,
       timestamp: now,
       read: false,
       readBy: null,
@@ -782,9 +816,10 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       isSaved: false,
       isEdited: false,
       editHistory: [],
-      originalText: text || "",
+      originalText: encryptedText,
       canEditUntil: new Date(now.getTime() + 15 * 60 * 1000),
       isReply: false,
+      encrypted: true, 
     };
 
     if (imageData) {
@@ -800,10 +835,8 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       messageData.type = "text";
     }
 
-    // Add message and update chat in parallel (non-blocking notification)
     const messageRef = await addDoc(messagesRef, messageData);
-    
-    // Update chat lastMessage (don't await - fire and forget for speed)
+
     const chatRef = doc(db, "chats", chatId);
     updateDoc(chatRef, {
       lastMessage: text || "📷 Image",
@@ -811,8 +844,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       lastMessageId: messageRef.id,
     }).catch(err => console.error("Error updating chat lastMessage:", err));
 
-    // Send notification async (non-blocking)
-    sendPushNotification(senderId, receiverId, messageData, chatId).catch(
+    sendPushNotification(senderId, receiverId, { ...messageData, text: text || "" }, chatId).catch(
       err => console.error("Error sending push notification:", err)
     );
 
@@ -823,7 +855,6 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   }
 };
 
-// Send voice note message
 export const sendVoiceNote = async (chatId, senderId, voiceData) => {
   try {
     const receiverId = chatId.replace(senderId, '').replace('_', '');
@@ -885,7 +916,6 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
       isReply: false,
     };
 
-    // Send notification
     await sendPushNotification(senderId, receiverId, { ...messageData, text: "🎤 Voice message" }, chatId);
 
     const messageRef = await addDoc(messagesRef, messageData);
@@ -946,7 +976,7 @@ export const getUserChats = async (userId) => {
   }
 };
 
-export const getChatMessages = async (chatId, currentUserId) => {
+export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50) => {
   try {
     const currentUserRef = doc(db, "users", currentUserId);
     const currentUserSnap = await getDoc(currentUserRef);
@@ -956,9 +986,15 @@ export const getChatMessages = async (chatId, currentUserId) => {
       const currentUserData = currentUserSnap.data();
       blockedUsers = currentUserData.blockedUsers || [];
     }
+
+    const chatKey = await initializeChatEncryption(chatId, db);
     
     const messagesRef = collection(db, "chats", chatId, "messages");
-    const q = query(messagesRef, orderBy("timestamp", "asc"));
+    const q = query(
+      messagesRef, 
+      orderBy("timestamp", "asc"),
+      limit(messagesLimit)
+    );
     const querySnapshot = await getDocs(q);
 
     const now = new Date();
@@ -980,6 +1016,18 @@ export const getChatMessages = async (chatId, currentUserId) => {
         continue;
       }
 
+      if (messageData.encrypted && messageData.text) {
+        try {
+          messageData.text = await decryptMessage(messageData.text, chatKey);
+          if (messageData.originalText) {
+            messageData.originalText = await decryptMessage(messageData.originalText, chatKey);
+          }
+        } catch (error) {
+          console.error('Failed to decrypt message:', error);
+          
+        }
+      }
+
       messages.push({
         id: doc.id,
         ...messageData,
@@ -993,8 +1041,9 @@ export const getChatMessages = async (chatId, currentUserId) => {
   }
 };
 
-export const listenToChatMessages = (chatId, currentUserId, callback) => {
+export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 50) => {
   const currentUserRef = doc(db, "users", currentUserId);
+  let unsubscribeMessages;
   
   const unsubscribeUser = onSnapshot(currentUserRef, async (userSnap) => {
     let blockedUsers = [];
@@ -1002,11 +1051,21 @@ export const listenToChatMessages = (chatId, currentUserId, callback) => {
       const userData = userSnap.data();
       blockedUsers = userData.blockedUsers || [];
     }
+
+    const chatKey = await initializeChatEncryption(chatId, db);
     
     const messagesRef = collection(db, "chats", chatId, "messages");
-    const q = query(messagesRef, orderBy("timestamp", "asc"));
+    const q = query(
+      messagesRef, 
+      orderBy("timestamp", "asc"),
+      limit(messagesLimit)
+    );
     
-    return onSnapshot(q, async (snapshot) => {
+    if (unsubscribeMessages) {
+      unsubscribeMessages();
+    }
+    
+    unsubscribeMessages = onSnapshot(q, async (snapshot) => {
       const now = new Date();
       const messages = [];
 
@@ -1029,6 +1088,18 @@ export const listenToChatMessages = (chatId, currentUserId, callback) => {
           continue;
         }
 
+        if (messageData.encrypted && messageData.text) {
+          try {
+            messageData.text = await decryptMessage(messageData.text, chatKey);
+            if (messageData.originalText) {
+              messageData.originalText = await decryptMessage(messageData.originalText, chatKey);
+            }
+          } catch (error) {
+            console.error('Failed to decrypt message:', error);
+            
+          }
+        }
+
         messages.push({
           id: doc.id,
           ...messageData,
@@ -1039,7 +1110,12 @@ export const listenToChatMessages = (chatId, currentUserId, callback) => {
     });
   });
   
-  return unsubscribeUser;
+  return () => {
+    unsubscribeUser();
+    if (unsubscribeMessages) {
+      unsubscribeMessages();
+    }
+  };
 };
 
 export const listenToUserChats = (userId, callback) => {
@@ -1092,12 +1168,11 @@ export const markMessagesAsRead = async (chatId, userId) => {
       messagesRef,
       where("senderId", "!=", userId),
       where("read", "==", false),
-      limit(50) // Only process most recent 50 unread messages at a time
+      limit(50) 
     );
 
     const querySnapshot = await getDocs(q);
-    
-    // Return early if no messages to mark
+
     if (querySnapshot.empty) {
       return 0;
     }
@@ -1280,6 +1355,9 @@ export const unsaveMessage = async (chatId, messageId) => {
 
 export const editMessage = async (chatId, messageId, newText, userId) => {
   try {
+    
+    const chatKey = await initializeChatEncryption(chatId, db);
+    
     const messageRef = doc(db, "chats", chatId, "messages", messageId);
     const chatRef = doc(db, "chats", chatId);
     
@@ -1308,12 +1386,14 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
 
     const editHistory = messageData.editHistory || [];
     editHistory.push({
-      previousText: messageData.text,
+      previousText: messageData.text, 
       editedAt: new Date(),
     });
 
+    const encryptedNewText = await encryptMessage(newText, chatKey);
+
     await updateDoc(messageRef, {
-      text: newText,
+      text: encryptedNewText,
       isEdited: true,
       editHistory: editHistory,
       lastEditedAt: new Date(),
@@ -1321,7 +1401,7 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
     
     if (chatData.lastMessageId === messageId) {
       await updateDoc(chatRef, {
-        lastMessage: newText,
+        lastMessage: newText, 
         lastMessageAt: new Date(),
       });
     }
@@ -1405,7 +1485,7 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
       messageId,
       publicId: imageData.publicId,
       deletedAt: new Date(),
-      scheduledForDeletion: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12 hours from now
+      scheduledForDeletion: new Date(Date.now() + 12 * 60 * 60 * 1000), 
     });
 
     console.log("Cloudinary deletion tracked for:", imageData.publicId);
@@ -1414,9 +1494,7 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
   }
 };
 
-// Debounced last seen update cache
-let lastSeenUpdateTimeout = null;
-const lastSeenCache = new Map();
+const userStatusTimeouts = new Map();
 
 export const setUserOnlineStatus = async (userId, isOnline, immediate = false) => {
   try {
@@ -1426,32 +1504,31 @@ export const setUserOnlineStatus = async (userId, isOnline, immediate = false) =
       lastSeen: new Date()
     };
 
-    // If going offline or immediate update needed, skip debouncing
     if (!isOnline || immediate) {
+      const existingTimeout = userStatusTimeouts.get(userId);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        userStatusTimeouts.delete(userId);
+      }
       await updateDoc(userRef, updateData);
       return;
     }
 
-    // Debounce online status updates (batch within 2 seconds)
-    const cacheKey = userId;
-    lastSeenCache.set(cacheKey, updateData);
-
-    if (lastSeenUpdateTimeout) {
-      clearTimeout(lastSeenUpdateTimeout);
+    const existingTimeout = userStatusTimeouts.get(userId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
     }
 
-    lastSeenUpdateTimeout = setTimeout(async () => {
-      const updates = Array.from(lastSeenCache.entries());
-      lastSeenCache.clear();
-
-      // Batch update all cached status changes
-      const batch = writeBatch(db);
-      updates.forEach(([uid, data]) => {
-        batch.update(doc(db, "users", uid), data);
-      });
-
-      await batch.commit();
-    }, 2000); // 2 second debounce
+    const newTimeout = setTimeout(async () => {
+      try {
+        await updateDoc(userRef, updateData);
+      } catch (error) {
+        console.error("Error in debounced status update:", error);
+      }
+      userStatusTimeouts.delete(userId);
+    }, 100);
+    
+    userStatusTimeouts.set(userId, newTimeout);
   } catch (error) {
     console.error("Error updating online status:", error);
   }
@@ -1469,16 +1546,45 @@ export const listenToUserOnlineStatus = (userId, callback) => {
 export const listenToFriendsOnlineStatus = (friendIds, callback) => {
   if (friendIds.length === 0) return () => {};
   
-  const friendsRef = collection(db, "users");
-  const q = query(friendsRef, where("__name__", "in", friendIds));
+  const unsubscribers = [];
+  const onlineStatus = {};
+  const loadedFriends = new Set();
   
-  return onSnapshot(q, (snapshot) => {
-    const onlineStatus = {};
-    snapshot.forEach(doc => {
-      onlineStatus[doc.id] = doc.data().isOnline || false;
-    });
-    callback(onlineStatus);
+  // Initialize all friends as offline
+  friendIds.forEach(friendId => {
+    onlineStatus[friendId] = false;
   });
+
+  friendIds.forEach(friendId => {
+    const friendRef = doc(db, "users", friendId);
+    const unsubscribe = onSnapshot(friendRef, (docSnap) => {
+      // Update the status
+      if (docSnap.exists()) {
+        onlineStatus[friendId] = docSnap.data().isOnline || false;
+      } else {
+        onlineStatus[friendId] = false;
+      }
+      
+      // Track that this friend's data has loaded at least once
+      loadedFriends.add(friendId);
+      
+      // Only call callback once all friends have loaded at least once
+      // This prevents showing incomplete data on first load
+      if (loadedFriends.size === friendIds.length) {
+        callback(onlineStatus);
+      }
+    });
+    unsubscribers.push(unsubscribe);
+  });
+  
+  // If no friends, return immediately
+  if (friendIds.length === 0) {
+    callback(onlineStatus);
+  }
+  
+  return () => {
+    unsubscribers.forEach(unsub => unsub());
+  };
 };
 
 export const deleteChat = async (chatId, userId) => {
@@ -1489,8 +1595,7 @@ export const deleteChat = async (chatId, userId) => {
     if (!chatSnap.exists() || !chatSnap.data().participants.includes(userId)) {
       throw new Error("Chat not found or unauthorized");
     }
-    
-    // Delete all messages first
+
     const messagesRef = collection(db, "chats", chatId, "messages");
     const messagesSnap = await getDocs(messagesRef);
     
@@ -1498,10 +1603,11 @@ export const deleteChat = async (chatId, userId) => {
     messagesSnap.docs.forEach(doc => {
       batch.delete(doc.ref);
     });
-    
-    // Delete the chat document
+
     batch.delete(chatRef);
     await batch.commit();
+
+    await deleteChatKey(chatId);
     
     return { success: true };
     
@@ -1526,7 +1632,6 @@ export const blockUser = async (userId, userToBlockId) => {
 
   const userData = userSnap.data();
 
-  // ✅ Already blocked → no-op
   if (userData.blockedUsers?.includes(userToBlockId)) {
     return { success: true };
   }
@@ -1548,7 +1653,6 @@ export const blockUser = async (userId, userToBlockId) => {
   batch.delete(doc(db, "users", userId, "friends", userToBlockId));
   batch.delete(doc(db, "users", userToBlockId, "friends", userId));
 
-  // Remove incoming requests
   const incomingRequests = userData.friendRequests || [];
   incomingRequests
     .filter((req) => req.from === userToBlockId)
@@ -1558,7 +1662,6 @@ export const blockUser = async (userId, userToBlockId) => {
       });
     });
 
-  // Remove outgoing requests
   const blockedUserSnap = await getDoc(blockedUserRef);
   if (blockedUserSnap.exists()) {
     const theirRequests = blockedUserSnap.data().friendRequests || [];
@@ -1603,6 +1706,9 @@ export const getBlockedUsers = async (userId) => {
 
 export const replyToMessage = async (chatId, originalMessageId, replyText, senderId, imageData = null) => {
   try {
+    
+    const chatKey = await initializeChatEncryption(chatId, db);
+    
     const messagesRef = collection(db, "chats", chatId, "messages");
     
     const originalMessageRef = doc(db, "chats", chatId, "messages", originalMessageId);
@@ -1613,13 +1719,23 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     }
     
     const originalMessage = originalMessageSnap.data();
+
+    if (originalMessage.encrypted && originalMessage.text) {
+      try {
+        await decryptMessage(originalMessage.text, chatKey);
+      } catch (error) {
+        console.error('Failed to decrypt original message:', error);
+      }
+    }
     
     const deletionTime = new Date();
     deletionTime.setHours(deletionTime.getHours() + 12);
+
+    const encryptedReplyText = replyText ? await encryptMessage(replyText, chatKey) : "";
     
     const replyData = {
       senderId,
-      text: replyText || "",
+      text: encryptedReplyText,
       timestamp: new Date(),
       read: false,
       readBy: null,
@@ -1629,13 +1745,14 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       isSaved: false,
       isEdited: false,
       editHistory: [],
-      originalText: replyText || "",
+      originalText: encryptedReplyText,
       canEditUntil: new Date(Date.now() + 15 * 60 * 1000),
       isReply: true,
       originalMessageId: originalMessageId,
       originalSenderId: originalMessage.senderId,
-      originalMessageText: originalMessage.text,
+      originalMessageText: originalMessage.text, 
       originalMessageType: originalMessage.type,
+      encrypted: true,
     };
     
     if (imageData) {
@@ -1659,7 +1776,8 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     }
     
     const receiverId = chatId.replace(senderId, '').replace('_', '');
-    await sendPushNotification(senderId, receiverId, replyData, chatId);
+    
+    await sendPushNotification(senderId, receiverId, { ...replyData, text: replyText || "" }, chatId);
     
     const messageRef = await addDoc(messagesRef, replyData);
     
@@ -1752,4 +1870,44 @@ export const deleteFriend = async (userId, friendId, options = { deleteChat: tru
     console.error("Error deleting friend:", error);
     throw error;
   }
+};
+
+export const setTypingStatus = async (chatId, userId, isTyping) => {
+  try {
+    const chatRef = doc(db, "chats", chatId);
+    const typingField = `typing.${userId}`;
+    
+    await updateDoc(chatRef, {
+      [typingField]: isTyping ? serverTimestamp() : null,
+    });
+  } catch (error) {
+    console.error("Error setting typing status:", error);
+  }
+};
+
+export const listenToTypingStatus = (chatId, userId, callback) => {
+  const chatRef = doc(db, "chats", chatId);
+  
+  return onSnapshot(chatRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const typing = data.typing || {};
+
+      const otherUserId = chatId.split('_').find(id => id !== userId);
+      const otherUserTyping = typing[otherUserId];
+      
+      if (otherUserTyping) {
+        
+        const typingTime = otherUserTyping.toDate ? otherUserTyping.toDate() : new Date(otherUserTyping);
+        const now = new Date();
+        const diffSeconds = (now - typingTime) / 1000;
+        
+        callback(diffSeconds < 5);
+      } else {
+        callback(false);
+      }
+    } else {
+      callback(false);
+    }
+  });
 };

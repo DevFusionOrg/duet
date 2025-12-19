@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import UserBadge from '../UserBadge';
 import FriendProfilePopup from '../FriendProfilePopup';
+import { getOptimizedImageUrl } from '../../utils/imageOptimization';
 import '../../styles/Home.css';
 
 function RecentlyActiveFriends({ friends, friendsOnlineStatus, onStartChat }) {
@@ -16,19 +17,16 @@ function RecentlyActiveFriends({ friends, friendsOnlineStatus, onStartChat }) {
       tester: 'Tester' 
     };
     setShowBadgeTooltip(badgeNames[badgeName] || badgeName);
-    
-    // Position tooltip above the badge
+
     const rect = e.currentTarget.getBoundingClientRect();
     setTooltipPosition({
       x: rect.left + rect.width / 2,
       y: rect.top
     });
-    
-    // Auto-hide tooltip after 3 seconds
+
     setTimeout(() => setShowBadgeTooltip(null), 3000);
   };
 
-  // Sort friends: online first, then by last seen
   const sortedFriends = [...friends].sort((a, b) => {
     const aOnline = friendsOnlineStatus[a.uid] || false;
     const bOnline = friendsOnlineStatus[b.uid] || false;
@@ -37,7 +35,6 @@ function RecentlyActiveFriends({ friends, friendsOnlineStatus, onStartChat }) {
       return aOnline ? -1 : 1;
     }
 
-    // Both same status, sort by last seen (if available)
     const aLastSeen = a.lastSeen?.toDate?.() || a.lastSeen || new Date(0);
     const bLastSeen = b.lastSeen?.toDate?.() || b.lastSeen || new Date(0);
     
@@ -78,7 +75,7 @@ function RecentlyActiveFriends({ friends, friendsOnlineStatus, onStartChat }) {
             >
               <div className="active-friend-avatar-wrapper">
                 <img
-                  src={friend.photoURL || '/default-avatar.png'}
+                  src={getOptimizedImageUrl(friend.photoURL, 100, 100)}
                   alt={friend.displayName}
                   className="active-friend-avatar"
                   onError={(e) => {

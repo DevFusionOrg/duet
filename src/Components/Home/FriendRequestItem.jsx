@@ -22,15 +22,13 @@ function FriendRequestItem({
       tester: 'Tester' 
     };
     setShowBadgeTooltip(badgeNames[badgeName] || badgeName);
-    
-    // Position tooltip above the badge
+
     const rect = e.currentTarget.getBoundingClientRect();
     setTooltipPosition({
       x: rect.left + rect.width / 2,
       y: rect.top
     });
-    
-    // Auto-hide tooltip after 3 seconds
+
     setTimeout(() => setShowBadgeTooltip(null), 3000);
   };
 

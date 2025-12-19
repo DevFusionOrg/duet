@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../../firebase/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { sendFriendRequest } from '../../firebase/firestore';
 import UserBadge from '../UserBadge';
+import LoadingScreen from '../LoadingScreen';
+import { getOptimizedImageUrl } from '../../utils/imageOptimization';
 import '../../styles/Home.css';
 
 function SuggestedFriends({ user, currentFriends, friendRequests }) {
@@ -16,24 +18,13 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const hasFetched = useRef(false);
 
-  useEffect(() => {
-    // Only fetch once on component mount
-    if (!hasFetched.current) {
-      hasFetched.current = true;
-      fetchSuggestedFriends();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array - only run once on mount
-
-  const fetchSuggestedFriends = async () => {
+  const fetchSuggestedFriends = useCallback(async () => {
     try {
       setLoading(true);
-      
-      // Get all users and current user's sent requests
+
       const usersSnap = await getDocs(collection(db, 'users'));
       const allUsers = usersSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-      
-      // Get current user's data to check sent friend requests
+
       const currentUserData = allUsers.find(u => u.uid === user.uid);
       const sentFriendRequestIds = new Set(
         (currentUserData?.sentFriendRequests || [])
@@ -41,7 +32,6 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
           .map(r => r.to)
       );
 
-      // Filter: exclude self, current friends, received pending requests, and sent pending requests
       const currentFriendIds = new Set(currentFriends.map(f => f.uid || f.id));
       const pendingRequestIds = new Set(
         (friendRequests || []).filter(r => r.status === 'pending').map(r => r.from)
@@ -54,17 +44,15 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
         !sentFriendRequestIds.has(u.uid)
       );
 
-      // Calculate mutual friends for each suggestion
       const suggestionsWithMutual = suggestedUsers.map(suggestion => {
         const mutualFriendIds = (suggestion.friends || []).filter(fid => currentFriendIds.has(fid));
-        
-        // Get names of mutual friends
+
         const mutualFriendNames = mutualFriendIds
           .map(fid => {
             const friend = currentFriends.find(f => (f.uid || f.id) === fid);
             return friend?.displayName || friend?.username || 'User';
           })
-          .slice(0, 3); // Limit to 3 names to display
+          .slice(0, 3); 
         
         return {
           ...suggestion,
@@ -74,28 +62,31 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
         };
       });
 
-      // Sort by mutual friends count (descending)
       suggestionsWithMutual.sort((a, b) => b.mutualCount - a.mutualCount);
 
-      // Take top 6
       setSuggestions(suggestionsWithMutual.slice(0, 6));
     } catch (error) {
       console.error('Error fetching suggested friends:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentFriends, friendRequests, user.uid]);
+
+  useEffect(() => {
+    if (!hasFetched.current && currentFriends) {
+      hasFetched.current = true;
+      fetchSuggestedFriends();
+    }
+  }, [fetchSuggestedFriends, currentFriends]);
 
   const handleAddFriend = async (suggestedUserId, suggestedUserName) => {
     try {
       setRequesting(prev => ({ ...prev, [suggestedUserId]: true }));
       await sendFriendRequest(user.uid, suggestedUserId, user.displayName || user.email, suggestedUserName);
-      
-      // Mark as sent and remove from suggestions
+
       setSentRequests(prev => new Set([...prev, suggestedUserId]));
       setSuggestions(prev => prev.filter(s => s.uid !== suggestedUserId));
-      
-      // Refetch suggestions after a brief delay to ensure Firebase is updated
+
       setTimeout(() => {
         hasFetched.current = false;
         fetchSuggestedFriends();
@@ -112,7 +103,7 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
   };
 
   const checkHasPendingRequest = (userId) => {
-    // Check if current user has sent a pending request to this user
+    
     return (user?.sentFriendRequests || []).some(req => req.to === userId && req.status === 'pending');
   };
 
@@ -124,20 +115,18 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
       tester: 'Tester' 
     };
     setShowBadgeTooltip(badgeNames[badgeName] || badgeName);
-    
-    // Position tooltip above the badge
+
     const rect = e.currentTarget.getBoundingClientRect();
     setTooltipPosition({
       x: rect.left + rect.width / 2,
       y: rect.top
     });
-    
-    // Auto-hide tooltip after 3 seconds
+
     setTimeout(() => setShowBadgeTooltip(null), 3000);
   };
 
   if (loading) {
-    return <div className="suggested-friends-loading">Loading suggestions...</div>;
+    return <LoadingScreen message="Finding suggestions..." size="small" />;
   }
 
   if (suggestions.length === 0) {
@@ -160,7 +149,7 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
               style={{ cursor: 'pointer' }}
             >
               <img 
-                src={suggestion.photoURL || '/default-avatar.png'}
+                src={getOptimizedImageUrl(suggestion.photoURL, 100, 100)}
                 alt={suggestion.displayName}
                 className="suggested-friend-avatar"
                 onError={(e) => {

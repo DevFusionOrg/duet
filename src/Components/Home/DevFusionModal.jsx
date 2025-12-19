@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { doc, collection, addDoc, query, where, getDocs, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, collection, query, where, getDocs, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
+import { sendFriendRequest } from '../../firebase/firestore';
 import UserBadge from '../UserBadge';
 import '../../styles/DevFusionModal.css';
 
 function DevFusionModal({ isOpen, onClose, currentUserId }) {
   const [sendingTo, setSendingTo] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fetchingTeam, setFetchingTeam] = useState(false);
   const [message, setMessage] = useState('');
   const [userFriends, setUserFriends] = useState([]);
   const [devFusionTeam, setDevFusionTeam] = useState([
@@ -36,7 +38,6 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
     }
   ]);
 
-  // Fetch current user's friends list
   useEffect(() => {
     if (!currentUserId) return;
     
@@ -55,16 +56,17 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
     fetchUserFriends();
   }, [currentUserId]);
 
-  // Fetch user UIDs by username when modal opens
   useEffect(() => {
     if (!isOpen) return;
 
     const fetchUserUIDs = async () => {
+      setFetchingTeam(true);
       try {
         const updatedTeam = await Promise.all(
           devFusionTeam.map(async (member) => {
             try {
-              // Try to find user by username
+              console.log('Searching for username:', member.username);
+              
               const usersSnap = await getDocs(
                 query(
                   collection(db, 'users'),
@@ -73,7 +75,11 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
               );
               
               if (usersSnap.docs.length > 0) {
-                return { ...member, uid: usersSnap.docs[0].id };
+                const foundUid = usersSnap.docs[0].id;
+                console.log(`Found UID for ${member.username}:`, foundUid);
+                return { ...member, uid: foundUid };
+              } else {
+                console.warn(`No user found with username: ${member.username}`);
               }
             } catch (err) {
               console.error(`Error fetching UID for ${member.username}:`, err);
@@ -82,7 +88,8 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
           })
         );
 
-        // Fetch profile pictures and set badges
+        console.log('Updated team with UIDs:', updatedTeam);
+
         const teamWithPhotos = await Promise.all(
           updatedTeam.map(async (member) => {
             if (member.uid) {
@@ -92,8 +99,7 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
                 
                 if (userSnap.exists()) {
                   const userData = userSnap.data();
-                  
-                  // Set badge on user profile if not already set
+
                   const badge = member.role === 'Developer' ? 'developer' : 'support';
                   if (!userData.badge || userData.badge !== badge) {
                     await updateDoc(userRef, { badge, updatedAt: new Date() });
@@ -109,9 +115,12 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
           })
         );
 
+        console.log('Final team with photos:', teamWithPhotos);
         setDevFusionTeam(teamWithPhotos);
       } catch (error) {
         console.error('Error fetching DevFusion team data:', error);
+      } finally {
+        setFetchingTeam(false);
       }
     };
 
@@ -123,7 +132,10 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
   const isCurrentUser = (teamMemberId) => teamMemberId === currentUserId;
 
   const handleSendRequest = async (teamMember) => {
+    console.log('Sending request to team member:', teamMember);
+    
     if (!teamMember.uid || teamMember.uid.includes('_uid')) {
+      console.error('Invalid UID for team member:', teamMember);
       setMessage('Unable to send request - user profile not found');
       setTimeout(() => setMessage(''), 3000);
       return;
@@ -133,37 +145,16 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
     setSendingTo(teamMember.id);
 
     try {
-      // Check if request already exists
-      const requestsRef = collection(db, 'friendRequests');
-      const existingQuery = query(
-        requestsRef,
-        where('fromUserId', '==', currentUserId),
-        where('toUserId', '==', teamMember.uid)
-      );
-      const existingSnapshot = await getDocs(existingQuery);
-
-      if (!existingSnapshot.empty) {
-        setMessage('Request already sent to ' + teamMember.name);
-        setTimeout(() => setMessage(''), 3000);
-        setLoading(false);
-        setSendingTo(null);
-        return;
-      }
-
-      // Send friend request
-      await addDoc(requestsRef, {
-        fromUserId: currentUserId,
-        toUserId: teamMember.uid,
-        status: 'pending',
-        timestamp: new Date(),
-        message: `Hi ${teamMember.name}! I'd like to connect with you.`
-      });
-
+      console.log('Calling sendFriendRequest with:', currentUserId, teamMember.uid);
+      
+      await sendFriendRequest(currentUserId, teamMember.uid);
+      
       setMessage(`Request sent to ${teamMember.name}!`);
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Error sending request:', error);
-      setMessage('Failed to send request. Please try again.');
+      const errorMessage = error.message || 'Failed to send request. Please try again.';
+      setMessage(errorMessage);
       setTimeout(() => setMessage(''), 3000);
     } finally {
       setLoading(false);
@@ -215,11 +206,11 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
                   <h4 className="devfusion-team-name">{member.name}</h4>
                   <p className="devfusion-team-username">@{member.username}</p>
                   <button
-                    className={`devfusion-request-btn ${sendingTo === member.id ? 'loading' : ''} ${isMe ? 'is-me' : ''} ${isFriendAlready ? 'already-friend' : ''}`}
+                    className={`devfusion-request-btn ${sendingTo === member.id ? 'loading' : ''} ${isMe ? 'is-me' : ''} ${isFriendAlready ? 'already-friend' : ''} ${fetchingTeam ? 'fetching' : ''}`}
                     onClick={() => handleSendRequest(member)}
-                    disabled={isMe || isFriendAlready || (loading && sendingTo === member.id)}
+                    disabled={fetchingTeam || isMe || isFriendAlready || (loading && sendingTo === member.id)}
                   >
-                    {isMe ? 'That\'s You!' : isFriendAlready ? 'Already Friends' : (sendingTo === member.id && loading ? 'Sending...' : 'Send Request')}
+                    {fetchingTeam ? 'Loading...' : (isMe ? 'That\'s You!' : isFriendAlready ? 'Already Friends' : (sendingTo === member.id && loading ? 'Sending...' : 'Send Request'))}
                   </button>
                 </div>
               );
@@ -250,11 +241,11 @@ function DevFusionModal({ isOpen, onClose, currentUserId }) {
                   <h4 className="devfusion-team-name">{member.name}</h4>
                   <p className="devfusion-team-username">@{member.username}</p>
                   <button
-                    className={`devfusion-request-btn ${sendingTo === member.id ? 'loading' : ''} ${isMe ? 'is-me' : ''} ${isFriendAlready ? 'already-friend' : ''}`}
+                    className={`devfusion-request-btn ${sendingTo === member.id ? 'loading' : ''} ${isMe ? 'is-me' : ''} ${isFriendAlready ? 'already-friend' : ''} ${fetchingTeam ? 'fetching' : ''}`}
                     onClick={() => handleSendRequest(member)}
-                    disabled={isMe || isFriendAlready || (loading && sendingTo === member.id)}
+                    disabled={fetchingTeam || isMe || isFriendAlready || (loading && sendingTo === member.id)}
                   >
-                    {isMe ? 'That\'s You!' : isFriendAlready ? 'Already Friends' : (sendingTo === member.id && loading ? 'Sending...' : 'Send Request')}
+                    {fetchingTeam ? 'Loading...' : (isMe ? 'That\'s You!' : isFriendAlready ? 'Already Friends' : (sendingTo === member.id && loading ? 'Sending...' : 'Send Request'))}
                   </button>
                 </div>
               );

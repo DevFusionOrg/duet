@@ -1,5 +1,5 @@
 export const videoConstraints = {
-  // Quality presets
+  
   presets: {
     'low': {
       width: { ideal: 640, max: 854 },
@@ -24,7 +24,6 @@ export const videoConstraints = {
     }
   },
 
-  // Device-specific adjustments
   deviceConstraints: {
     'mobile': {
       width: { ideal: 720, max: 1080 },
@@ -44,7 +43,6 @@ export const videoConstraints = {
     }
   },
 
-  // Network condition adjustments
   networkPresets: {
     'excellent': 'high',
     'good': 'medium',
@@ -52,9 +50,6 @@ export const videoConstraints = {
     'very-poor': 'low'
   },
 
-  /**
-   * Get constraints based on device type and network
-   */
   getConstraints(deviceType = 'desktop', networkQuality = 'good') {
     const deviceConfig = this.deviceConstraints[deviceType] || this.deviceConstraints.desktop;
     const qualityPreset = this.networkPresets[networkQuality] || 'medium';
@@ -76,9 +71,6 @@ export const videoConstraints = {
     };
   },
 
-  /**
-   * Detect device type
-   */
   detectDeviceType() {
     const userAgent = navigator.userAgent.toLowerCase();
     const width = window.innerWidth;
@@ -89,34 +81,25 @@ export const videoConstraints = {
     return 'desktop';
   },
 
-  /**
-   * Estimate network quality
-   */
   async estimateNetworkQuality() {
     if (!navigator.connection) return 'good';
 
     const connection = navigator.connection;
     const { downlink, rtt, effectiveType } = connection;
 
-    // Simple network quality estimation
     if (downlink > 5 && rtt < 100) return 'excellent';
     if (downlink > 2 && rtt < 200) return 'good';
     if (downlink > 0.5 && rtt < 500) return 'poor';
     return 'very-poor';
   },
 
-  /**
-   * Adjust quality based on network feedback
-   */
   adjustQualityBasedOnFeedback(currentQuality, stats) {
     const { packetsLost, framesDropped, jitter } = stats;
 
-    // If packet loss > 10% or high jitter, downgrade
     if (packetsLost > 10 || jitter > 100) {
       return this.downgradeQuality(currentQuality);
     }
 
-    // If everything is good for 30 seconds, consider upgrading
     if (packetsLost < 1 && jitter < 20) {
       return this.upgradeQuality(currentQuality);
     }
@@ -136,9 +119,6 @@ export const videoConstraints = {
     return index > 0 ? order[index - 1] : current;
   },
 
-  /**
-   * Get optimized constraints for current conditions
-   */
   async getOptimizedConstraints() {
     const deviceType = this.detectDeviceType();
     const networkQuality = await this.estimateNetworkQuality();

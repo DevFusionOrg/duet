@@ -11,7 +11,6 @@ function SearchView({ user }) {
   const [loadingPending, setLoadingPending] = useState(true);
   const hasFetchedPending = useRef(false);
 
-  // Fetch pending friend requests sent by user
   useEffect(() => {
     if (!hasFetchedPending.current && user?.uid) {
       hasFetchedPending.current = true;
@@ -65,8 +64,7 @@ function SearchView({ user }) {
     try {
       const { db } = await import("../../firebase/firebase");
       const { doc, updateDoc, getDoc } = await import("firebase/firestore");
-      
-      // Get the recipient's current friend requests
+
       const recipientRef = doc(db, 'users', toUserId);
       const recipientSnap = await getDoc(recipientRef);
       
@@ -75,14 +73,12 @@ function SearchView({ user }) {
         const updatedRequests = (recipientData.friendRequests || []).filter(
           req => req.from !== user.uid
         );
-        
-        // Update the recipient's friendRequests array
+
         await updateDoc(recipientRef, {
           friendRequests: updatedRequests
         });
       }
 
-      // Get the sender's current sent requests
       const senderRef = doc(db, 'users', user.uid);
       const senderSnap = await getDoc(senderRef);
       
@@ -91,18 +87,15 @@ function SearchView({ user }) {
         const updatedSentRequests = (senderData.sentFriendRequests || []).filter(
           req => req.to !== toUserId
         );
-        
-        // Update the sender's sentFriendRequests array
+
         await updateDoc(senderRef, {
           sentFriendRequests: updatedSentRequests
         });
       }
-      
-      // Remove from pending requests list
+
       setPendingRequests(prev => prev.filter(r => r.uid !== toUserId));
       setMessage(`Friend request to ${toUserName} cancelled!`);
-      
-      // Clear message after 3 seconds
+
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       console.error('Error cancelling friend request:', error);
@@ -175,7 +168,7 @@ function SearchView({ user }) {
   };
 
   const isAlreadyFriend = (userProfile, currentUserId) => {
-    // Check if currentUserId is in the user's friends array
+    
     return userProfile.friends && Array.isArray(userProfile.friends) && userProfile.friends.includes(currentUserId);
   };
 
@@ -189,7 +182,7 @@ function SearchView({ user }) {
         </div>
       )}
 
-      {/* Pending Friend Requests Section */}
+      {}
       {!loadingPending && pendingRequests.length > 0 && (
         <div className="pending-requests-section">
           <h2 className="pending-requests-title">Friend Requests Sent ({pendingRequests.length})</h2>
@@ -284,7 +277,7 @@ function SearchView({ user }) {
                   <p className="search-result-bio">{result.bio}</p>
                 )}
 
-                {/* Status indicators */}
+                {}
                 {alreadyFriends && (
                   <p className="status-indicator status-friends">
                     ✓ Already friends

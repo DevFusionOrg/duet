@@ -37,14 +37,12 @@ const CallScreen = ({
     }
   }, []);
 
-  // Handle video streams
   useEffect(() => {
     if (isVideoCall && localStream && remoteStream) {
-      // Video call - streams are handled by VideoCallScreen
+      
       return;
     }
-    
-    // Audio call - handle audio streams
+
     if (remoteStream && remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = remoteStream;
       remoteAudioRef.current.play().catch(e => console.log('Audio play error:', e));
@@ -69,11 +67,10 @@ const CallScreen = ({
     if (onToggleVideo) {
       // eslint-disable-next-line no-unused-vars
       const _videoEnabled = onToggleVideo();
-      // State is managed by parent for video calls
+      
     }
   };
 
-  // Render video call screen
   if (isVideoCall) {
     return (
       <VideoCallScreen
@@ -97,7 +94,6 @@ const CallScreen = ({
     );
   }
 
-  // Render audio call screen (existing code)
   return (
     <div className="call-screen-overlay">
       <div className="call-screen">

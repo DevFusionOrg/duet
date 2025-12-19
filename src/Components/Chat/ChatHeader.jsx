@@ -1,5 +1,5 @@
 import React from "react";
-import VideoCallButton from '../Call/VideoCallButton'; // ADD THIS
+import VideoCallButton from '../Call/VideoCallButton'; 
 import UserBadge from '../UserBadge';
 
 function ChatHeader({ 
@@ -7,7 +7,8 @@ function ChatHeader({
   friend, 
   onBack, 
   isBlocked, 
-  isFriendOnline, 
+  isFriendOnline,
+  isFriendTyping, 
   lastSeen,
   onToggleUserMenu,
   showUserMenu,
@@ -15,11 +16,11 @@ function ChatHeader({
   onDeleteChat,
   onToggleMusicPlayer,
   onInitiateAudioCall,
-  onInitiateVideoCall, // NEW: Add this prop
+  onInitiateVideoCall, 
   loading,
   isInCall,
   callState,
-  isVideoCallActive // NEW: Add this prop
+  isVideoCallActive 
 }) {
 
   const getLastSeenText = () => {
@@ -37,6 +38,13 @@ function ChatHeader({
     }
 
     return "Offline";
+  };
+
+  const getStatusText = () => {
+    if (isBlocked) return 'Blocked';
+    if (isFriendTyping) return 'typing...';
+    if (isFriendOnline) return 'Online';
+    return getLastSeenText();
   };
 
   return (
@@ -69,8 +77,8 @@ function ChatHeader({
             </span>
             {isBlocked && <span className="blocked-badge"> (Blocked)</span>}
           </h3>
-          <p className={`user-status ${isFriendOnline ? 'online' : 'offline'} ${isBlocked ? 'blocked' : ''}`}>
-            {isBlocked ? 'Blocked' : (isFriendOnline ? 'Online' : getLastSeenText())}
+          <p className={`user-status ${isFriendTyping ? 'typing' : (isFriendOnline ? 'online' : 'offline')} ${isBlocked ? 'blocked' : ''}`}>
+            {getStatusText()}
           </p>
         </div>
       </div>

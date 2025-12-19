@@ -38,7 +38,7 @@ export default function UpdateChecker({ className, showButton = true }) {
           return;
         }
       } catch (e) {
-        // ignore and fallback to env var
+        
       }
       const envVersion =
         process.env.REACT_APP_VERSION || process.env.VITE_APP_VERSION || null;
@@ -95,13 +95,11 @@ export default function UpdateChecker({ className, showButton = true }) {
     if (!latestInfo?.version) return;
     if (!updateAvailable) return;
 
-    // Show modal if not dismissed
     const dismissed = localStorage.getItem(DISMISSED_VERSION_KEY);
     if (dismissed !== latestInfo.version) {
       setModalOpen(true);
     }
 
-    // Send a system notification once per version
     const notified = localStorage.getItem(NOTIFIED_VERSION_KEY);
     if (notified !== latestInfo.version) {
       (async () => {
@@ -114,7 +112,7 @@ export default function UpdateChecker({ className, showButton = true }) {
           });
           localStorage.setItem(NOTIFIED_VERSION_KEY, latestInfo.version);
         } catch (e) {
-          // ignore
+          
         }
       })();
     }
