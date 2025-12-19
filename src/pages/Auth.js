@@ -12,6 +12,7 @@ import { auth, googleProvider } from "../firebase/firebase";
 import { createUserProfile } from "../firebase/firestore";
 import { Capacitor } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
+import { Spinner } from "../Components/Spinner";
 import "../styles/Auth.css";
 
 function Auth() {
@@ -239,7 +240,7 @@ function Auth() {
                 disabled={loading}
               >
                 {loading ? (
-                  <span className="auth-loading-spinner"></span>
+                  <Spinner size="small" inline={true} />
                 ) : (
                   "Sign In"
                 )}
@@ -324,7 +325,7 @@ function Auth() {
                 disabled={loading}
               >
                 {loading ? (
-                  <span className="auth-loading-spinner"></span>
+                  <Spinner size="small" inline={true} />
                 ) : (
                   "Create Account"
                 )}
@@ -441,7 +442,7 @@ function Auth() {
                       disabled={loading}
                     >
                       {loading ? (
-                        <span className="auth-loading-spinner"></span>
+                        <Spinner size="small" inline={true} />
                       ) : (
                         "Send Reset Link"
                       )}

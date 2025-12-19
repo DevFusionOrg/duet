@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../../firebase/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { sendFriendRequest } from '../../firebase/firestore';
 import UserBadge from '../UserBadge';
+import LoadingScreen from '../LoadingScreen';
+import { getOptimizedImageUrl } from '../../utils/imageOptimization';
 import '../../styles/Home.css';
 
 function SuggestedFriends({ user, currentFriends, friendRequests }) {
@@ -16,16 +18,7 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const hasFetched = useRef(false);
 
-  useEffect(() => {
-    
-    if (!hasFetched.current) {
-      hasFetched.current = true;
-      fetchSuggestedFriends();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
-
-  const fetchSuggestedFriends = async () => {
+  const fetchSuggestedFriends = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -77,7 +70,14 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentFriends, friendRequests, user.uid]);
+
+  useEffect(() => {
+    if (!hasFetched.current && currentFriends) {
+      hasFetched.current = true;
+      fetchSuggestedFriends();
+    }
+  }, [fetchSuggestedFriends, currentFriends]);
 
   const handleAddFriend = async (suggestedUserId, suggestedUserName) => {
     try {
@@ -126,7 +126,7 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
   };
 
   if (loading) {
-    return <div className="suggested-friends-loading">Loading suggestions...</div>;
+    return <LoadingScreen message="Finding suggestions..." size="small" />;
   }
 
   if (suggestions.length === 0) {
@@ -149,7 +149,7 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
               style={{ cursor: 'pointer' }}
             >
               <img 
-                src={suggestion.photoURL || '/default-avatar.png'}
+                src={getOptimizedImageUrl(suggestion.photoURL, 100, 100)}
                 alt={suggestion.displayName}
                 className="suggested-friend-avatar"
                 onError={(e) => {

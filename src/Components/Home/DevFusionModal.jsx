@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, collection, addDoc, query, where, getDocs, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, collection, query, where, getDocs, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { sendFriendRequest } from '../../firebase/firestore';
 import UserBadge from '../UserBadge';

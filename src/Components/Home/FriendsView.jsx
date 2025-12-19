@@ -2,19 +2,16 @@ import React, { useState } from 'react';
 import DevFusionModal from './DevFusionModal';
 import UserBadge from '../UserBadge';
 import FriendProfilePopup from '../FriendProfilePopup';
+import LoadingScreen from '../LoadingScreen';
 import { deleteFriend } from '../../firebase/firestore';
+import { getOptimizedImageUrl } from '../../utils/imageOptimization';
 
 function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friendsOnlineStatus, currentUserId, hideHeaders = false, hideHeading = false, hideGrid = false, allowRemove = false }) {
   const [showDevFusionModal, setShowDevFusionModal] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState(null);
 
   if (loading) {
-    return (
-      <div className="loading-state">
-        <div className="loading-spinner"></div>
-        <p>Loading friends...</p>
-      </div>
-    );
+    return <LoadingScreen message="Loading friends..." size="medium" />;
   }
 
   return (
@@ -52,7 +49,7 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
           >
             <div className="friend-avatar-section">
               <img 
-                src={friend.photoURL || '/default-avatar.png'} 
+                src={getOptimizedImageUrl(friend.photoURL, 100, 100)}
                 alt={friend.displayName}
                 className="friend-avatar"
                 onError={(e) => {

@@ -1,4 +1,5 @@
 import React from "react";
+import LoadingScreen from "../LoadingScreen";
 
 function BlockedUsersModal({ 
   showBlockedUsers, 
@@ -25,9 +26,7 @@ function BlockedUsersModal({
         
         <div className="blocked-users-modal-content">
           {loadingBlockedUsers ? (
-            <div className="blocked-users-loading">
-              <p>Loading blocked users...</p>
-            </div>
+            <LoadingScreen message="Loading blocked users..." size="small" />
           ) : blockedUsers.length === 0 ? (
             <div className="no-blocked-users">
               <p>No user blocked</p>

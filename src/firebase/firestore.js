@@ -120,6 +120,41 @@ export const listenToUserFriends = (userId, callback) => {
   });
 };
 
+export const getUserFriendsWithProfiles = async (friendIds) => {
+  if (!friendIds || friendIds.length === 0) return [];
+  
+  const uniqueIds = [...new Set(friendIds)];
+  const batches = [];
+  
+  for (let i = 0; i < uniqueIds.length; i += 10) {
+    batches.push(uniqueIds.slice(i, i + 10));
+  }
+  
+  try {
+    const results = await Promise.all(
+      batches.map(ids =>
+        getDocs(query(collection(db, 'users'), where('__name__', 'in', ids)))
+      )
+    );
+    
+    const profiles = [];
+    results.forEach(snapshot => {
+      snapshot.docs.forEach(doc => {
+        profiles.push({
+          ...doc.data(),
+          uid: doc.id,
+          id: doc.id
+        });
+      });
+    });
+    
+    return profiles;
+  } catch (error) {
+    console.error('Error fetching friend profiles in batch:', error);
+    return [];
+  }
+};
+
 export const createUserProfile = async (user, username = null) => {
   if (!user) return;
 
@@ -578,7 +613,7 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
         displayName: fromUserData.displayName,
         photoURL: fromUserData.photoURL || null,
         lastSeen: fromUserData.lastSeen || null,
-        online: fromUserData.online || false,
+        isOnline: fromUserData.isOnline || false,
         addedAt: serverTimestamp(),
       }
     );
@@ -589,7 +624,7 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
         displayName: userData.displayName,
         photoURL: userData.photoURL || null,
         lastSeen: userData.lastSeen || null,
-        online: userData.online || false,
+        isOnline: userData.isOnline || false,
         addedAt: serverTimestamp(),
       }
     );
@@ -933,7 +968,7 @@ export const getUserChats = async (userId) => {
   }
 };
 
-export const getChatMessages = async (chatId, currentUserId) => {
+export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50) => {
   try {
     const currentUserRef = doc(db, "users", currentUserId);
     const currentUserSnap = await getDoc(currentUserRef);
@@ -947,7 +982,11 @@ export const getChatMessages = async (chatId, currentUserId) => {
     const chatKey = await initializeChatEncryption(chatId, db);
     
     const messagesRef = collection(db, "chats", chatId, "messages");
-    const q = query(messagesRef, orderBy("timestamp", "asc"));
+    const q = query(
+      messagesRef, 
+      orderBy("timestamp", "asc"),
+      limit(messagesLimit)
+    );
     const querySnapshot = await getDocs(q);
 
     const now = new Date();
@@ -994,8 +1033,9 @@ export const getChatMessages = async (chatId, currentUserId) => {
   }
 };
 
-export const listenToChatMessages = (chatId, currentUserId, callback) => {
+export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 50) => {
   const currentUserRef = doc(db, "users", currentUserId);
+  let unsubscribeMessages;
   
   const unsubscribeUser = onSnapshot(currentUserRef, async (userSnap) => {
     let blockedUsers = [];
@@ -1007,9 +1047,17 @@ export const listenToChatMessages = (chatId, currentUserId, callback) => {
     const chatKey = await initializeChatEncryption(chatId, db);
     
     const messagesRef = collection(db, "chats", chatId, "messages");
-    const q = query(messagesRef, orderBy("timestamp", "asc"));
+    const q = query(
+      messagesRef, 
+      orderBy("timestamp", "asc"),
+      limit(messagesLimit)
+    );
     
-    return onSnapshot(q, async (snapshot) => {
+    if (unsubscribeMessages) {
+      unsubscribeMessages();
+    }
+    
+    unsubscribeMessages = onSnapshot(q, async (snapshot) => {
       const now = new Date();
       const messages = [];
 
@@ -1054,7 +1102,12 @@ export const listenToChatMessages = (chatId, currentUserId, callback) => {
     });
   });
   
-  return unsubscribeUser;
+  return () => {
+    unsubscribeUser();
+    if (unsubscribeMessages) {
+      unsubscribeMessages();
+    }
+  };
 };
 
 export const listenToUserChats = (userId, callback) => {
@@ -1433,7 +1486,7 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
   }
 };
 
-let lastSeenUpdateTimeout = null;
+const userStatusTimeouts = new Map();
 
 export const setUserOnlineStatus = async (userId, isOnline, immediate = false) => {
   try {
@@ -1444,26 +1497,30 @@ export const setUserOnlineStatus = async (userId, isOnline, immediate = false) =
     };
 
     if (!isOnline || immediate) {
-      if (lastSeenUpdateTimeout) {
-        clearTimeout(lastSeenUpdateTimeout);
-        lastSeenUpdateTimeout = null;
+      const existingTimeout = userStatusTimeouts.get(userId);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        userStatusTimeouts.delete(userId);
       }
       await updateDoc(userRef, updateData);
       return;
     }
 
-    if (lastSeenUpdateTimeout) {
-      clearTimeout(lastSeenUpdateTimeout);
+    const existingTimeout = userStatusTimeouts.get(userId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
     }
 
-    lastSeenUpdateTimeout = setTimeout(async () => {
+    const newTimeout = setTimeout(async () => {
       try {
         await updateDoc(userRef, updateData);
       } catch (error) {
         console.error("Error in debounced status update:", error);
       }
-      lastSeenUpdateTimeout = null;
-    }, 100); 
+      userStatusTimeouts.delete(userId);
+    }, 500);
+    
+    userStatusTimeouts.set(userId, newTimeout);
   } catch (error) {
     console.error("Error updating online status:", error);
   }
@@ -1481,16 +1538,25 @@ export const listenToUserOnlineStatus = (userId, callback) => {
 export const listenToFriendsOnlineStatus = (friendIds, callback) => {
   if (friendIds.length === 0) return () => {};
   
-  const friendsRef = collection(db, "users");
-  const q = query(friendsRef, where("__name__", "in", friendIds));
-  
-  return onSnapshot(q, (snapshot) => {
-    const onlineStatus = {};
-    snapshot.forEach(doc => {
-      onlineStatus[doc.id] = doc.data().isOnline || false;
+  const unsubscribers = [];
+  const onlineStatus = {};
+
+  friendIds.forEach(friendId => {
+    const friendRef = doc(db, "users", friendId);
+    const unsubscribe = onSnapshot(friendRef, (docSnap) => {
+      if (docSnap.exists()) {
+        onlineStatus[friendId] = docSnap.data().isOnline || false;
+      } else {
+        onlineStatus[friendId] = false;
+      }
+      callback(onlineStatus);
     });
-    callback(onlineStatus);
+    unsubscribers.push(unsubscribe);
   });
+  
+  return () => {
+    unsubscribers.forEach(unsub => unsub());
+  };
 };
 
 export const deleteChat = async (chatId, userId) => {
@@ -1626,10 +1692,9 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     
     const originalMessage = originalMessageSnap.data();
 
-    let originalMessageText = originalMessage.text;
     if (originalMessage.encrypted && originalMessage.text) {
       try {
-        originalMessageText = await decryptMessage(originalMessage.text, chatKey);
+        await decryptMessage(originalMessage.text, chatKey);
       } catch (error) {
         console.error('Failed to decrypt original message:', error);
       }
