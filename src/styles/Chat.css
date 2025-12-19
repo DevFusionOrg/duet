@@ -938,6 +938,21 @@
   color: #6b7280;
 }
 
+.user-status.typing {
+  color: #667eea;
+  font-style: italic;
+  animation: typingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes typingPulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .chat-date-separator {
   display: block;
   text-align: center;
@@ -1173,19 +1188,20 @@
   height: 40px;
   border-radius: 50%;
   border: none;
-  background: #4a90e2;
+  background: var(--chat-bubble-sent);
   color: white;
   font-size: 22px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.2);
   z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .scroll-to-bottom-btn:hover {
-  background: #357ac8;
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }

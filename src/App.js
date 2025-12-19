@@ -12,6 +12,11 @@ import UpdateChecker from "./Components/UpdateChecker";
 import "./App.css";
 import { initPushNotifications } from "./push-init";
 
+// Hide splash screen immediately when module loads
+if (Capacitor.isNativePlatform()) {
+  SplashScreen.hide().catch(console.error);
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
