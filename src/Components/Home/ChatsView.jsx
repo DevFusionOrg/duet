@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import UserBadge from '../UserBadge';
+import LoadingScreen from '../LoadingScreen';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 
@@ -90,12 +91,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user }) {
   });
 
   if (loading) {
-    return (
-      <div className="loading-state">
-        <div className="loading-spinner"></div>
-        <p>Loading chats...</p>
-      </div>
-    );
+    return <LoadingScreen message="Loading chats..." size="medium" />;
   }
 
   if (chats.length === 0) {

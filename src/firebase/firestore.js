@@ -172,6 +172,12 @@ export const createUserProfile = async (user, username = null) => {
       if (!userData.cloudinaryPublicId) {
         updateData.photoURL = user.photoURL;
       }
+
+      // Initialize isOnline field if it doesn't exist (for old users)
+      if (userData.isOnline === undefined) {
+        updateData.isOnline = false;
+        updateData.lastSeen = new Date();
+      }
       
       await updateDoc(userRef, updateData);
       return;
@@ -231,6 +237,8 @@ export const createUserProfile = async (user, username = null) => {
         friends: [],
         friendRequests: [],
         blockedUsers: [],
+        isOnline: false,
+        lastSeen: new Date(),
         createdAt: new Date(),
       });
     });
@@ -1518,7 +1526,7 @@ export const setUserOnlineStatus = async (userId, isOnline, immediate = false) =
         console.error("Error in debounced status update:", error);
       }
       userStatusTimeouts.delete(userId);
-    }, 500);
+    }, 100);
     
     userStatusTimeouts.set(userId, newTimeout);
   } catch (error) {
@@ -1540,19 +1548,39 @@ export const listenToFriendsOnlineStatus = (friendIds, callback) => {
   
   const unsubscribers = [];
   const onlineStatus = {};
+  const loadedFriends = new Set();
+  
+  // Initialize all friends as offline
+  friendIds.forEach(friendId => {
+    onlineStatus[friendId] = false;
+  });
 
   friendIds.forEach(friendId => {
     const friendRef = doc(db, "users", friendId);
     const unsubscribe = onSnapshot(friendRef, (docSnap) => {
+      // Update the status
       if (docSnap.exists()) {
         onlineStatus[friendId] = docSnap.data().isOnline || false;
       } else {
         onlineStatus[friendId] = false;
       }
-      callback(onlineStatus);
+      
+      // Track that this friend's data has loaded at least once
+      loadedFriends.add(friendId);
+      
+      // Only call callback once all friends have loaded at least once
+      // This prevents showing incomplete data on first load
+      if (loadedFriends.size === friendIds.length) {
+        callback(onlineStatus);
+      }
     });
     unsubscribers.push(unsubscribe);
   });
+  
+  // If no friends, return immediately
+  if (friendIds.length === 0) {
+    callback(onlineStatus);
+  }
   
   return () => {
     unsubscribers.forEach(unsub => unsub());

@@ -11,13 +11,8 @@ export function useFriendsOnlineStatus(user, friends) {
     const friendIds = friends.map(friend => friend.uid);
     
     const unsubscribe = listenToFriendsOnlineStatus(friendIds, (status) => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-      
-      updateTimeoutRef.current = setTimeout(() => {
-        setFriendsOnlineStatus(status);
-      }, 200);
+      // Update immediately for faster UI response
+      setFriendsOnlineStatus(status);
     });
 
     return () => {

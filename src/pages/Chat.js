@@ -215,14 +215,11 @@ function Chat({ user, friend, onBack }) {
 
     if (!componentMountedRef.current || !isActiveChatRef.current) return;
 
-    const timer = setTimeout(() => {
-      if (componentMountedRef.current && isActiveChatRef.current) {
-        markMessagesAsRead(chatId, user.uid);
-        notificationService.clearAllNotifications(chatId);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
+    // Mark as read immediately when chat opens
+    if (componentMountedRef.current && isActiveChatRef.current) {
+      markMessagesAsRead(chatId, user.uid);
+      notificationService.clearAllNotifications(chatId);
+    }
   }, [chatId, user?.uid]);
 
   useEffect(() => {
@@ -327,9 +324,10 @@ function Chat({ user, friend, onBack }) {
   };
 
   const scrollToBottom = () => {
-    setTimeout(() => {
+    // Use requestAnimationFrame for smooth scrolling without delay
+    requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 300);
+    });
   };
 
   useEffect(() => {
