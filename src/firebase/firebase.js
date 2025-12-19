@@ -15,28 +15,25 @@ const firebaseConfig = {
   databaseURL: "https://vibechat-f87fe-default-rtdb.asia-southeast1.firebasedatabase.app/"
 };
 
-// Validate Firebase configuration
 if (!firebaseConfig.apiKey) {
   console.error("Firebase API key is missing! Check your .env file.");
 }
 
-// Check if messaging is supported in this environment
 const isMessagingSupported = () => {
   return typeof window !== 'undefined' && 
          'Notification' in window && 
          'serviceWorker' in navigator && 
          'PushManager' in window &&
-         !window.cordova && // Not in Cordova
-         !window.Capacitor; // Not in Capacitor
+         !window.cordova && 
+         !window.Capacitor; 
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
-const database = getDatabase(app); // ADD THIS - Realtime Database instance
+const database = getDatabase(app); 
 
-// Only initialize messaging if supported - with error handling
 let messaging = null;
 try {
   if (isMessagingSupported()) {
@@ -49,7 +46,7 @@ try {
 export { messaging };
 
 export const requestNotificationPermission = async () => {
-  // Check if messaging is supported before attempting to request permission
+  
   if (!messaging) {
     console.log("Messaging is not supported in this environment.");
     return null;
@@ -80,7 +77,7 @@ export const requestNotificationPermission = async () => {
 
 export const onMessageListener = () =>
   new Promise((resolve, reject) => {
-    // Check if messaging is supported
+    
     if (!messaging) {
       reject(new Error("Messaging is not supported in this environment."));
       return;

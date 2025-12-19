@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import UserBadge from '../UserBadge';
+import LoadingScreen from '../LoadingScreen';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 
@@ -7,7 +8,6 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user }) {
   const [pinnedChatId, setPinnedChatId] = useState(localStorage.getItem('pinnedChatId') || null);
   const [mutedChats, setMutedChats] = useState([]);
 
-  // Load muted chats from Firestore
   useEffect(() => {
     if (!user?.uid) return;
     
@@ -72,20 +72,18 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user }) {
       : [...mutedChats, chatId];
     
     setMutedChats(newMuted);
-    
-    // Save to Firestore
+
     try {
       await updateDoc(doc(db, 'users', user.uid), {
         mutedChats: newMuted
       });
     } catch (error) {
       console.error('Error updating muted chats:', error);
-      // Revert on error
+      
       setMutedChats(mutedChats);
     }
   };
 
-  // Sort chats: pinned chat first, then others by most recent
   const sortedChats = chats.sort((a, b) => {
     if (a.id === pinnedChatId) return -1;
     if (b.id === pinnedChatId) return 1;
@@ -93,12 +91,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user }) {
   });
 
   if (loading) {
-    return (
-      <div className="loading-state">
-        <div className="loading-spinner"></div>
-        <p>Loading chats...</p>
-      </div>
-    );
+    return <LoadingScreen message="Loading chats..." size="medium" />;
   }
 
   if (chats.length === 0) {
@@ -174,7 +167,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user }) {
                     aria-label={isPinned ? 'Unpin chat' : 'Pin chat'}
                     style={{ color: isPinned ? '#00a8e8' : undefined }}
                   >
-                    {/* Pushpin icon */}
+                    {}
                     <svg width="18" height="18" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M16 3v5l4 4v2h-7l-2 7-2-7H2v-2l4-4V3h10z" />
                     </svg>
@@ -186,7 +179,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user }) {
                     aria-label={isMuted ? 'Unmute notifications' : 'Mute notifications'}
                     style={{ color: isMuted ? '#ff4757' : undefined }}
                   >
-                    {/* Bell / Bell-off icon */}
+                    {}
                     {isMuted ? (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M18 8a6 6 0 10-12 0c0 4-2 6-2 6h16s-2-2-2-6" fill="none" />

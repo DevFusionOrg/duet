@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Spinner } from '../Spinner';
 
 function VoiceNotePlayer({ voiceUrl, duration: initialDuration }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -10,7 +11,7 @@ function VoiceNotePlayer({ voiceUrl, duration: initialDuration }) {
   const progressIntervalRef = useRef(null);
 
   useEffect(() => {
-    // Create audio element
+    
     const audio = new Audio(voiceUrl);
     audioRef.current = audio;
 
@@ -81,7 +82,7 @@ function VoiceNotePlayer({ voiceUrl, duration: initialDuration }) {
         disabled={isLoading}
       >
         {isLoading ? (
-          <div className="voice-loading-spinner"></div>
+          <Spinner size="small" inline={true} />
         ) : isPlaying ? (
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
             <rect x="6" y="4" width="4" height="16" rx="1"/>

@@ -9,8 +9,13 @@ import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import SecurityWarning from "./Components/SecurityWarning";
 import UpdateChecker from "./Components/UpdateChecker";
+import LoadingScreen from "./Components/LoadingScreen";
 import "./App.css";
 import { initPushNotifications } from "./push-init";
+
+if (Capacitor.isNativePlatform()) {
+  SplashScreen.hide().catch(console.error);
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -24,9 +29,8 @@ function App() {
 
   const pushInitCalledRef = useRef(false);
 
-  // Disable zoom and zoom gestures globally
   useEffect(() => {
-    // Prevent double-tap zoom
+    
     let lastTouchEnd = 0;
     const preventZoom = (e) => {
       const now = Date.now();
@@ -36,14 +40,12 @@ function App() {
       lastTouchEnd = now;
     };
 
-    // Prevent pinch-to-zoom (only when using 2+ fingers, but allow normal scroll)
     const preventPinchZoom = (e) => {
       if (e.touches.length > 1) {
         e.preventDefault();
       }
     };
 
-    // Prevent keyboard zoom shortcuts (Ctrl/Cmd +, -, =, 0)
     const preventKeyboardZoom = (e) => {
       if (
         (e.ctrlKey || e.metaKey) &&
@@ -53,7 +55,6 @@ function App() {
       }
     };
 
-    // Prevent wheel zoom (Ctrl/Cmd + scroll)
     const preventWheelZoom = (e) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -82,7 +83,6 @@ function App() {
     setIsDarkMode(prev => !prev);
   };
 
-  // Disable text selection / copy on Android (Capacitor) outside inputs
   useEffect(() => {
     const platform = (typeof Capacitor !== 'undefined' && Capacitor.getPlatform) ? Capacitor.getPlatform() : 'web';
     if (platform !== 'android') return;
@@ -118,7 +118,6 @@ function App() {
     };
   }, []);
 
-  // Handle Android back button - prevent app from closing
   useEffect(() => {
     let removeListener;
 
@@ -132,7 +131,7 @@ function App() {
           if (window.history.length > 1 && canGoBack !== false) {
             window.history.back();
           }
-          // If cannot go back, swallow the event to prevent exiting the app
+          
         });
 
         removeListener = () => backHandler?.remove();
@@ -158,7 +157,6 @@ function App() {
         setUserOnlineStatus(currentUser.uid, true).catch(console.error);
       }
 
-      // Hide splash screen after auth state is determined
       if (Capacitor.isNativePlatform()) {
         SplashScreen.hide().catch(console.error);
       }
@@ -168,7 +166,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Preload Cloudinary widget globally when app starts
+    
     if (!window.cloudinary) {
       const script = document.createElement("script");
       script.src = "https://upload-widget.cloudinary.com/global/all.js";
@@ -185,7 +183,7 @@ function App() {
 
     const updateOnlineStatus = async (isOnline) => {
       try {
-        // Use immediate flag for offline status to ensure it updates right away
+        
         await setUserOnlineStatus(user.uid, isOnline, !isOnline);
       } catch (error) {
         console.error("Error updating online status:", error);
@@ -206,7 +204,7 @@ function App() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
 
       if (user) {
-        // Immediate update when component unmounts
+        
         setUserOnlineStatus(user.uid, false, true).catch((error) => {
           console.error("Error setting offline status on cleanup:", error);
         });
@@ -241,11 +239,7 @@ function App() {
           <div className="animated-logo">
             <img src="/logo1921.png" alt="Duet Logo" className="logo-image" />
           </div>
-          <div className="loading-dots">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
+          <LoadingScreen message="Loading Duet..." size="medium" />
         </div>
         <div className="app-loading-footer">
           <div className="devfusion-logo">

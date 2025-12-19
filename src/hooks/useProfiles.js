@@ -24,13 +24,11 @@ export function useProfiles(user, uid) {
       const profileUid = uid || user?.uid;
       let userProfile = await getUserProfile(profileUid);
 
-      // 👇 USER DOES NOT EXIST → CREATE PROFILE + UNIQUE USERNAME
       if (!userProfile && isOwnProfile) {
         const baseUsername = user.email?.split("@")[0] || "user";
         let finalUsername = baseUsername;
         let counter = 1;
 
-        // Try until username is reserved
         while (true) {
           try {
             await updateUsernameTransaction(user.uid, finalUsername);
@@ -56,7 +54,6 @@ export function useProfiles(user, uid) {
         await setDoc(userRef, userProfile);
       }
 
-      // 👇 Viewing someone else but profile missing
       else if (!userProfile) {
         userProfile = {
           uid: profileUid,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import LoadingScreen from '../LoadingScreen';
 import '../../styles/Home.css';
 
 function RecentActivityFeed({ user, currentFriends }) {
@@ -9,31 +10,29 @@ function RecentActivityFeed({ user, currentFriends }) {
   const hasFetched = useRef(false);
 
   useEffect(() => {
-    // Only fetch once on component mount
+    
     if (!hasFetched.current) {
       hasFetched.current = true;
       fetchRecentActivity();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array - only run once on mount
+  }, []); 
 
   const fetchRecentActivity = async () => {
     try {
       setLoading(true);
       const activities = [];
 
-      // 1. Get recent mutual connections from friend's profiles
       const friendIds = currentFriends.map(f => f.uid || f.id);
       
       if (friendIds.length > 0) {
-        // Get friends who recently became friends with each other
+        
         const friendsSnap = await getDocs(collection(db, 'users'));
         
         friendsSnap.docs.forEach(doc => {
           const friendData = doc.data();
           if (friendData.uid === user.uid) return;
-          
-          // Find mutual connections among current friends
+
           const friendFriends = friendData.friends || [];
           const newMutuals = friendFriends.filter(
             fid => friendIds.includes(fid) && fid !== user.uid
@@ -56,7 +55,6 @@ function RecentActivityFeed({ user, currentFriends }) {
         });
       }
 
-      // 2. Get recent messages from friends (for preview)
       for (const friend of currentFriends.slice(0, 5)) {
         try {
           const chatId = [user.uid, friend.uid].sort().join('_');
@@ -68,8 +66,7 @@ function RecentActivityFeed({ user, currentFriends }) {
           if (!messagesSnap.empty) {
             const lastMessage = messagesSnap.docs[0].data();
             const messageTime = lastMessage.timestamp?.toDate?.() || new Date(lastMessage.timestamp);
-            
-            // Only include messages from last 7 days
+
             const daysAgo = (Date.now() - messageTime.getTime()) / (1000 * 60 * 60 * 24);
             if (daysAgo < 7) {
               activities.push({
@@ -95,10 +92,9 @@ function RecentActivityFeed({ user, currentFriends }) {
         }
       }
 
-      // Sort by timestamp (most recent first)
       activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       
-      setActivities(activities.slice(0, 6)); // Show top 6 activities
+      setActivities(activities.slice(0, 6)); 
     } catch (error) {
       console.error('Error fetching recent activity:', error);
     } finally {
@@ -122,7 +118,7 @@ function RecentActivityFeed({ user, currentFriends }) {
   };
 
   if (loading) {
-    return <div className="activity-feed-loading">Loading activity...</div>;
+    return <LoadingScreen message="Loading activity..." size="small" />;
   }
 
   if (activities.length === 0) {

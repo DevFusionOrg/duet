@@ -42,7 +42,6 @@ function VoiceRecorder({ onSend, onCancel, disabled }) {
         } 
       });
 
-      // Use webm format for better compatibility
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
@@ -66,8 +65,7 @@ function VoiceRecorder({ onSend, onCancel, disabled }) {
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         setAudioBlob(audioBlob);
-        
-        // Create audio element to get duration
+
         const audioUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(audioUrl);
         audio.onloadedmetadata = () => {
@@ -160,7 +158,7 @@ function VoiceRecorder({ onSend, onCancel, disabled }) {
   };
 
   useEffect(() => {
-    // Auto-start recording when component mounts
+    
     startRecording();
   }, []);
 

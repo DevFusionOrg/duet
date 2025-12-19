@@ -77,7 +77,7 @@ function ProfileDisplay({
         </div>
       )}
 
-      {/* Title block removed; role chip shown inline with name */}
+      {}
     </div>
   );
 }

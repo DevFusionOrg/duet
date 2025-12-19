@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { updateMusicState, listenToMusicState } from "../firebase/firestore";
+import { Capacitor } from "@capacitor/core";
+import { KeepAwake } from '@capacitor-community/keep-awake';
 import './MusicPlayer.css';
 
 function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
@@ -9,6 +11,84 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   const [currentlyPlaying, setCurrentlyPlaying] = useState("");
   const [loading, setLoading] = useState(false);
   const playerRef = useRef(null);
+  const wakeLockRef = useRef(null);
+  const keepAwakeActive = useRef(false);
+
+  const requestWakeLock = async () => {
+    try {
+      
+      if (Capacitor.isNativePlatform()) {
+        if (!keepAwakeActive.current) {
+          await KeepAwake.keepAwake();
+          keepAwakeActive.current = true;
+          console.log('KeepAwake enabled for audio playback');
+        }
+      } else if ('wakeLock' in navigator) {
+        
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+        console.log('Wake Lock acquired for audio playback');
+      }
+    } catch (err) {
+      console.error('Failed to acquire wake lock:', err);
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    try {
+      if (Capacitor.isNativePlatform() && keepAwakeActive.current) {
+        await KeepAwake.allowSleep();
+        keepAwakeActive.current = false;
+        console.log('KeepAwake disabled');
+      } else if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log('Wake Lock released');
+      }
+    } catch (err) {
+      console.error('Failed to release wake lock:', err);
+    }
+  };
+
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.hidden && isPlaying && playerRef.current) {
+        
+        await requestWakeLock();
+        
+        if (playerRef.current.getPlayerState && 
+            playerRef.current.getPlayerState() !== window.YT?.PlayerState?.PLAYING) {
+          playerRef.current.playVideo();
+        }
+      } else if (!document.hidden && !isPlaying) {
+        await releaseWakeLock();
+      }
+    };
+
+    const handleAppStateChange = async () => {
+      
+      if (Capacitor.isNativePlatform()) {
+        document.addEventListener('resume', () => {
+          if (isPlaying && playerRef.current) {
+            playerRef.current.playVideo();
+          }
+        });
+        
+        document.addEventListener('pause', async () => {
+          if (isPlaying) {
+            await requestWakeLock();
+          }
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    handleAppStateChange();
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, [isPlaying]);
 
   useEffect(() => {
     if (!chatId || !isVisible) return;
@@ -203,22 +283,30 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
           modestbranding: 1,
           showinfo: 0,
           rel: 0,
-          enablejsapi: 1
+          enablejsapi: 1,
+          playsinline: 1,
+          origin: window.location.origin,
+          widget_referrer: window.location.origin,
         },
         events: {
-          onReady: () => {},
+          onReady: () => {
+            console.log('YouTube player ready');
+          },
           onStateChange: (event) => {
             if (event.data === window.YT.PlayerState.PLAYING) {
               setIsPlaying(true);
+              requestWakeLock(); 
             } else if (
               event.data === window.YT.PlayerState.PAUSED ||
               event.data === window.YT.PlayerState.ENDED
             ) {
               setIsPlaying(false);
+              releaseWakeLock(); 
             }
           },
           onError: () => {
             alert("Error playing song. Try a different version.");
+            releaseWakeLock();
           }
         }
       });
@@ -232,6 +320,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       if (playerRef.current) {
         playerRef.current.destroy();
       }
+      releaseWakeLock();
     };
   }, [isVisible]);
 

@@ -1,47 +1,31 @@
-/**
- * Utility to check if the app is running on a secure origin
- * and provide guidance for enabling permissions on IP addresses
- */
+
 
 export const secureOriginCheck = {
-  /**
-   * Check if current origin is secure
-   */
+  
   isSecureOrigin() {
     if (typeof window === 'undefined') return true;
     
     const { protocol, hostname } = window.location;
-    
-    // HTTPS is always secure
+
     if (protocol === 'https:') return true;
-    
-    // localhost and 127.0.0.1 are secure on HTTP
+
     if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
-    
-    // IP addresses on HTTP are NOT secure
+
     return false;
   },
 
-  /**
-   * Check if accessing via IP address
-   */
   isIPAddress() {
     if (typeof window === 'undefined') return false;
     
     const { hostname } = window.location;
-    
-    // Check for IPv4 pattern
+
     const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-    
-    // Check for IPv6 pattern (simplified)
+
     const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
     
     return ipv4Pattern.test(hostname) || ipv6Pattern.test(hostname);
   },
 
-  /**
-   * Get browser-specific instructions for enabling permissions on IP addresses
-   */
   getBrowserInstructions() {
     const userAgent = navigator.userAgent.toLowerCase();
     const origin = window.location.origin;
@@ -98,9 +82,6 @@ export const secureOriginCheck = {
     };
   },
 
-  /**
-   * Get user-friendly warning message
-   */
   getWarningMessage() {
     if (this.isSecureOrigin()) {
       return null;
@@ -123,9 +104,6 @@ export const secureOriginCheck = {
     };
   },
 
-  /**
-   * Show modal with instructions
-   */
   showInstructionsModal() {
     const instructions = this.getBrowserInstructions();
     const warning = this.getWarningMessage();

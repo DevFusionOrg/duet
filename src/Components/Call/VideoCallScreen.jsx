@@ -13,7 +13,7 @@ const VideoCallScreen = ({
   callDuration = 0,
   localStream,
   remoteStream,
-  isMuted = false, // Ensure isMuted prop is defined and defaults to false
+  isMuted = false, 
   isVideoEnabled = true,
   isSpeaker = false,
   isInitiator = true,
@@ -27,7 +27,6 @@ const VideoCallScreen = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-  // Set video streams
   useEffect(() => {
     if (localStream && localVideoRef.current) {
       localVideoRef.current.srcObject = localStream;
@@ -41,7 +40,6 @@ const VideoCallScreen = ({
     }
   }, [remoteStream]);
 
-  // Handle local video drag (mobile-friendly)
   const handleDragStart = (e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -79,9 +77,8 @@ const VideoCallScreen = ({
     const newX = clientX - dragOffset.x;
     const newY = clientY - dragOffset.y;
 
-    // Keep within screen bounds
-    const maxX = window.innerWidth - 120; // Account for video width
-    const maxY = window.innerHeight - 160; // Account for video height + controls
+    const maxX = window.innerWidth - 120; 
+    const maxY = window.innerHeight - 160; 
     
     const boundedX = Math.max(10, Math.min(newX, maxX));
     const boundedY = Math.max(10, Math.min(newY, maxY));
@@ -93,7 +90,6 @@ const VideoCallScreen = ({
     setIsDragging(false);
   };
 
-  // Handle picture-in-picture
   const handleTogglePIP = async () => {
     if (!document.pictureInPictureEnabled) return;
     
@@ -110,7 +106,6 @@ const VideoCallScreen = ({
     }
   };
 
-  // Connection quality indicator
   // eslint-disable-next-line no-unused-vars
   const _getQualityColor = (quality) => {
     switch(quality) {
@@ -122,7 +117,6 @@ const VideoCallScreen = ({
     }
   };
 
-  // Handle end call with confirmation for short calls
   const handleEndCallWithConfirm = () => {
     if (callState === 'active' && callDuration < 10) {
       const confirm = window.confirm('End the video call?');
@@ -131,7 +125,6 @@ const VideoCallScreen = ({
     onEndCall();
   };
 
-  // Add event listeners for drag
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleDragMove);
@@ -157,25 +150,25 @@ const VideoCallScreen = ({
   return (
     <div className="video-call-screen-overlay">
       <div className="video-call-screen">
-        {/* Main remote video (fullscreen) */}
+        {}
         <div className="remote-video-container">
           <video 
             ref={remoteVideoRef}
             className="remote-video"
             autoPlay
             playsInline
-            // Do NOT mute remote video; we need to hear the other user
+            
             muted={false}
           />
           
-          {/* Remote user info */}
+          {}
           <div className="remote-user-info">
             <h2 className="remote-user-name">{friend?.displayName || 'User'}</h2>
             {callState === 'active' && isInitiator && <div className="call-timer"><CallTimer duration={callDuration} /></div>}
           </div>
         </div>
 
-        {/* Local video - Picture-in-Picture */}
+        {}
         <div 
           className={`local-video-container ${isDragging ? 'dragging' : ''}`}
           style={{
@@ -193,7 +186,7 @@ const VideoCallScreen = ({
             muted={true}
           />
           
-          {/* Local user info in PiP */}
+          {}
           <div className="local-video-overlay">
             <h3 className="pip-user-name">You</h3>
             
@@ -209,7 +202,7 @@ const VideoCallScreen = ({
           </div>
         </div>
 
-        {/* Video Call Controls */}
+        {}
         <VideoCallControls
           isMuted={isMuted}
           isVideoEnabled={isVideoEnabled}
@@ -224,7 +217,7 @@ const VideoCallScreen = ({
           connectionQuality={connectionQuality}
         />
 
-        {/* Connection status */}
+        {}
         {callState === 'connecting' && (
           <div className="connecting-overlay">
             <div className="connecting-spinner"></div>

@@ -9,6 +9,8 @@ import IncomingCallModal from '../Components/Call/IncomingCallModal';
 import MusicPlayer from "../Components/MusicPlayer";
 import VideoCallScreen from '../Components/Call/VideoCallScreen';
 import VoiceRecorder from '../Components/Chat/VoiceRecorder';
+import EncryptionIndicator from '../Components/Chat/EncryptionIndicator';
+import LoadingScreen from '../Components/LoadingScreen';
 
 import { useChatSetup } from "../hooks/useChatSetup";
 import { useChatMessages } from "../hooks/useChatMessages";
@@ -29,14 +31,19 @@ import {
   getBlockedUsers,
   deleteChat,
   replyToMessage,
+  setTypingStatus,
+  listenToTypingStatus,
 } from "../firebase/firestore";
-import { openUploadWidget, getOptimizedImageUrl, uploadVoiceNote } from "../services/cloudinary";
+import { getOptimizedImageUrl, uploadVoiceNote } from "../services/cloudinary";
 import { notificationService } from "../services/notifications";
 import "../styles/Chat.css";
 
 function Chat({ user, friend, onBack }) {
+  
+  const isActiveChatRef = useRef(true);
+  
   const { chatId, friends, loading: setupLoading } = useChatSetup(user, friend);
-  const { messages, loading: messagesLoading } = useChatMessages(chatId, user);
+  const { messages, loading: messagesLoading } = useChatMessages(chatId, user, isActiveChatRef);
   const { isBlocked } = useBlockedUsers(user?.uid, friend?.uid);
   const { isFriendOnline, lastSeen } = useFriendOnlineStatus(friend?.uid);
   
@@ -56,9 +63,8 @@ function Chat({ user, friend, onBack }) {
     handleToggleSpeaker,
   } = useCall(user, friend, chatId);
 
-  // NEW: Video call hook - SEPARATE
   const {
-    // Video call state
+    
     isVideoCallActive,
     localStream,
     remoteStream,
@@ -68,8 +74,7 @@ function Chat({ user, friend, onBack }) {
     connectionQuality,
     callState: videoCallState,
     callDuration: videoCallDuration,
-    
-    // Video call actions
+
     startVideoCall,
     acceptVideoCall,
     endVideoCall,
@@ -90,7 +95,6 @@ function Chat({ user, friend, onBack }) {
   const [hoveredMessage, setHoveredMessage] = useState(null);
   const [forwarding, setForwarding] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
@@ -99,13 +103,23 @@ function Chat({ user, friend, onBack }) {
   const [pendingMessages, setPendingMessages] = useState([]);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [sendingVoice, setSendingVoice] = useState(false);
+  const [isFriendTyping, setIsFriendTyping] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const componentMountedRef = useRef(true);
+  const isInitialLoadRef = useRef(true);
+  const firstUnreadMessageRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
   const loading = setupLoading || messagesLoading;
 
-  // Separate handlers for different call types
+  useEffect(() => {
+    isActiveChatRef.current = true;
+    return () => {
+      isActiveChatRef.current = false;
+    };
+  }, [chatId]);
+
   const handleAudioCall = () => {
     initiateAudioCall();
   };
@@ -114,25 +128,22 @@ function Chat({ user, friend, onBack }) {
     startVideoCall();
   };
 
-  // Modify handleAcceptCall to handle both audio and video
   const handleAcceptCallWrapper = () => {
     if (incomingCall?.type === 'video') {
       acceptVideoCall(incomingCall);
     } else {
-      handleAcceptCall(); // Original audio call handler
+      handleAcceptCall(); 
     }
   };
 
-  // Modify to handle end call for both types
   const handleEndCallWrapper = () => {
     if (isVideoCallActive) {
       endVideoCall();
     } else {
-      handleEndCall(); // Original audio end call
+      handleEndCall(); 
     }
   };
 
-  // Add toggle functions for video calls
   const handleToggleVideo = () => {
     if (isVideoCallActive) {
       return toggleVideo();
@@ -144,36 +155,14 @@ function Chat({ user, friend, onBack }) {
     if (isVideoCallActive) {
       return toggleAudio();
     } else {
-      return handleToggleMute(); // Original audio mute
+      return handleToggleMute(); 
     }
   };
 
   useEffect(() => {
-    const loadCloudinaryScript = () => {
-      if (window.cloudinary) {
-        setCloudinaryLoaded(true);
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://upload-widget.cloudinary.com/global/all.js";
-      script.type = "text/javascript";
-      script.async = true;
-      script.onload = () => {
-        setCloudinaryLoaded(true);
-      };
-      script.onerror = () => {
-        setCloudinaryLoaded(false);
-      };
-      document.head.appendChild(script);
-    };
-    loadCloudinaryScript();
-  }, []);
-
-  // Auto-remove pending messages when real messages arrive
-  useEffect(() => {
     if (messages.length > 0 && pendingMessages.length > 0) {
       const latestMessage = messages[messages.length - 1];
-      // Check if the latest message matches any pending message
+      
       const matchingPending = pendingMessages.find(pm => 
         pm.senderId === latestMessage.senderId &&
         pm.text === latestMessage.text &&
@@ -186,10 +175,14 @@ function Chat({ user, friend, onBack }) {
     }
   }, [messages, pendingMessages]);
 
+  const handleVoiceRecordClick = () => {
+    setIsRecordingVoice(true);
+  };
+
   useEffect(() => {
     const handleVisibilityChange = () => {
-      // Only mark as read if page is visible AND this component is still mounted
-      if (document.visibilityState === 'visible' && chatId && user?.uid) {
+      
+      if (document.visibilityState === 'visible' && chatId && user?.uid && isActiveChatRef.current) {
         markMessagesAsRead(chatId, user.uid);
         notificationService.clearAllNotifications(chatId);
       }
@@ -200,31 +193,46 @@ function Chat({ user, friend, onBack }) {
     };
   }, [chatId, user?.uid]);
 
-  // Only mark messages as read when Chat component is actively displayed
-  // Don't mark on mount - only when user returns to the chat
   useEffect(() => {
     if (!chatId || !user?.uid) return;
-    
-    // Only mark as read if component is mounted and visible
-    if (!componentMountedRef.current) return;
-    
-    // Small delay to ensure component is mounted and visible
-    const timer = setTimeout(() => {
-      if (componentMountedRef.current) {
-        markMessagesAsRead(chatId, user.uid);
-        notificationService.clearAllNotifications(chatId);
-      }
-    }, 300);
 
-    return () => clearTimeout(timer);
+    if (!componentMountedRef.current || !isActiveChatRef.current) return;
+
+    // Mark as read immediately when chat opens
+    if (componentMountedRef.current && isActiveChatRef.current) {
+      markMessagesAsRead(chatId, user.uid);
+      notificationService.clearAllNotifications(chatId);
+    }
   }, [chatId, user?.uid]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       componentMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!chatId || !user?.uid) return;
+
+    const unsubscribe = listenToTypingStatus(chatId, user.uid, (isTyping) => {
+      setIsFriendTyping(isTyping);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [chatId, user?.uid]);
+
+  useEffect(() => {
+    return () => {
+      if (chatId && user?.uid) {
+        setTypingStatus(chatId, user.uid, false);
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [chatId, user?.uid]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -299,39 +307,86 @@ function Chat({ user, friend, onBack }) {
   };
 
   const scrollToBottom = () => {
-    setTimeout(() => {
+    // Use requestAnimationFrame for smooth scrolling without delay
+    requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 300);
+    });
   };
 
   useEffect(() => {
     if (messages.length > 0 && !loading) {
-      scrollToBottom();
+      if (isInitialLoadRef.current) {
+        
+        const firstUnread = messages.find(msg => !msg.read && msg.senderId !== user?.uid);
+
+        requestAnimationFrame(() => {
+          if (firstUnread && firstUnreadMessageRef.current) {
+            
+            firstUnreadMessageRef.current.scrollIntoView({ behavior: "instant", block: "start" });
+          } else {
+            
+            messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+          }
+          isInitialLoadRef.current = false;
+        });
+      } else {
+        
+        scrollToBottom();
+      }
     }
-  }, [messages, loading]);
+  }, [messages, loading, user?.uid]);
+
+  useEffect(() => {
+    isInitialLoadRef.current = true;
+    firstUnreadMessageRef.current = null;
+  }, [chatId]);
 
   const handleImageUploadClick = async () => {
-    if (!cloudinaryLoaded) {
-      alert("Image upload is still loading. Please try again in a moment.");
-      return;
-    }
-    setUploadingImage(true);
-    try {
-      const imageResult = await openUploadWidget();
-      if (imageResult) {
-        await sendMessage(chatId, user.uid, "", imageResult);
-      }
-    } catch (error) {
-      console.error("Error uploading image:", error);
-      if (error.message !== "Upload cancelled") {
-        alert("Error uploading image: " + error.message);
-      }
-    }
-    setUploadingImage(false);
-  };
+    // Create a temporary file input to bypass Cloudinary widget
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.click();
 
-  const handleVoiceRecordClick = () => {
-    setIsRecordingVoice(true);
+    input.onchange = async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+
+      setUploadingImage(true);
+      try {
+        // Upload to Cloudinary silently without showing widget
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'duet_chat');
+        formData.append('folder', 'duet-chat');
+
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload`,
+          { method: 'POST', body: formData }
+        );
+
+        if (!response.ok) throw new Error('Upload failed');
+        const data = await response.json();
+
+        // Send message immediately without showing upload progress
+        const imageResult = {
+          public_id: data.public_id,
+          secure_url: data.secure_url,
+          width: data.width,
+          height: data.height,
+          format: data.format,
+        };
+
+        await sendMessage(chatId, user.uid, "", imageResult);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        if (error.message !== "Upload cancelled") {
+          alert("Error uploading image: " + error.message);
+        }
+      } finally {
+        setUploadingImage(false);
+      }
+    };
   };
 
   const handleVoiceSend = async (audioBlob, duration) => {
@@ -352,6 +407,30 @@ function Chat({ user, friend, onBack }) {
   const handleVoiceCancel = () => {
     setIsRecordingVoice(false);
     setSendingVoice(false);
+  };
+
+  const handleInputChange = (e) => {
+    if (isBlocked) return;
+    
+    const value = e.target.value;
+    if (replyingTo) {
+      setReplyText(value);
+    } else {
+      setNewMessage(value);
+    }
+
+    if (chatId && user?.uid) {
+      
+      setTypingStatus(chatId, user.uid, true);
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = setTimeout(() => {
+        setTypingStatus(chatId, user.uid, false);
+      }, 3000);
+    }
   };
 
   useEffect(() => {
@@ -379,7 +458,7 @@ function Chat({ user, friend, onBack }) {
     if (!text && !selectedImage) return;
 
     try {
-      // Create a local pending message for instant feedback (red dot)
+      
       const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       const basePending = {
         id: tempId,
@@ -399,37 +478,50 @@ function Chat({ user, friend, onBack }) {
         pendingMsg = {
           ...basePending,
           isReply: true,
-          originalMessageText: replyingTo.text || (replyingTo.image ? '📷 Image' : ''),
-          originalMessageType: replyingTo.type || 'text'
+          originalMessageId: replyingTo.id,
+          originalSenderId: replyingTo.senderId,
+          originalMessageText: replyingTo.text || '',
+          originalMessageType: replyingTo.type || 'text',
         };
+
+        if (replyingTo.image) {
+          pendingMsg.originalMessageImage = {
+            url: replyingTo.image.url,
+            publicId: replyingTo.image.publicId,
+          };
+        }
+
+        if (selectedImage) {
+          pendingMsg.image = selectedImage;
+        }
       }
 
       setPendingMessages((prev) => [...prev, pendingMsg]);
 
-      // Clear input immediately and keep focus for continuous typing
       if (inputRef.current) {
         inputRef.current.value = '';
         inputRef.current.focus();
       }
       setNewMessage('');
-      if (replyingTo) setReplyText('');
-
-      // Firestore send
+      const wasReply = !!replyingTo;
       if (replyingTo) {
-        await replyToMessage(chatId, replyingTo.id, text, user.uid, selectedImage);
+        setReplyText('');
         setReplyingTo(null);
+      }
+
+      if (wasReply) {
+        await replyToMessage(chatId, pendingMsg.originalMessageId, text, user.uid, selectedImage);
       } else {
         await sendMessage(chatId, user.uid, text, selectedImage);
       }
 
-      // Remove pending placeholder when send completes
       setPendingMessages((prev) => prev.filter((m) => m.id !== tempId));
       setSelectedImage(null);
       scrollToBottom();
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Error sending message: ' + error.message);
-      // On error, also remove pending placeholder
+      
       setPendingMessages((prev) => prev.filter((m) => !m.pending));
     }
   };
@@ -591,7 +683,7 @@ function Chat({ user, friend, onBack }) {
   };
 
   const handleStartReply = (message) => {
-    // Move any text already typed into the reply input, like WhatsApp/Instagram
+    
     const currentTyped = inputRef.current?.value || newMessage || '';
     setReplyText(currentTyped);
     setNewMessage('');
@@ -615,25 +707,25 @@ function Chat({ user, friend, onBack }) {
     );
   }
 
-  // Update ChatHeader props
   const chatHeaderProps = {
     user,
     friend,
     onBack,
     isBlocked,
     isFriendOnline,
+    isFriendTyping,
     lastSeen,
     onToggleUserMenu: () => setShowUserMenu(!showUserMenu),
     showUserMenu,
     onBlockUser: handleBlockUser,
     onDeleteChat: handleDeleteChat,
     onToggleMusicPlayer: () => setShowMusicPlayer(true),
-    onInitiateAudioCall: handleAudioCall, // Audio call handler
-    onInitiateVideoCall: handleVideoCall, // NEW: Video call handler
+    onInitiateAudioCall: handleAudioCall, 
+    onInitiateVideoCall: handleVideoCall, 
     loading,
-    isInCall: isInCall || isVideoCallActive, // Combined call state
-    callState: isVideoCallActive ? 'active' : callState, // Use appropriate state
-    isVideoCallActive // NEW: Pass video call state
+    isInCall: isInCall || isVideoCallActive, 
+    callState: isVideoCallActive ? 'active' : callState, 
+    isVideoCallActive 
   };
 
   return (
@@ -641,7 +733,12 @@ function Chat({ user, friend, onBack }) {
       <ChatHeader {...chatHeaderProps} />
 
       <div className="chat-messages-container">
-        {messages.length === 0 && pendingMessages.length === 0 ? (
+        <EncryptionIndicator />
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '400px' }}>
+            <LoadingScreen message="Loading messages..." size="small" />
+          </div>
+        ) : messages.length === 0 && pendingMessages.length === 0 ? (
           <div className="chat-no-messages">
             <p>No messages yet. Start the conversation!</p>
           </div>
@@ -649,44 +746,50 @@ function Chat({ user, friend, onBack }) {
           [...messages, ...pendingMessages].map((message, index, arr) => {
             const prev = index > 0 ? arr[index - 1] : null;
             const showDateSeparator = !prev || !isSameDay(prev?.timestamp, message.timestamp);
+            const isFirstUnread = !message.read && message.senderId !== user?.uid && 
+              arr.slice(0, index).every(m => m.read || m.senderId === user?.uid);
             
             return (
-              <ChatMessage
+              <div
                 key={message.id}
-                message={message}
-                user={user}
-                friend={friend}
-                isFirstOfDay={showDateSeparator}
-                formatDateHeader={formatDateHeader}
-                formatTime={formatTime}
-                isMessageSaved={isMessageSaved}
-                isMessageEdited={isMessageEdited}
-                hoveredMessage={hoveredMessage}
-                editingMessageId={editingMessageId}
-                editText={editText}
-                selectedMessage={selectedMessage}
-                showMessageMenu={showMessageMenu}
-                onMessageHover={handleMessageHover}
-                onMessageLeave={handleMessageLeave}
-                onArrowClick={handleArrowClick}
-                onStartEdit={(value) => setEditText(value)}
-                onSaveEdit={handleSaveEdit}
-                onCancelEdit={handleCancelEdit}
-                onStartReply={handleStartReply}
-                renderMenuOptions={() => (
-                  <MessageMenu
-                    message={message}
-                    canEditMessage={canEditMessage}
-                    isMessageSaved={isMessageSaved}
-                    onCopyMessage={(text) => navigator.clipboard.writeText(text)}
-                    onForwardMessage={handleForwardClick}
-                    onSaveMessage={handleSaveMessage}
-                    onUnsaveMessage={handleUnsaveMessage}
-                    onStartEdit={handleStartEdit}
-                  />
-                )}
-                getOptimizedImageUrl={getOptimizedImageUrl}
-              />
+                ref={isFirstUnread ? firstUnreadMessageRef : null}
+              >
+                <ChatMessage
+                  message={message}
+                  user={user}
+                  friend={friend}
+                  isFirstOfDay={showDateSeparator}
+                  formatDateHeader={formatDateHeader}
+                  formatTime={formatTime}
+                  isMessageSaved={isMessageSaved}
+                  isMessageEdited={isMessageEdited}
+                  hoveredMessage={hoveredMessage}
+                  editingMessageId={editingMessageId}
+                  editText={editText}
+                  selectedMessage={selectedMessage}
+                  showMessageMenu={showMessageMenu}
+                  onMessageHover={handleMessageHover}
+                  onMessageLeave={handleMessageLeave}
+                  onArrowClick={handleArrowClick}
+                  onStartEdit={(value) => setEditText(value)}
+                  onSaveEdit={handleSaveEdit}
+                  onCancelEdit={handleCancelEdit}
+                  onStartReply={handleStartReply}
+                  renderMenuOptions={() => (
+                    <MessageMenu
+                      message={message}
+                      canEditMessage={canEditMessage}
+                      isMessageSaved={isMessageSaved}
+                      onCopyMessage={(text) => navigator.clipboard.writeText(text)}
+                      onForwardMessage={handleForwardClick}
+                      onSaveMessage={handleSaveMessage}
+                      onUnsaveMessage={handleUnsaveMessage}
+                      onStartEdit={handleStartEdit}
+                    />
+                  )}
+                  getOptimizedImageUrl={getOptimizedImageUrl}
+                />
+              </div>
             );
           })
         )}
@@ -728,19 +831,11 @@ function Chat({ user, friend, onBack }) {
           newMessage={newMessage}
           selectedImage={selectedImage}
           uploadingImage={uploadingImage}
-          cloudinaryLoaded={cloudinaryLoaded}
           loading={loading}
           inputRef={inputRef}
           onImageUploadClick={handleImageUploadClick}
           onVoiceRecordClick={handleVoiceRecordClick}
-          onInputChange={(e) => {
-            if (isBlocked) return;
-            if (replyingTo) {
-              setReplyText(e.target.value);
-            } else {
-              setNewMessage(e.target.value);
-            }
-          }}
+          onInputChange={handleInputChange}
           onCancelReply={handleCancelReply}
           onSendMessage={handleSendMessage}
         />
@@ -754,7 +849,7 @@ function Chat({ user, friend, onBack }) {
         onClose={() => setShowMusicPlayer(false)}
       />
       
-      {/* Audio Call Screen */}
+      {}
       {isInCall && friend && !isVideoCallActive && (
         <CallScreen
           friend={friend}
@@ -765,11 +860,11 @@ function Chat({ user, friend, onBack }) {
           onToggleMute={handleToggleAudio}
           onToggleSpeaker={handleToggleSpeaker}
           isInitiator={!incomingCall}
-          isVideoCall={false} // This is audio call
+          isVideoCall={false} 
         />
       )}
       
-      {/* Video Call Screen - Show during all video call states */}
+      {}
       {(isVideoCallActive || (videoCallState !== 'idle' && videoCallState !== 'ended')) && friend && (
         <VideoCallScreen
           friend={friend}
@@ -790,14 +885,14 @@ function Chat({ user, friend, onBack }) {
         />
       )}
       
-      {/* Update IncomingCallModal to handle video calls */}
+      {}
       {incomingCall && (
         <IncomingCallModal
           incomingCall={incomingCall}
           friend={friend}
           onAccept={handleAcceptCallWrapper}
           onDecline={handleDeclineCall}
-          isVideoCall={incomingCall?.type === 'video'} // Pass call type
+          isVideoCall={incomingCall?.type === 'video'} 
         />
       )}
       

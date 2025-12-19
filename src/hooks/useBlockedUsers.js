@@ -48,7 +48,7 @@ export function useBlockedUsers(userId) {
   };
 
   return {
-    blockedUsers,          // ✅ FULL PROFILES
+    blockedUsers,          
     showBlockedUsers,
     setShowBlockedUsers,
     loadingBlockedUsers,

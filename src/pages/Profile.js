@@ -15,6 +15,7 @@ import PasswordChange from '../Components/Profile/PasswordChange';
 import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
 import FriendsView from '../Components/Home/FriendsView';
+import { Spinner } from '../Components/Spinner';
 import { Device } from "@capacitor/device";
 import { useProfiles } from "../hooks/useProfiles";
 import { useBlockedUsers } from "../hooks/useBlockedUsers";
@@ -69,30 +70,29 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
     handleRemoveProfilePicture
   } = useProfilePicture(user, setProfile, setMessage);
 
-  // Friends hooks for displaying friends list in modal
   const { friends, loading: friendsLoading } = useFriends(user);
   const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
 
   const handleFriendCardClick = (friend, e) => {
     if (!e.target.closest('.chat-button')) {
-      // Could open profile popup here if needed
+      
     }
   };
 
   const handleStartChat = (friend) => {
     if (!friend || !friend.uid) return;
-    // SPA navigate to Home with query params (no full refresh)
+    
     navigate(`/?senderId=${encodeURIComponent(friend.uid)}&view=chats`);
   };
 
   useEffect(() => {
-    // Preload Cloudinary script when profile page loads
+    
     if (!window.cloudinary) {
       const script = document.createElement("script");
       script.src = "https://upload-widget.cloudinary.com/global/all.js";
       script.type = "text/javascript";
       script.async = true;
-      script.id = 'cloudinary-profile-script'; // Add ID to avoid duplicate scripts
+      script.id = 'cloudinary-profile-script'; 
       document.head.appendChild(script);
       console.log("Cloudinary script loading for profile...");
     }
@@ -289,7 +289,7 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
                 >
                   {uploadingImage ? (
                     <>
-                      <span className="upload-spinner"></span>
+                      <Spinner size="small" inline={true} />
                       Uploading...
                     </>
                   ) : (
@@ -354,7 +354,7 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
         />
       )}
 
-      {/* Inline settings removed; available via Settings button only */}
+      {}
 
       {showSettings && (
         <div className="profile-settings-overlay" onClick={() => setShowSettings(false)}>
@@ -437,7 +437,7 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
         </div>
       )}
 
-      {/* Friends Modal */}
+      {}
       {showFriendsModal && isOwnProfile && (
         <div className="profile-friends-modal-overlay" onClick={() => setShowFriendsModal(false)}>
           <div className="profile-friends-modal-content" onClick={(e) => e.stopPropagation()}>
