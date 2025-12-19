@@ -10,6 +10,7 @@ import MusicPlayer from "../Components/MusicPlayer";
 import VideoCallScreen from '../Components/Call/VideoCallScreen';
 import VoiceRecorder from '../Components/Chat/VoiceRecorder';
 import EncryptionIndicator from '../Components/Chat/EncryptionIndicator';
+import LoadingScreen from '../Components/LoadingScreen';
 
 import { useChatSetup } from "../hooks/useChatSetup";
 import { useChatMessages } from "../hooks/useChatMessages";
@@ -33,7 +34,7 @@ import {
   setTypingStatus,
   listenToTypingStatus,
 } from "../firebase/firestore";
-import { openUploadWidget, getOptimizedImageUrl, uploadVoiceNote } from "../services/cloudinary";
+import { getOptimizedImageUrl, uploadVoiceNote } from "../services/cloudinary";
 import { notificationService } from "../services/notifications";
 import "../styles/Chat.css";
 
@@ -94,7 +95,6 @@ function Chat({ user, friend, onBack }) {
   const [hoveredMessage, setHoveredMessage] = useState(null);
   const [forwarding, setForwarding] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
@@ -160,27 +160,6 @@ function Chat({ user, friend, onBack }) {
   };
 
   useEffect(() => {
-    const loadCloudinaryScript = () => {
-      if (window.cloudinary) {
-        setCloudinaryLoaded(true);
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://upload-widget.cloudinary.com/global/all.js";
-      script.type = "text/javascript";
-      script.async = true;
-      script.onload = () => {
-        setCloudinaryLoaded(true);
-      };
-      script.onerror = () => {
-        setCloudinaryLoaded(false);
-      };
-      document.head.appendChild(script);
-    };
-    loadCloudinaryScript();
-  }, []);
-
-  useEffect(() => {
     if (messages.length > 0 && pendingMessages.length > 0) {
       const latestMessage = messages[messages.length - 1];
       
@@ -195,6 +174,10 @@ function Chat({ user, friend, onBack }) {
       }
     }
   }, [messages, pendingMessages]);
+
+  const handleVoiceRecordClick = () => {
+    setIsRecordingVoice(true);
+  };
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -359,27 +342,51 @@ function Chat({ user, friend, onBack }) {
   }, [chatId]);
 
   const handleImageUploadClick = async () => {
-    if (!cloudinaryLoaded) {
-      alert("Image upload is still loading. Please try again in a moment.");
-      return;
-    }
-    setUploadingImage(true);
-    try {
-      const imageResult = await openUploadWidget();
-      if (imageResult) {
-        await sendMessage(chatId, user.uid, "", imageResult);
-      }
-    } catch (error) {
-      console.error("Error uploading image:", error);
-      if (error.message !== "Upload cancelled") {
-        alert("Error uploading image: " + error.message);
-      }
-    }
-    setUploadingImage(false);
-  };
+    // Create a temporary file input to bypass Cloudinary widget
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.click();
 
-  const handleVoiceRecordClick = () => {
-    setIsRecordingVoice(true);
+    input.onchange = async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+
+      setUploadingImage(true);
+      try {
+        // Upload to Cloudinary silently without showing widget
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'duet_chat');
+        formData.append('folder', 'duet-chat');
+
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload`,
+          { method: 'POST', body: formData }
+        );
+
+        if (!response.ok) throw new Error('Upload failed');
+        const data = await response.json();
+
+        // Send message immediately without showing upload progress
+        const imageResult = {
+          public_id: data.public_id,
+          secure_url: data.secure_url,
+          width: data.width,
+          height: data.height,
+          format: data.format,
+        };
+
+        await sendMessage(chatId, user.uid, "", imageResult);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        if (error.message !== "Upload cancelled") {
+          alert("Error uploading image: " + error.message);
+        }
+      } finally {
+        setUploadingImage(false);
+      }
+    };
   };
 
   const handleVoiceSend = async (audioBlob, duration) => {
@@ -727,7 +734,11 @@ function Chat({ user, friend, onBack }) {
 
       <div className="chat-messages-container">
         <EncryptionIndicator />
-        {messages.length === 0 && pendingMessages.length === 0 ? (
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '400px' }}>
+            <LoadingScreen message="Loading messages..." size="small" />
+          </div>
+        ) : messages.length === 0 && pendingMessages.length === 0 ? (
           <div className="chat-no-messages">
             <p>No messages yet. Start the conversation!</p>
           </div>
@@ -820,7 +831,6 @@ function Chat({ user, friend, onBack }) {
           newMessage={newMessage}
           selectedImage={selectedImage}
           uploadingImage={uploadingImage}
-          cloudinaryLoaded={cloudinaryLoaded}
           loading={loading}
           inputRef={inputRef}
           onImageUploadClick={handleImageUploadClick}
