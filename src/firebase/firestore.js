@@ -1465,9 +1465,8 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
   }
 };
 
-// Debounced last seen update cache
+// Track online status updates with minimal debouncing (100ms)
 let lastSeenUpdateTimeout = null;
-const lastSeenCache = new Map();
 
 export const setUserOnlineStatus = async (userId, isOnline, immediate = false) => {
   try {
@@ -1477,32 +1476,30 @@ export const setUserOnlineStatus = async (userId, isOnline, immediate = false) =
       lastSeen: new Date()
     };
 
-    // If going offline or immediate update needed, skip debouncing
+    // If going offline or immediate update needed, no debouncing
     if (!isOnline || immediate) {
+      if (lastSeenUpdateTimeout) {
+        clearTimeout(lastSeenUpdateTimeout);
+        lastSeenUpdateTimeout = null;
+      }
       await updateDoc(userRef, updateData);
       return;
     }
 
-    // Debounce online status updates (batch within 2 seconds)
-    const cacheKey = userId;
-    lastSeenCache.set(cacheKey, updateData);
-
+    // Minimal debounce for online status (100ms) to avoid excessive writes
+    // while still keeping status in sync
     if (lastSeenUpdateTimeout) {
       clearTimeout(lastSeenUpdateTimeout);
     }
 
     lastSeenUpdateTimeout = setTimeout(async () => {
-      const updates = Array.from(lastSeenCache.entries());
-      lastSeenCache.clear();
-
-      // Batch update all cached status changes
-      const batch = writeBatch(db);
-      updates.forEach(([uid, data]) => {
-        batch.update(doc(db, "users", uid), data);
-      });
-
-      await batch.commit();
-    }, 2000); // 2 second debounce
+      try {
+        await updateDoc(userRef, updateData);
+      } catch (error) {
+        console.error("Error in debounced status update:", error);
+      }
+      lastSeenUpdateTimeout = null;
+    }, 100); // 100ms debounce - fast enough for real-time feel
   } catch (error) {
     console.error("Error updating online status:", error);
   }
