@@ -38,8 +38,11 @@ import { notificationService } from "../services/notifications";
 import "../styles/Chat.css";
 
 function Chat({ user, friend, onBack }) {
+  // Track if this chat component is currently active/mounted
+  const isActiveChatRef = useRef(true);
+  
   const { chatId, friends, loading: setupLoading } = useChatSetup(user, friend);
-  const { messages, loading: messagesLoading } = useChatMessages(chatId, user);
+  const { messages, loading: messagesLoading } = useChatMessages(chatId, user, isActiveChatRef);
   const { isBlocked } = useBlockedUsers(user?.uid, friend?.uid);
   const { isFriendOnline, lastSeen } = useFriendOnlineStatus(friend?.uid);
   
@@ -111,6 +114,14 @@ function Chat({ user, friend, onBack }) {
   const firstUnreadMessageRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const loading = setupLoading || messagesLoading;
+
+  // Set active state on mount
+  useEffect(() => {
+    isActiveChatRef.current = true;
+    return () => {
+      isActiveChatRef.current = false;
+    };
+  }, [chatId]);
 
   // Separate handlers for different call types
   const handleAudioCall = () => {
@@ -195,8 +206,8 @@ function Chat({ user, friend, onBack }) {
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      // Only mark as read if page is visible AND this component is still mounted
-      if (document.visibilityState === 'visible' && chatId && user?.uid) {
+      // Only mark as read if page is visible AND this chat is active
+      if (document.visibilityState === 'visible' && chatId && user?.uid && isActiveChatRef.current) {
         markMessagesAsRead(chatId, user.uid);
         notificationService.clearAllNotifications(chatId);
       }
@@ -212,12 +223,12 @@ function Chat({ user, friend, onBack }) {
   useEffect(() => {
     if (!chatId || !user?.uid) return;
     
-    // Only mark as read if component is mounted and visible
-    if (!componentMountedRef.current) return;
+    // Only mark as read if component is mounted, visible, and is the active chat
+    if (!componentMountedRef.current || !isActiveChatRef.current) return;
     
     // Small delay to ensure component is mounted and visible
     const timer = setTimeout(() => {
-      if (componentMountedRef.current) {
+      if (componentMountedRef.current && isActiveChatRef.current) {
         markMessagesAsRead(chatId, user.uid);
         notificationService.clearAllNotifications(chatId);
       }
