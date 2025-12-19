@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import UserBadge from '../UserBadge';
 import FriendProfilePopup from '../FriendProfilePopup';
+import { getOptimizedImageUrl } from '../../utils/imageOptimization';
 import '../../styles/Home.css';
 
 function RecentlyActiveFriends({ friends, friendsOnlineStatus, onStartChat }) {
@@ -74,7 +75,7 @@ function RecentlyActiveFriends({ friends, friendsOnlineStatus, onStartChat }) {
             >
               <div className="active-friend-avatar-wrapper">
                 <img
-                  src={friend.photoURL || '/default-avatar.png'}
+                  src={getOptimizedImageUrl(friend.photoURL, 100, 100)}
                   alt={friend.displayName}
                   className="active-friend-avatar"
                   onError={(e) => {

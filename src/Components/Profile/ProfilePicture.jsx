@@ -1,4 +1,5 @@
 import React from "react";
+import { Spinner } from "../Spinner";
 
 function ProfilePicture({ 
   profilePictureUrl, 
@@ -50,7 +51,7 @@ function ProfilePicture({
           >
             {uploadingImage ? (
               <>
-                <span className="upload-spinner"></span>
+                <Spinner size="small" inline={true} />
                 Uploading...
               </>
             ) : "Update Profile Picture"}

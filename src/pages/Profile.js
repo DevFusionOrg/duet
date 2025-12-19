@@ -15,6 +15,7 @@ import PasswordChange from '../Components/Profile/PasswordChange';
 import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
 import FriendsView from '../Components/Home/FriendsView';
+import { Spinner } from '../Components/Spinner';
 import { Device } from "@capacitor/device";
 import { useProfiles } from "../hooks/useProfiles";
 import { useBlockedUsers } from "../hooks/useBlockedUsers";
@@ -288,7 +289,7 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
                 >
                   {uploadingImage ? (
                     <>
-                      <span className="upload-spinner"></span>
+                      <Spinner size="small" inline={true} />
                       Uploading...
                     </>
                   ) : (

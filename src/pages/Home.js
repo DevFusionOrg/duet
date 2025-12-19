@@ -1,21 +1,22 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, Suspense } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Chat from "./Chat";
 import '../styles/Home.css';
 import ChatsView from '../Components/Home/ChatsView';
 import FriendsView from '../Components/Home/FriendsView';
-import ProfileView from '../Components/Home/ProfileView';
 import SearchView from '../Components/Home/SearchView';
 import NotificationsView from '../Components/Home/NotificationsView';
 import SuggestedFriends from '../Components/Home/SuggestedFriends';
 import RecentlyActiveFriends from '../Components/Home/RecentlyActiveFriends';
 import DevFusionModal from '../Components/Home/DevFusionModal';
-
+import LoadingScreen from '../Components/LoadingScreen';
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
 import { useProfiles } from "../hooks/useProfiles";
 import { useFriendsOnlineStatus } from "../hooks/useFriendsOnlineStatus";
 import { useUnreadCount } from "../hooks/useUnreadCount";
+
+const ProfileView = React.lazy(() => import('../Components/Home/ProfileView'));
 
 function Home({ user, isDarkMode, toggleTheme }) {
   const navigate = useNavigate();
@@ -245,7 +246,9 @@ function Home({ user, isDarkMode, toggleTheme }) {
           ) : activeView === 'notifications' ? (
             <NotificationsView user={user} onFriendRequestUpdate={handleFriendRequestUpdate} />
           ) : activeView === 'profile' ? (
-            <ProfileView user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+            <Suspense fallback={<LoadingScreen message="Loading profile..." size="medium" fullScreen={true} />}>
+              <ProfileView user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+            </Suspense>
           ) : null}
         </div>
       </div>

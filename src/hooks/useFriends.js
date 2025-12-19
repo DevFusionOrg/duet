@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { listenToUserFriends, getUserProfile } from "../firebase/firestore";
+import { listenToUserFriends, getUserFriendsWithProfiles } from "../firebase/firestore";
 
 export function useFriends(user) {
   const [friends, setFriends] = useState([]);
@@ -10,19 +10,14 @@ export function useFriends(user) {
 
     const unsubscribe = listenToUserFriends(user.uid, async (friendIds) => {
       try {
-        const profiles = await Promise.all(
-          friendIds.map(id => 
-            getUserProfile(id).then(profile => ({
-              ...profile,
-              uid: id,
-              id: id
-            }))
-          )
-        );
-        
-        const cleanFriends = profiles.filter(Boolean);
+        if (friendIds.length === 0) {
+          setFriends([]);
+          setLoading(false);
+          return;
+        }
 
-        setFriends(cleanFriends);
+        const profiles = await getUserFriendsWithProfiles(friendIds);
+        setFriends(profiles);
       } catch (err) {
         console.error("Error loading friends:", err);
       } finally {

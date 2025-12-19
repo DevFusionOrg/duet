@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import LoadingScreen from '../LoadingScreen';
 import '../../styles/Home.css';
 
 function RecentActivityFeed({ user, currentFriends }) {
@@ -117,7 +118,7 @@ function RecentActivityFeed({ user, currentFriends }) {
   };
 
   if (loading) {
-    return <div className="activity-feed-loading">Loading activity...</div>;
+    return <LoadingScreen message="Loading activity..." size="small" />;
   }
 
   if (activities.length === 0) {

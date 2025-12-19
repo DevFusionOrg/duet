@@ -1979,3 +1979,9 @@
   color: var(--home-text-muted);
   font-size: 14px;
 }
+
+@media (max-width: 768px) {
+  .home-title {
+    left: 0;
+  }
+}
