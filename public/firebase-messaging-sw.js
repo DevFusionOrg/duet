@@ -2,7 +2,7 @@ importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: process.env.REACT_APP_API_KEY,
+  apiKey: "AIzaSyBDgpxdO3mLyRCXv66XZbWqQfX0iJnKkTg",
   authDomain: "vibechat-f87fe.firebaseapp.com",
   projectId: "vibechat-f87fe",
   storageBucket: "vibechat-f87fe.firebasestorage.app",
