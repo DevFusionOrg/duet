@@ -4,6 +4,7 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 const messaging = admin.messaging();
+const db = admin.firestore();
 
 async function sendDataMessageToTokens(tokens = [], data = {}) {
   if (!tokens.length) return null;
@@ -397,5 +398,51 @@ exports.notifyAppUpdate = functions
     await Promise.all(sendPromises);
 
     console.log("notifyAppUpdate: Broadcast complete");
+    return null;
+  });
+
+// Scheduled cleanup of expired, unsaved messages to remove client-side deletion writes
+exports.cleanupExpiredMessages = functions
+  .region("asia-south1")
+  .pubsub.schedule("every 15 minutes")
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    const batchSize = 500;
+    let deleted = 0;
+
+    try {
+      const query = db
+        .collectionGroup("messages")
+        .where("deletionTime", "<=", now)
+        .where("isSaved", "==", false)
+        .limit(batchSize);
+
+      let snap = await query.get();
+      while (!snap.empty) {
+        const batch = db.batch();
+        snap.docs.forEach((doc) => {
+          const data = doc.data() || {};
+          const img = data.image || null;
+          if (img?.publicId) {
+            const logRef = db.collection("deletionLogs").doc(`${data.chatId || doc.ref.parent.parent.id}_${doc.id}`);
+            batch.set(logRef, {
+              chatId: data.chatId || doc.ref.parent.parent.id,
+              messageId: doc.id,
+              publicId: img.publicId,
+              deletedAt: admin.firestore.Timestamp.now(),
+              scheduledForDeletion: admin.firestore.Timestamp.fromMillis(Date.now() + 12 * 60 * 60 * 1000),
+            });
+          }
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+        deleted += snap.size;
+        snap = await query.get();
+      }
+
+      console.log(`cleanupExpiredMessages: Deleted ${deleted} expired messages`);
+    } catch (err) {
+      console.error("cleanupExpiredMessages: Error during cleanup", err);
+    }
     return null;
   });
