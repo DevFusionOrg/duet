@@ -95,14 +95,6 @@ function FriendRequestItem({
                 })()}
               </h4>
               <p className="request-username">@{requesterProfile.username}</p>
-              {requesterProfile.bio && (
-                <p className="request-bio">
-                  {requesterProfile.bio}
-                </p>
-              )}
-              <p className="request-time">
-                {request.timestamp?.toDate?.()?.toLocaleString() || "Recently"}
-              </p>
             </div>
           </>
         ) : (
@@ -119,15 +111,22 @@ function FriendRequestItem({
           onClick={() => onAccept(request.from, index, requesterName)}
           disabled={loading}
           className="accept-btn"
+          title="Accept"
         >
-          {loading ? "..." : "Accept"}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
         </button>
         <button
           onClick={() => onReject(request.from, index, requesterName)}
           disabled={loading}
           className="reject-btn"
+          title="Reject"
         >
-          {loading ? "..." : "Reject"}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
         </button>
       </div>
 

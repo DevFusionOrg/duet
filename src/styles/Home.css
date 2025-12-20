@@ -109,12 +109,26 @@
   position: relative;
 }
 
+.nav-item svg {
+  transition: all 0.3s ease;
+}
+
 .nav-item:hover {
   color: var(--home-text);
 }
 
+.nav-item:hover svg {
+  stroke: var(--home-text);
+  fill: var(--home-text);
+}
+
 .nav-item.active {
   color: #667eea;
+}
+
+.nav-item.active svg {
+  stroke: #667eea;
+  fill: #667eea;
 }
 
 .nav-icon {
@@ -182,7 +196,7 @@
   background: var(--home-bg);
   color: var(--home-text);
   overflow: hidden;
-  padding-top: 110px;
+  padding-top: 90px;
 }
 
 .welcome-title {
@@ -962,23 +976,25 @@
 }
 
 .accept-btn {
-  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
-  color: white;
+  background: transparent;
+  color: var(--home-text);
+  border: 1px solid var(--home-border);
 }
 
 .accept-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+  background: var(--home-hover-bg);
+  transform: translateY(-1px);
 }
 
 .reject-btn {
-  background: linear-gradient(135deg, #ff4757 0%, #ee3a3a 100%);
-  color: white;
+  background: transparent;
+  color: var(--home-text);
+  border: 1px solid var(--home-border);
 }
 
 .reject-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 71, 87, 0.4);
+  background: var(--home-hover-bg);
+  transform: translateY(-1px);
 }
 
 .accept-btn:disabled,
@@ -1429,10 +1445,6 @@
   .search-result-info { text-align: center; }
   .add-friend-button, .disabled-button { margin-left: 0; width: 100%; }
 
-  .home-title {
-    left: 0;
-  }
-
   .profile-popup-content {
     padding: 24px;
     max-width: 90%;
@@ -1483,13 +1495,13 @@
   text-align: center;
   font-size: 1.8rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--home-text);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   border-bottom:1px solid var(--home-border);
   padding: 0;
-  margin: 15px 0;
+  margin: 15px 10px;
 }
 
 .remove-friend-button{
@@ -1516,7 +1528,7 @@
   right: 0;
   background: var(--home-bg);
   z-index: 100;
-  padding: 10px 20px;
+  padding: 0px 20px;
 }
 
 .company-logo{

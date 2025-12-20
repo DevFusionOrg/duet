@@ -1,0 +1,97 @@
+/* Basic overlay */
+.notifications-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* Modal container */
+.notifications-modal-content {
+  background: var(--home-card-bg);
+  color: var(--home-text);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  width: 90%;
+  max-width: 720px;
+  max-height: 80vh;
+  overflow: auto;
+  position: relative;
+}
+
+.notifications-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 10px;
+  border-bottom: 1px solid var(--home-border);
+}
+
+.notifications-modal-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.notifications-count {
+  background: #ff4757;
+  color: #fff;
+  border-radius: 999px;
+  min-width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0 8px;
+}
+
+.notifications-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  color: var(--home-text);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+/* Reuse list styles; ensure spacing visually fits modal */
+.friend-requests-list {
+  padding: 10px 0;
+}
+
+.notifications-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--home-text);
+  padding: 0 24px;
+  margin: 8px 0 0 0;
+}
+
+.notifications-badge {
+  background: #667eea;
+  color: #fff;
+  border-radius: 999px;
+  min-width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+/* Empty state alignment for modal */
+.empty-state {
+  padding: 24px;
+}
