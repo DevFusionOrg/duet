@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import VoiceNotePlayer from './VoiceNotePlayer';
+import ImageModal from '../ImageModal';
 
 function ChatMessage({ 
   message, 
@@ -30,6 +31,8 @@ function ChatMessage({
   const shouldShowOnRight = isCallMessage 
     ? ((message.callInitiatorId || message.senderId) === user.uid)
     : (message.senderId === user.uid);
+
+  const [expandedImage, setExpandedImage] = useState(null);
 
   const renderMessageStatus = (message, isSeenByRecipient) => (
     <div className="chat-message-status">
@@ -122,7 +125,8 @@ function ChatMessage({
             src={getOptimizedImageUrl(message.image.publicId, 400, 400)}
             alt={message.text || "Attachment"}
             className="chat-image"
-            onClick={() => window.open(message.image.url, "_blank")}
+            style={{ cursor: 'pointer' }}
+            onClick={() => setExpandedImage(message.image.url)}
           />
           
           {message.text && <p className="chat-image-caption">{message.text}</p>}
@@ -150,6 +154,10 @@ function ChatMessage({
 
   return (
     <React.Fragment>
+      <ImageModal 
+        imageUrl={expandedImage}
+        onClose={() => setExpandedImage(null)}
+      />
       {isFirstOfDay && (
         <div className="chat-date-separator">
           {formatDateHeader(message.timestamp)}
