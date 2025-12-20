@@ -42,6 +42,26 @@ export function setupPresence(userId) {
 
   const idleMs = 3 * 60 * 1000; // 3 minutes
   let idleTimeout = null;
+  let lastMirrorWrite = 0;
+  let lastOnlineState = null;
+
+  const mirrorToFirestore = async (isOnline) => {
+    const now = Date.now();
+    // Only mirror when state changes or at most once per minute
+    if (lastOnlineState !== isOnline || (now - lastMirrorWrite) > 60_000) {
+      try {
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, {
+          isOnline,
+          lastSeen: new Date(),
+        });
+        lastMirrorWrite = now;
+        lastOnlineState = isOnline;
+      } catch (err) {
+        console.error("Presence mirror error:", err);
+      }
+    }
+  };
 
   const clearIdleTimer = () => {
     if (idleTimeout) {
@@ -59,12 +79,7 @@ export function setupPresence(userId) {
           lastSeen: serverTimestamp(),
           idle: true,
         });
-
-        const userRef = doc(db, "users", userId);
-        await updateDoc(userRef, {
-          isOnline: false,
-          lastSeen: new Date(),
-        });
+        await mirrorToFirestore(false);
       } catch (err) {
         console.error("Presence inactivity timeout error:", err);
       }
@@ -78,12 +93,7 @@ export function setupPresence(userId) {
         lastSeen: serverTimestamp(),
         idle: false,
       });
-
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, {
-        isOnline: true,
-        lastSeen: new Date(),
-      });
+      await mirrorToFirestore(true);
     } catch (err) {
       console.error("Presence activity update error:", err);
     } finally {
@@ -120,13 +130,8 @@ export function setupPresence(userId) {
         lastSeen: serverTimestamp(),
         idle: false,
       });
-
-      // Mirror aggregate into Firestore for any remaining consumers.
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, {
-        isOnline: true,
-        lastSeen: new Date(),
-      });
+      // Mirror aggregate into Firestore for any remaining consumers, throttled.
+      await mirrorToFirestore(true);
 
       bindActivityListeners();
       scheduleIdle();
@@ -143,12 +148,7 @@ export function setupPresence(userId) {
         lastSeen: serverTimestamp(),
         idle: true,
       });
-
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, {
-        isOnline: false,
-        lastSeen: new Date(),
-      });
+      await mirrorToFirestore(false);
     } catch (err) {
       console.error("Presence cleanup error:", err);
     } finally {
