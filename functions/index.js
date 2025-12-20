@@ -1,4 +1,3 @@
-// functions/index.js
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 
@@ -6,7 +5,6 @@ admin.initializeApp();
 
 const messaging = admin.messaging();
 
-// Helper: data-only multicast sender for clears
 async function sendDataMessageToTokens(tokens = [], data = {}) {
   if (!tokens.length) return null;
   const multicast = {
@@ -30,7 +28,6 @@ async function sendDataMessageToTokens(tokens = [], data = {}) {
   }
 }
 
-// ✅ CHAT NOTIFICATION
 exports.sendChatMessageNotification = functions
   .region("asia-south1")
   .firestore.document("chats/{chatId}/messages/{messageId}")
@@ -38,18 +35,16 @@ exports.sendChatMessageNotification = functions
     const message = snap.data();
     const chatId = context.params.chatId;
 
-    // Skip notifications for call logs
     if (message.isCallLog) {
       console.log("Skipping notification for call log");
       return null;
     }
 
     const senderId = message.senderId;
-    const text = message.text || "";
+    const text = message.notificationText || message.text || "";
 
     console.log("New chat message:", { chatId, senderId, text });
 
-    // Get chat
     const chatRef = admin.firestore().collection("chats").doc(chatId);
     const chatDoc = await chatRef.get();
     if (!chatDoc.exists) {
@@ -64,10 +59,8 @@ exports.sendChatMessageNotification = functions
       return null;
     }
 
-    // All other participants except sender
     const receiverIds = participants.filter((id) => id !== senderId);
 
-    // Try to enrich notification with sender info
     let senderProfile;
     try {
       const senderSnap = await admin.firestore().collection("users").doc(senderId).get();
@@ -81,10 +74,8 @@ exports.sendChatMessageNotification = functions
     const senderPhoto = message.senderPhoto || senderProfile?.photoURL || "";
 
     let body;
-    if (message.isReply && message.originalMessageText) {
-      // For replies, show the original message being replied to
-      const originalText = (message.originalMessageText || "").substring(0, 50);
-      body = `↪️ ${senderName} replied to: "${originalText}..."`;
+    if (message.isReply) {
+      body = `${senderName} replied "${text}"`;
     } else if (message.type === "image") {
       body = `${senderName} sent a photo`;
     } else {
@@ -96,7 +87,6 @@ exports.sendChatMessageNotification = functions
     for (const receiverId of receiverIds) {
       console.log("Processing receiver:", receiverId);
 
-      // Check if receiver has muted this chat
       const receiverDoc = await admin.firestore().collection("users").doc(receiverId).get();
       if (receiverDoc.exists) {
         const receiverData = receiverDoc.data();
@@ -107,7 +97,6 @@ exports.sendChatMessageNotification = functions
         }
       }
 
-      // 🔑 Read tokens subcollection - doc ID is the token
       const tokensSnap = await admin
         .firestore()
         .collection("users")
@@ -146,6 +135,7 @@ exports.sendChatMessageNotification = functions
           notification: {
             channelId: "duet_default_channel",
             sound: "default",
+            icon: "ic_stat_name",
           },
         },
       };
@@ -161,7 +151,6 @@ exports.sendChatMessageNotification = functions
     return null;
   });
 
-// ✅ CLEAR DELIVERED NOTIFICATIONS WHEN MESSAGE IS READ
 exports.clearChatNotificationsOnRead = functions
   .region("asia-south1")
   .firestore.document("chats/{chatId}/messages/{messageId}")
@@ -169,14 +158,13 @@ exports.clearChatNotificationsOnRead = functions
     const beforeRead = change.before.get("read");
     const afterRead = change.after.get("read");
     if (beforeRead === true || afterRead !== true) {
-      return null; // only on first transition to read=true
+      return null;
     }
 
     const chatId = context.params.chatId;
     const message = change.after.data();
     const senderId = message.senderId;
 
-    // Load chat to find recipient (non-sender participant)
     const chatRef = admin.firestore().collection("chats").doc(chatId);
     const chatDoc = await chatRef.get();
     if (!chatDoc.exists) {
@@ -191,7 +179,6 @@ exports.clearChatNotificationsOnRead = functions
       return null;
     }
 
-    // Fetch all tokens for the reader
     const tokensSnap = await admin
       .firestore()
       .collection("users")
@@ -215,7 +202,6 @@ exports.clearChatNotificationsOnRead = functions
     return null;
   });
 
-// ✅ FRIEND REQUEST NOTIFICATION
 exports.sendFriendRequestNotification = functions
   .region("asia-south1")
   .firestore.document("users/{userId}")
@@ -223,7 +209,6 @@ exports.sendFriendRequestNotification = functions
     const beforeRequests = change.before.data().friendRequests || [];
     const afterRequests = change.after.data().friendRequests || [];
 
-    // Find newly added pending requests
     const beforeKeys = new Set(
       beforeRequests.map((req) => `${req.from}_${req.status}_${req.timestamp?.toMillis?.() || req.timestamp}`)
     );
@@ -267,6 +252,8 @@ exports.sendFriendRequestNotification = functions
 
       const tokens = tokensSnap.docs.map((doc) => doc.id);
 
+      const fromUserPhoto = fromUser?.photoURL || "";
+
       const multicast = {
         tokens,
         notification: {
@@ -277,7 +264,7 @@ exports.sendFriendRequestNotification = functions
           type: "friend_request",
           fromUserId,
           fromUserName: title,
-          fromUserPhoto: fromUser?.photoURL || "",
+          fromUserPhoto,
           timestamp: Date.now().toString(),
         },
         android: {
@@ -285,6 +272,7 @@ exports.sendFriendRequestNotification = functions
           notification: {
             channelId: "duet_default_channel",
             sound: "default",
+            icon: "ic_stat_name",
           },
         },
       };
@@ -300,7 +288,6 @@ exports.sendFriendRequestNotification = functions
     return null;
   });
 
-// ✅ APP UPDATE BROADCAST
 function compareSemver(a = "0.0.0", b = "0.0.0") {
   const pa = String(a).split(".").map((n) => parseInt(n, 10) || 0);
   const pb = String(b).split(".").map((n) => parseInt(n, 10) || 0);
@@ -341,7 +328,6 @@ exports.notifyAppUpdate = functions
     const db = admin.firestore();
     const usersSnap = await db.collection("users").get();
 
-    // Collect all tokens across users
     const allTokens = [];
     for (const userDoc of usersSnap.docs) {
       try {
@@ -366,7 +352,6 @@ exports.notifyAppUpdate = functions
       return null;
     }
 
-    // Chunk to 500 tokens per multicast
     const chunkSize = 500;
     const chunks = [];
     for (let i = 0; i < allTokens.length; i += chunkSize) {
@@ -391,6 +376,7 @@ exports.notifyAppUpdate = functions
           notification: {
             channelId: "duet_default_channel",
             sound: "default",
+            icon: "ic_stat_name",
           },
         },
       };

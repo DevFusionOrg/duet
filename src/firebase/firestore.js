@@ -250,13 +250,17 @@ export const createUserProfile = async (user, username = null) => {
 
 export const updateUsername = async (userId, newUsername) => {
   try {
-    if (!newUsername || newUsername.length < 3 || newUsername.length > 30) {
-      throw new Error("Username must be between 3 and 30 characters");
+    if (!newUsername || newUsername.length < 3 || newUsername.length > 16) {
+      throw new Error("Username must be between 3 and 16 characters");
     }
 
-    if (!/^[a-zA-Z0-9_.-]+$/.test(newUsername)) {
+    if (/\s/.test(newUsername)) {
+      throw new Error("Username cannot contain spaces");
+    }
+
+    if (!/^[a-z0-9_.-]+$/.test(newUsername)) {
       throw new Error(
-        "Username can only contain letters, numbers, dots, underscores, and hyphens"
+        "Username can only contain lowercase letters, numbers, dots, underscores, and hyphens"
       );
     }
 
@@ -1022,9 +1026,14 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50)
           if (messageData.originalText) {
             messageData.originalText = await decryptMessage(messageData.originalText, chatKey);
           }
+          if (messageData.originalMessageText) {
+            messageData.originalMessageText = await decryptMessage(
+              messageData.originalMessageText,
+              chatKey
+            );
+          }
         } catch (error) {
           console.error('Failed to decrypt message:', error);
-          
         }
       }
 
@@ -1095,11 +1104,13 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
               messageData.originalText = await decryptMessage(messageData.originalText, chatKey);
             }
             if (messageData.originalMessageText) {
-              messageData.originalMessageText = await decryptMessage(messageData.originalMessageText, chatKey);
+              messageData.originalMessageText = await decryptMessage(
+                messageData.originalMessageText,
+                chatKey
+              );
             }
           } catch (error) {
             console.error('Failed to decrypt message:', error);
-            
           }
         }
 
@@ -1723,20 +1734,10 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     
     const originalMessage = originalMessageSnap.data();
 
-    let decryptedOriginalText = originalMessage.text;
-    if (originalMessage.encrypted && originalMessage.text) {
-      try {
-        decryptedOriginalText = await decryptMessage(originalMessage.text, chatKey);
-      } catch (error) {
-        console.error('Failed to decrypt original message:', error);
-      }
-    }
-    
     const deletionTime = new Date();
     deletionTime.setHours(deletionTime.getHours() + 12);
-
+    
     const encryptedReplyText = replyText ? await encryptMessage(replyText, chatKey) : "";
-    const encryptedOriginalMessageText = decryptedOriginalText ? await encryptMessage(decryptedOriginalText, chatKey) : "";
     
     const replyData = {
       senderId,
@@ -1755,7 +1756,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       isReply: true,
       originalMessageId: originalMessageId,
       originalSenderId: originalMessage.senderId,
-      originalMessageText: encryptedOriginalMessageText, 
+      originalMessageText: originalMessage.text, 
       originalMessageType: originalMessage.type,
       encrypted: true,
     };
@@ -1782,7 +1783,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     
     const receiverId = chatId.replace(senderId, '').replace('_', '');
     
-    await sendPushNotification(senderId, receiverId, { ...replyData, text: replyText || "", originalMessageText: decryptedOriginalText }, chatId);
+    await sendPushNotification(senderId, receiverId, { ...replyData, text: replyText || "" }, chatId);
     
     const messageRef = await addDoc(messagesRef, replyData);
     

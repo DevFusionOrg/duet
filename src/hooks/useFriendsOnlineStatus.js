@@ -9,6 +9,7 @@ export function useFriendsOnlineStatus(user, friends) {
     if (!user || friends.length === 0) return;
 
     const friendIds = friends.map(friend => friend.uid);
+    const timeoutId = updateTimeoutRef.current;
     
     const unsubscribe = listenToFriendsOnlineStatus(friendIds, (status) => {
       // Update immediately for faster UI response
@@ -17,8 +18,8 @@ export function useFriendsOnlineStatus(user, friends) {
 
     return () => {
       unsubscribe();
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     };
   }, [user, friends]);

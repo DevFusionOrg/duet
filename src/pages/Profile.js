@@ -15,7 +15,6 @@ import PasswordChange from '../Components/Profile/PasswordChange';
 import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
 import FriendsView from '../Components/Home/FriendsView';
-import { Spinner } from '../Components/Spinner';
 import { Device } from "@capacitor/device";
 import { useProfiles } from "../hooks/useProfiles";
 import { useBlockedUsers } from "../hooks/useBlockedUsers";
@@ -284,22 +283,15 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
                 </div>
                 <button
                   onClick={handleProfilePictureUpload}
-                  disabled={uploadingImage || loading}
+                  disabled={uploadingImage}
                   className="photo-option-button"
                 >
-                  {uploadingImage ? (
-                    <>
-                      <Spinner size="small" inline={true} />
-                      Uploading...
-                    </>
-                  ) : (
-                    "Change Photo"
-                  )}
+                  {uploadingImage ? "Uploading..." : "Change Photo"}
                 </button>
                 {profilePictureUrl && profilePictureUrl !== "/default-avatar.png" && (
                   <button
                     onClick={handleRemoveProfilePicture}
-                    disabled={uploadingImage || loading}
+                    disabled={uploadingImage}
                     className="photo-option-button"
                   >
                     Remove

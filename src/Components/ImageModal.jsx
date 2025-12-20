@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import '../styles/ImageModal.css';
 
 function ImageModal({ imageUrl, imageAlt, onClose }) {
@@ -8,16 +8,16 @@ function ImageModal({ imageUrl, imageAlt, onClose }) {
     }
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
       onClose();
     }
-  };
+  }, [onClose]);
 
   React.useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [handleKeyDown]);
 
   if (!imageUrl) return null;
 
