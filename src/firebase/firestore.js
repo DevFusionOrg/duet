@@ -19,16 +19,6 @@ import {
   serverTimestamp,
   limit,
 } from "firebase/firestore";
-import {
-  encryptMessage,
-  decryptMessage,
-  initializeChatEncryption,
-  deleteChatKey,
-} from "../utils/encryption";
-
-// Heuristic to detect if a string still looks like encrypted/base64 payload
-const isProbablyEncrypted = (text) =>
-  typeof text === "string" && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(text) && text.length > 24;
 
 export const updateUsernameTransaction = async (
   uid,
@@ -778,8 +768,6 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
     const receiverId = chatId.replace(senderId, '').replace('_', '');
 
-    const chatKey = await initializeChatEncryption(chatId, db);
-
     const [receiverSnap, senderSnap] = await Promise.all([
       getDoc(doc(db, "users", receiverId)),
       getDoc(doc(db, "users", senderId))
@@ -807,14 +795,12 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     const senderName = senderData?.displayName || senderData?.username || "Someone";
     const senderPhoto = senderData?.photoURL || "";
 
-    const encryptedText = text ? await encryptMessage(text, chatKey) : "";
-
     const messageData = {
       senderId,
       senderName,
       senderPhoto,
       chatId,
-      text: encryptedText,
+      text: text || "",
       notificationText: text || (imageData ? "📷 Image" : ""),
       timestamp: now,
       read: false,
@@ -825,10 +811,8 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       isSaved: false,
       isEdited: false,
       editHistory: [],
-      originalText: encryptedText,
       canEditUntil: new Date(now.getTime() + 15 * 60 * 1000),
       isReply: false,
-      encrypted: true, 
     };
 
     if (imageData) {
@@ -997,8 +981,6 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50)
       blockedUsers = currentUserData.blockedUsers || [];
     }
 
-    const chatKey = await initializeChatEncryption(chatId, db);
-    
     const messagesRef = collection(db, "chats", chatId, "messages");
     const q = query(
       messagesRef, 
@@ -1026,35 +1008,7 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50)
         continue;
       }
 
-      if (messageData.encrypted && messageData.text) {
-        try {
-          messageData.text = await decryptMessage(messageData.text, chatKey);
-          if (messageData.originalText) {
-            messageData.originalText = await decryptMessage(messageData.originalText, chatKey);
-          }
-          if (messageData.originalMessageText) {
-            messageData.originalMessageText = await decryptMessage(
-              messageData.originalMessageText,
-              chatKey
-            );
-          }
-        } catch (error) {
-          console.error('Failed to decrypt message:', error);
-          if (messageData.notificationText) {
-            messageData.text = messageData.notificationText;
-            if (messageData.originalMessageText) {
-              messageData.originalMessageText = messageData.notificationText;
-            }
-          }
-        }
-
-        if (messageData.notificationText && isProbablyEncrypted(messageData.text)) {
-          messageData.text = messageData.notificationText;
-        }
-        if (messageData.originalMessageText && isProbablyEncrypted(messageData.originalMessageText)) {
-          messageData.originalMessageText = messageData.notificationText || messageData.originalMessageText;
-        }
-      }
+      // Encryption removed: messages are already plaintext.
 
       messages.push({
         id: doc.id,
@@ -1080,8 +1034,6 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
       blockedUsers = userData.blockedUsers || [];
     }
 
-    const chatKey = await initializeChatEncryption(chatId, db);
-    
     const messagesRef = collection(db, "chats", chatId, "messages");
     const q = query(
       messagesRef, 
@@ -1116,35 +1068,7 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
           continue;
         }
 
-        if (messageData.encrypted && messageData.text) {
-          try {
-            messageData.text = await decryptMessage(messageData.text, chatKey);
-            if (messageData.originalText) {
-              messageData.originalText = await decryptMessage(messageData.originalText, chatKey);
-            }
-            if (messageData.originalMessageText) {
-              messageData.originalMessageText = await decryptMessage(
-                messageData.originalMessageText,
-                chatKey
-              );
-            }
-          } catch (error) {
-            console.error('Failed to decrypt message:', error);
-            if (messageData.notificationText) {
-              messageData.text = messageData.notificationText;
-              if (messageData.originalMessageText) {
-                messageData.originalMessageText = messageData.notificationText;
-              }
-            }
-          }
-
-          if (messageData.notificationText && isProbablyEncrypted(messageData.text)) {
-            messageData.text = messageData.notificationText;
-          }
-          if (messageData.originalMessageText && isProbablyEncrypted(messageData.originalMessageText)) {
-            messageData.originalMessageText = messageData.notificationText || messageData.originalMessageText;
-          }
-        }
+        // Encryption removed: no decryption; use stored text directly.
 
         messages.push({
           id: doc.id,
@@ -1401,9 +1325,6 @@ export const unsaveMessage = async (chatId, messageId) => {
 
 export const editMessage = async (chatId, messageId, newText, userId) => {
   try {
-    
-    const chatKey = await initializeChatEncryption(chatId, db);
-    
     const messageRef = doc(db, "chats", chatId, "messages", messageId);
     const chatRef = doc(db, "chats", chatId);
     
@@ -1436,10 +1357,8 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
       editedAt: new Date(),
     });
 
-    const encryptedNewText = await encryptMessage(newText, chatKey);
-
     await updateDoc(messageRef, {
-      text: encryptedNewText,
+      text: newText,
       isEdited: true,
       editHistory: editHistory,
       lastEditedAt: new Date(),
@@ -1562,8 +1481,6 @@ export const deleteChat = async (chatId, userId) => {
     batch.delete(chatRef);
     await batch.commit();
 
-    await deleteChatKey(chatId);
-    
     return { success: true };
     
   } catch (error) {
@@ -1661,9 +1578,6 @@ export const getBlockedUsers = async (userId) => {
 
 export const replyToMessage = async (chatId, originalMessageId, replyText, senderId, imageData = null) => {
   try {
-    
-    const chatKey = await initializeChatEncryption(chatId, db);
-    
     const messagesRef = collection(db, "chats", chatId, "messages");
     
     const originalMessageRef = doc(db, "chats", chatId, "messages", originalMessageId);
@@ -1678,11 +1592,9 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     const deletionTime = new Date();
     deletionTime.setHours(deletionTime.getHours() + 12);
     
-    const encryptedReplyText = replyText ? await encryptMessage(replyText, chatKey) : "";
-    
     const replyData = {
       senderId,
-      text: encryptedReplyText,
+      text: replyText || "",
       notificationText: replyText || "",
       timestamp: new Date(),
       read: false,
@@ -1693,14 +1605,12 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       isSaved: false,
       isEdited: false,
       editHistory: [],
-      originalText: encryptedReplyText,
       canEditUntil: new Date(Date.now() + 15 * 60 * 1000),
       isReply: true,
       originalMessageId: originalMessageId,
       originalSenderId: originalMessage.senderId,
       originalMessageText: originalMessage.text, 
       originalMessageType: originalMessage.type,
-      encrypted: true,
     };
     
     if (imageData) {
