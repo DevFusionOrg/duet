@@ -26,6 +26,10 @@ import {
   deleteChatKey,
 } from "../utils/encryption";
 
+// Heuristic to detect if a string still looks like encrypted/base64 payload
+const isProbablyEncrypted = (text) =>
+  typeof text === "string" && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(text) && text.length > 24;
+
 export const updateUsernameTransaction = async (
   uid,
   newUsername,
@@ -811,6 +815,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       senderPhoto,
       chatId,
       text: encryptedText,
+      notificationText: text || (imageData ? "📷 Image" : ""),
       timestamp: now,
       read: false,
       readBy: null,
@@ -901,6 +906,7 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
       senderPhoto,
       chatId,
       text: "",
+      notificationText: "🎤 Voice message",
       type: "voice",
       voice: {
         url: voiceData.url,
@@ -1034,6 +1040,19 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50)
           }
         } catch (error) {
           console.error('Failed to decrypt message:', error);
+          if (messageData.notificationText) {
+            messageData.text = messageData.notificationText;
+            if (messageData.originalMessageText) {
+              messageData.originalMessageText = messageData.notificationText;
+            }
+          }
+        }
+
+        if (messageData.notificationText && isProbablyEncrypted(messageData.text)) {
+          messageData.text = messageData.notificationText;
+        }
+        if (messageData.originalMessageText && isProbablyEncrypted(messageData.originalMessageText)) {
+          messageData.originalMessageText = messageData.notificationText || messageData.originalMessageText;
         }
       }
 
@@ -1111,6 +1130,19 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
             }
           } catch (error) {
             console.error('Failed to decrypt message:', error);
+            if (messageData.notificationText) {
+              messageData.text = messageData.notificationText;
+              if (messageData.originalMessageText) {
+                messageData.originalMessageText = messageData.notificationText;
+              }
+            }
+          }
+
+          if (messageData.notificationText && isProbablyEncrypted(messageData.text)) {
+            messageData.text = messageData.notificationText;
+          }
+          if (messageData.originalMessageText && isProbablyEncrypted(messageData.originalMessageText)) {
+            messageData.originalMessageText = messageData.notificationText || messageData.originalMessageText;
           }
         }
 
@@ -1742,6 +1774,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     const replyData = {
       senderId,
       text: encryptedReplyText,
+      notificationText: replyText || "",
       timestamp: new Date(),
       read: false,
       readBy: null,
