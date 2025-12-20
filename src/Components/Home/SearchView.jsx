@@ -10,6 +10,7 @@ function SearchView({ user }) {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loadingPending, setLoadingPending] = useState(true);
   const hasFetchedPending = useRef(false);
+  const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!hasFetchedPending.current && user?.uid) {
@@ -18,6 +19,47 @@ function SearchView({ user }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
+
+  // Auto-search as user types with debounce
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const { searchUsers } = await import("../../firebase/firestore");
+        const results = await searchUsers(searchTerm);
+        const filteredResults = results.filter(
+          (result) => result.uid !== user.uid,
+        );
+        setSearchResults(filteredResults);
+
+        if (filteredResults.length === 0) {
+          setMessage("No users found. Try a different search term.");
+        }
+      } catch (error) {
+        console.error("Error searching users:", error);
+        setMessage("Error searching users: " + error.message);
+      }
+      setLoading(false);
+    }, 500); // 500ms debounce
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm, user?.uid]);
 
   const fetchPendingRequests = async () => {
     try {
@@ -106,26 +148,8 @@ function SearchView({ user }) {
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!searchTerm.trim()) return;
-
-    setLoading(true);
-    setMessage("");
-    try {
-      const { searchUsers } = await import("../../firebase/firestore");
-      const results = await searchUsers(searchTerm);
-      const filteredResults = results.filter(
-        (result) => result.uid !== user.uid,
-      );
-      setSearchResults(filteredResults);
-
-      if (filteredResults.length === 0) {
-        setMessage("No users found. Try a different search term.");
-      }
-    } catch (error) {
-      console.error("Error searching users:", error);
-      setMessage("Error searching users: " + error.message);
-    }
-    setLoading(false);
+    // Form submission no longer needed since we search on input change
+    // But we keep it to support Enter key submission
   };
 
   const handleSendRequest = async (toUserId, toUserName) => {
@@ -249,7 +273,14 @@ function SearchView({ user }) {
       </form>
 
       <div className="search-results">
-        {searchResults.map((result) => {
+        {loading && searchTerm.trim() && (
+          <div className="search-loading">
+            <div className="spinner"></div>
+            <p>Searching for users...</p>
+          </div>
+        )}
+
+        {!loading && searchResults.map((result) => {
           const alreadyFriends = isAlreadyFriend(result, user.uid);
           const requestSent = hasSentRequest(result, user.uid);
 
@@ -312,7 +343,7 @@ function SearchView({ user }) {
           );
         })}
 
-        {searchResults.length === 0 && searchTerm && !loading && !message && (
+        {!loading && searchResults.length === 0 && searchTerm.trim() && (
           <p className="no-results">No users found. Try a different search term.</p>
         )}
       </div>

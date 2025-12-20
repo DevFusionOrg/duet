@@ -8,42 +8,67 @@ const cld = new Cloudinary({
 
 export default cld;
 
-export const openProfilePictureUploadWidget = (options = {}) => {
+export const openProfilePictureUploadWidget = (onUploadStart = null) => {
   return new Promise((resolve, reject) => {
-    if (!window.cloudinary) {
-      reject(new Error("Cloudinary widget not loaded"));
-      return;
-    }
+    // Create hidden file input
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/jpeg,image/jpg,image/png,image/webp';
+    fileInput.style.display = 'none';
+    
+    fileInput.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) {
+        document.body.removeChild(fileInput);
+        reject(new Error("Upload cancelled"));
+        return;
+      }
 
-    const widget = window.cloudinary.createUploadWidget(
-      {
-        cloudName: process.env.REACT_APP_CLOUDINARY_CLOUD_NAME,
-        uploadPreset: "duet_dp", 
-        sources: ["local", "camera"],
-        multiple: false,
-        maxFileSize: 5000000,
-        clientAllowedFormats: ["jpg", "jpeg", "png", "webp"], 
-        folder: "duet-dp", 
-        resourceType: "image",
-        cropping: true,
-        croppingAspectRatio: 1,
-        croppingDefaultSelectionRatio: 0.9,
-        showSkipCropButton: false,
-        croppingCoordinatesMode: "custom",
-        ...options
-      },
-      (error, result) => {
-        if (error) {
-          reject(error);
-        } else if (result && result.event === "success") {
-          resolve(result.info);
-        } else if (result && result.event === "close") {
-          reject(new Error("Upload cancelled"));
+      // Check file size (5MB)
+      if (file.size > 5000000) {
+        document.body.removeChild(fileInput);
+        reject(new Error("File size must be less than 5MB"));
+        return;
+      }
+
+      try {
+        // Notify that upload is starting
+        if (onUploadStart) onUploadStart();
+        
+        // Upload directly to Cloudinary
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'duet_dp');
+        formData.append('folder', 'duet-dp');
+
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload`,
+          {
+            method: 'POST',
+            body: formData
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Upload failed');
         }
-      },
-    );
 
-    widget.open();
+        const data = await response.json();
+        resolve(data);
+      } catch (error) {
+        reject(error);
+      } finally {
+        document.body.removeChild(fileInput);
+      }
+    };
+
+    fileInput.oncancel = () => {
+      document.body.removeChild(fileInput);
+      reject(new Error("Upload cancelled"));
+    };
+
+    document.body.appendChild(fileInput);
+    fileInput.click();
   });
 };
 

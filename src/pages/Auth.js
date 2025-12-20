@@ -29,7 +29,7 @@ function Auth() {
   const deriveUsernameFromEmail = (emailStr) => {
     if (!emailStr) return "";
     const local = emailStr.split("@")[0] || "";
-    return local.toLowerCase().trim().replace(/[^a-z0-9._-]/g, "").slice(0, 30);
+    return local.toLowerCase().trim().replace(/[^a-z0-9._-]/g, "").slice(0, 16);
   };
 
   const signInWithGoogle = async () => {
