@@ -4,39 +4,132 @@ import {
   onValue,
   onDisconnect,
   serverTimestamp,
-  update as rtdbUpdate,
+  update,
 } from "firebase/database";
 import { doc, updateDoc } from "firebase/firestore";
 
-// Keep presence in Realtime Database with server-managed onDisconnect,
-// and mirror a minimal flag into Firestore for existing consumers.
+// Generate a session id so multiple devices/tabs for the same user can report presence independently.
+const newSessionId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+function computeAggregate(sessionsSnap) {
+  const sessions = sessionsSnap?.val() || {};
+  let isOnline = false;
+  let lastSeen = null;
+
+  Object.values(sessions).forEach((session) => {
+    if (session?.state === "online") {
+      isOnline = true;
+    }
+    const ts = session?.lastSeen;
+    if (ts && (!lastSeen || ts > lastSeen)) {
+      lastSeen = ts;
+    }
+  });
+
+  return {
+    isOnline,
+    lastSeen: lastSeen ? new Date(lastSeen) : null,
+  };
+}
+
+// Per-session presence with RTDB onDisconnect safety; mirrors aggregate to Firestore for legacy reads.
 export function setupPresence(userId) {
   if (!userId) return () => {};
 
-  const statusRef = ref(database, `status/${userId}`);
+  const sessionId = newSessionId();
+  const sessionRef = ref(database, `status/${userId}/sessions/${sessionId}`);
   const connectedRef = ref(database, ".info/connected");
 
-  const unsubscribe = onValue(connectedRef, async (snap) => {
-    if (!snap.val()) return;
+  const idleMs = 3 * 60 * 1000; // 3 minutes
+  let idleTimeout = null;
 
+  const clearIdleTimer = () => {
+    if (idleTimeout) {
+      clearTimeout(idleTimeout);
+      idleTimeout = null;
+    }
+  };
+
+  const scheduleIdle = () => {
+    clearIdleTimer();
+    idleTimeout = setTimeout(async () => {
+      try {
+        await update(sessionRef, {
+          state: "offline",
+          lastSeen: serverTimestamp(),
+          idle: true,
+        });
+
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, {
+          isOnline: false,
+          lastSeen: new Date(),
+        });
+      } catch (err) {
+        console.error("Presence inactivity timeout error:", err);
+      }
+    }, idleMs);
+  };
+
+  const markActive = async () => {
     try {
-      // Ensure the server marks offline if the client disconnects abruptly.
-      await onDisconnect(statusRef).update({
-        state: "offline",
-        lastSeen: serverTimestamp(),
-      });
-
-      await rtdbUpdate(statusRef, {
+      await update(sessionRef, {
         state: "online",
         lastSeen: serverTimestamp(),
+        idle: false,
       });
 
-      // Mirror to Firestore for code paths still reading user docs.
       const userRef = doc(db, "users", userId);
       await updateDoc(userRef, {
         isOnline: true,
         lastSeen: new Date(),
       });
+    } catch (err) {
+      console.error("Presence activity update error:", err);
+    } finally {
+      scheduleIdle();
+    }
+  };
+
+  const activityEvents = ["click", "keydown", "mousemove", "touchstart", "visibilitychange"];
+  const bindActivityListeners = () => {
+    if (typeof window === "undefined") return;
+    activityEvents.forEach((ev) => {
+      window.addEventListener(ev, markActive, { passive: true });
+    });
+  };
+
+  const unbindActivityListeners = () => {
+    if (typeof window === "undefined") return;
+    activityEvents.forEach((ev) => {
+      window.removeEventListener(ev, markActive);
+    });
+  };
+
+  const unsubscribe = onValue(connectedRef, async (snap) => {
+    if (!snap.val()) return;
+
+    try {
+      await onDisconnect(sessionRef).update({
+        state: "offline",
+        lastSeen: serverTimestamp(),
+      });
+
+      await update(sessionRef, {
+        state: "online",
+        lastSeen: serverTimestamp(),
+        idle: false,
+      });
+
+      // Mirror aggregate into Firestore for any remaining consumers.
+      const userRef = doc(db, "users", userId);
+      await updateDoc(userRef, {
+        isOnline: true,
+        lastSeen: new Date(),
+      });
+
+      bindActivityListeners();
+      scheduleIdle();
     } catch (err) {
       console.error("Presence setup error:", err);
     }
@@ -44,10 +137,11 @@ export function setupPresence(userId) {
 
   return async () => {
     try {
-      await onDisconnect(statusRef).cancel();
-      await rtdbUpdate(statusRef, {
+      await onDisconnect(sessionRef).cancel();
+      await update(sessionRef, {
         state: "offline",
         lastSeen: serverTimestamp(),
+        idle: true,
       });
 
       const userRef = doc(db, "users", userId);
@@ -59,17 +153,17 @@ export function setupPresence(userId) {
       console.error("Presence cleanup error:", err);
     } finally {
       unsubscribe();
+      unbindActivityListeners();
+      clearIdleTimer();
     }
   };
 }
 
 export function listenToPresence(userId, callback) {
   if (!userId) return () => {};
-  const statusRef = ref(database, `status/${userId}`);
-  return onValue(statusRef, (snap) => {
-    const val = snap.val();
-    const isOnline = val?.state === "online";
-    const lastSeen = val?.lastSeen ? new Date(val.lastSeen) : null;
+  const sessionsRef = ref(database, `status/${userId}/sessions`);
+  return onValue(sessionsRef, (snap) => {
+    const { isOnline, lastSeen } = computeAggregate(snap);
     callback({ isOnline, lastSeen });
   });
 }
