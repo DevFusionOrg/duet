@@ -10,15 +10,15 @@ export function useProfilePicture(user, setProfile, setMessage) {
   const handleProfilePictureUpload = useCallback(async () => {
     if (!user) return;
 
-    setUploadingImage(true);
     setMessage("");
 
     try {
-      
-      const result = await openProfilePictureUploadWidget();
+      // Pass callback to show loading when upload actually starts
+      const result = await openProfilePictureUploadWidget(() => {
+        setUploadingImage(true);
+      });
       
       if (result) {
-        
         const optimizedUrl = getOptimizedProfilePictureUrl(result.public_id, 200);
 
         await updateProfile(user, {

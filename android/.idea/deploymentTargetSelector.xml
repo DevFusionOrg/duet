@@ -20,11 +20,6 @@
             </Target>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="PhysicalDevice" identifier="serial=10BF3C1FNQ00173" />
-              </handle>
-            </Target>
-            <Target type="DEFAULT_BOOT">
-              <handle>
                 <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\dushy\.android\avd\Pixel_9_Pro_XL.avd" />
               </handle>
             </Target>
