@@ -1462,7 +1462,7 @@
 }
 
 @media (max-width: 480px) {
-  .main-content { padding: 10px; }
+  .main-content { padding-bottom: 80px; }
 
   .popup-content { padding: 0 20px 20px; }
   .popup-header { padding: 20px 20px 0; }

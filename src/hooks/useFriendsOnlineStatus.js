@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { listenToFriendsOnlineStatus } from "../firebase/firestore";
+import { listenToPresenceMap } from "../firebase/presence";
 
 export function useFriendsOnlineStatus(user, friends) {
   const [friendsOnlineStatus, setFriendsOnlineStatus] = useState({});
@@ -10,10 +10,12 @@ export function useFriendsOnlineStatus(user, friends) {
 
     const friendIds = friends.map(friend => friend.uid);
     const timeoutId = updateTimeoutRef.current;
-    
-    const unsubscribe = listenToFriendsOnlineStatus(friendIds, (status) => {
-      // Update immediately for faster UI response
-      setFriendsOnlineStatus(status);
+
+    const unsubscribe = listenToPresenceMap(friendIds, (status) => {
+      const flattened = Object.fromEntries(
+        Object.entries(status).map(([id, val]) => [id, val.isOnline])
+      );
+      setFriendsOnlineStatus(flattened);
     });
 
     return () => {

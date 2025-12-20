@@ -29,6 +29,7 @@ import {
   blockUser,
   unblockUser,
   getBlockedUsers,
+  getOrCreateChat,
   deleteChat,
   replyToMessage,
   setTypingStatus,
@@ -619,16 +620,48 @@ function Chat({ user, friend, onBack }) {
   };
 
   const handleForwardMessages = async () => {
-    if (!selectedMessage || selectedFriends.length === 0) return;
+    if (!selectedMessage || selectedFriends.length === 0 || !user?.uid) return;
     setForwarding(true);
     try {
+      const tasks = selectedFriends.map(async (friendId) => {
+        const targetChatId = await getOrCreateChat(user.uid, friendId);
+
+        if (selectedMessage.type === "image" && selectedMessage.image) {
+          const img = selectedMessage.image;
+          await sendMessage(targetChatId, user.uid, selectedMessage.text || "", {
+            public_id: img.publicId || img.public_id,
+            secure_url: img.url,
+            width: img.width,
+            height: img.height,
+            format: img.format,
+          });
+          return;
+        }
+
+        if (selectedMessage.type === "voice" && selectedMessage.voice) {
+          await sendVoiceNote(targetChatId, user.uid, {
+            url: selectedMessage.voice.url,
+            publicId: selectedMessage.voice.publicId,
+            duration: selectedMessage.voice.duration,
+            format: selectedMessage.voice.format,
+            bytes: selectedMessage.voice.bytes,
+          });
+          return;
+        }
+
+        // Default to text for other message types
+        await sendMessage(targetChatId, user.uid, selectedMessage.text || "");
+      });
+
+      await Promise.all(tasks);
+
       setShowForwardPopup(false);
       setSelectedFriends([]);
-      setForwarding(false);
       alert(`Message forwarded to ${selectedFriends.length} friend(s)`);
     } catch (error) {
       console.error("Error forwarding message:", error);
       alert("Error forwarding message: " + error.message);
+    } finally {
       setForwarding(false);
     }
   };

@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { auth } from "./firebase/firebase";
-import { createUserProfile, setUserOnlineStatus } from "./firebase/firestore";
+import { createUserProfile } from "./firebase/firestore";
+import { setupPresence } from "./firebase/presence";
 import Auth from "./pages/Auth";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
@@ -154,7 +155,6 @@ function App() {
 
       if (currentUser) {
         createUserProfile(currentUser).catch(console.error);
-        setUserOnlineStatus(currentUser.uid, true).catch(console.error);
       }
 
       if (Capacitor.isNativePlatform()) {
@@ -181,34 +181,10 @@ function App() {
   useEffect(() => {
     if (!user) return;
 
-    const updateOnlineStatus = async (isOnline) => {
-      try {
-        
-        await setUserOnlineStatus(user.uid, isOnline, !isOnline);
-      } catch (error) {
-        console.error("Error updating online status:", error);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        updateOnlineStatus(false);
-      } else {
-        updateOnlineStatus(true);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const cleanup = setupPresence(user.uid);
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-
-      if (user) {
-        
-        setUserOnlineStatus(user.uid, false, true).catch((error) => {
-          console.error("Error setting offline status on cleanup:", error);
-        });
-      }
+      cleanup();
     };
   }, [user]);
 
