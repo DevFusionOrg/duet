@@ -1348,10 +1348,6 @@
   transition: all 0.2s ease;
 }
 
-.summary-button:hover {
-  transform: scale(1.05);
-}
-
 /* Friends Modal */
 .profile-friends-modal-overlay {
   position: fixed;
