@@ -80,10 +80,16 @@ exports.sendChatMessageNotification = functions
       message.senderName || senderProfile?.displayName || senderProfile?.username || "New message";
     const senderPhoto = message.senderPhoto || senderProfile?.photoURL || "";
 
-    const body =
-      message.type === "image"
-        ? `${senderName} sent a photo`
-        : text || "You have a new message";
+    let body;
+    if (message.isReply && message.originalMessageText) {
+      // For replies, show the original message being replied to
+      const originalText = (message.originalMessageText || "").substring(0, 50);
+      body = `↪️ ${senderName} replied to: "${originalText}..."`;
+    } else if (message.type === "image") {
+      body = `${senderName} sent a photo`;
+    } else {
+      body = text || "You have a new message";
+    }
 
     const title = senderName;
 
@@ -131,6 +137,8 @@ exports.sendChatMessageNotification = functions
           senderPhoto,
           message: text,
           messageType: message.type || (message.image ? "image" : "text"),
+          isReply: (message.isReply || false).toString(),
+          originalMessageText: message.originalMessageText || "",
           timestamp: Date.now().toString(),
         },
         android: {
