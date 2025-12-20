@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase/firebase";
+import { listenToPresence } from "../firebase/presence";
 
 export function useFriendOnlineStatus(friendId) {
   const [isFriendOnline, setIsFriendOnline] = useState(false);
@@ -8,16 +7,12 @@ export function useFriendOnlineStatus(friendId) {
 
   useEffect(() => {
     if (!friendId) return;
-    
-    const userRef = doc(db, "users", friendId);
-    const unsubscribe = onSnapshot(userRef, (doc) => {
-      if (doc.exists()) {
-        const userData = doc.data();
-        setIsFriendOnline(userData.isOnline || false);
-        setLastSeen(userData.lastSeen || null);
-      }
+
+    const unsubscribe = listenToPresence(friendId, ({ isOnline, lastSeen }) => {
+      setIsFriendOnline(isOnline);
+      setLastSeen(lastSeen);
     });
-    
+
     return () => {
       if (unsubscribe) unsubscribe();
     };
