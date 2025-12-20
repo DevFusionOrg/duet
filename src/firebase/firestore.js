@@ -1094,6 +1094,9 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
             if (messageData.originalText) {
               messageData.originalText = await decryptMessage(messageData.originalText, chatKey);
             }
+            if (messageData.originalMessageText) {
+              messageData.originalMessageText = await decryptMessage(messageData.originalMessageText, chatKey);
+            }
           } catch (error) {
             console.error('Failed to decrypt message:', error);
             
@@ -1720,9 +1723,10 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     
     const originalMessage = originalMessageSnap.data();
 
+    let decryptedOriginalText = originalMessage.text;
     if (originalMessage.encrypted && originalMessage.text) {
       try {
-        await decryptMessage(originalMessage.text, chatKey);
+        decryptedOriginalText = await decryptMessage(originalMessage.text, chatKey);
       } catch (error) {
         console.error('Failed to decrypt original message:', error);
       }
@@ -1732,6 +1736,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     deletionTime.setHours(deletionTime.getHours() + 12);
 
     const encryptedReplyText = replyText ? await encryptMessage(replyText, chatKey) : "";
+    const encryptedOriginalMessageText = decryptedOriginalText ? await encryptMessage(decryptedOriginalText, chatKey) : "";
     
     const replyData = {
       senderId,
@@ -1750,7 +1755,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       isReply: true,
       originalMessageId: originalMessageId,
       originalSenderId: originalMessage.senderId,
-      originalMessageText: originalMessage.text, 
+      originalMessageText: encryptedOriginalMessageText, 
       originalMessageType: originalMessage.type,
       encrypted: true,
     };
@@ -1777,7 +1782,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     
     const receiverId = chatId.replace(senderId, '').replace('_', '');
     
-    await sendPushNotification(senderId, receiverId, { ...replyData, text: replyText || "" }, chatId);
+    await sendPushNotification(senderId, receiverId, { ...replyData, text: replyText || "", originalMessageText: decryptedOriginalText }, chatId);
     
     const messageRef = await addDoc(messagesRef, replyData);
     
