@@ -9,7 +9,6 @@ import IncomingCallModal from '../Components/Call/IncomingCallModal';
 import MusicPlayer from "../Components/MusicPlayer";
 import VideoCallScreen from '../Components/Call/VideoCallScreen';
 import VoiceRecorder from '../Components/Chat/VoiceRecorder';
-import EncryptionIndicator from '../Components/Chat/EncryptionIndicator';
 import LoadingScreen from '../Components/LoadingScreen';
 
 import { useChatSetup } from "../hooks/useChatSetup";
@@ -766,7 +765,6 @@ function Chat({ user, friend, onBack }) {
       <ChatHeader {...chatHeaderProps} />
 
       <div className="chat-messages-container">
-        <EncryptionIndicator />
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '400px' }}>
             <LoadingScreen message="Loading messages..." size="small" />
