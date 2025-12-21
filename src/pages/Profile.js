@@ -15,6 +15,7 @@ import PasswordChange from '../Components/Profile/PasswordChange';
 import BlockedUsersSection from '../Components/Profile/BlockedUsersSection';
 import BlockedUsersModal from '../Components/Profile/BlockedUsersModal';
 import FriendsView from '../Components/Home/FriendsView';
+import { deleteUserAccount } from "../firebase/firestore";
 import { Device } from "@capacitor/device";
 import { useProfiles } from "../hooks/useProfiles";
 import { useBlockedUsers } from "../hooks/useBlockedUsers";
@@ -39,6 +40,7 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
   });
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [showPhotoControls, setShowPhotoControls] = useState(false);
 
   const {
@@ -197,6 +199,41 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
       ...prev,
       [field]: value
     }));
+  };
+
+  const reauthenticateForDeletion = async () => {
+    const usesPasswordProvider = user?.providerData?.some((p) => p.providerId === "password");
+    if (usesPasswordProvider) {
+      const password = window.prompt("Enter your password to delete your account. This cannot be undone.");
+      if (!password) {
+        throw new Error("Password is required to delete the account");
+      }
+      const credential = EmailAuthProvider.credential(user.email, password);
+      await reauthenticateWithCredential(user, credential);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!isOwnProfile || !user?.uid) return;
+    const confirmed = window.confirm(
+      "Delete your account and all data (chats, friends, profile)? This action is irreversible.",
+    );
+    if (!confirmed) return;
+
+    setDeletingAccount(true);
+    setMessage("");
+
+    try {
+      await reauthenticateForDeletion();
+      await deleteUserAccount(user.uid, { deleteAuth: true });
+      await signOut(auth);
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      setMessage(error?.message || "Failed to delete account. Please try again.");
+    } finally {
+      setDeletingAccount(false);
+    }
   };
 
   const handlePasswordCancel = () => {
@@ -411,19 +448,29 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
           </div>
 
           <div className="settings-section">
-            <button
-              onClick={async () => {
-                try {
-                  await signOut(auth);
-                  window.location.href = "/";
-                } catch (error) {
-                  console.error("Error logging out:", error);
-                }
-              }}
-              className="profile-action-button profile-logout-button"
-            >
-              Logout
-            </button>
+            <div className="profile-settings-actions">
+              <button
+                onClick={async () => {
+                  try {
+                    await signOut(auth);
+                    window.location.href = "/";
+                  } catch (error) {
+                    console.error("Error logging out:", error);
+                  }
+                }}
+                disabled={deletingAccount}
+                className="profile-action-button profile-logout-button"
+              >
+                Logout
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+                className="profile-action-button profile-delete-button"
+              >
+                {deletingAccount ? "Deleting…" : "Delete Account"}
+              </button>
+            </div>
           </div>
           </div>
         </div>
