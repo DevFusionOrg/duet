@@ -1,4 +1,5 @@
-import { db } from "./firebase";
+import { auth, db } from "./firebase";
+import { deleteUser } from "firebase/auth";
 import {
   collection,
   doc,
@@ -24,6 +25,30 @@ import {
 // Simple in-memory cache for user profiles to reduce repeated reads
 const USER_PROFILE_CACHE = new Map();
 const PROFILE_CACHE_TTL_MS = 60 * 1000; // 1 minute
+
+// Batch-delete helper that respects Firestore's 500 writes per batch limit
+const deleteInChunks = async (refs, chunkSize = 450) => {
+  if (!refs || refs.length === 0) return;
+
+  let batch = writeBatch(db);
+  let ops = 0;
+
+  for (const ref of refs) {
+    if (!ref) continue;
+    batch.delete(ref);
+    ops += 1;
+
+    if (ops >= chunkSize) {
+      await batch.commit();
+      batch = writeBatch(db);
+      ops = 0;
+    }
+  }
+
+  if (ops > 0) {
+    await batch.commit();
+  }
+};
 
 export const updateUsernameTransaction = async (
   uid,
@@ -807,7 +832,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
 
     const messagesRef = collection(db, "chats", chatId, "messages");
     const now = new Date();
-    const deletionTime = new Date(now.getTime() + 12 * 60 * 60 * 1000);
+    const deletionTime = new Date(now.getTime() + 15 * 60 * 1000);
 
     const senderName = senderData?.displayName || senderData?.username || "Someone";
     const senderPhoto = senderData?.photoURL || "";
@@ -828,7 +853,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       isSaved: false,
       isEdited: false,
       editHistory: [],
-      canEditUntil: new Date(now.getTime() + 15 * 60 * 1000),
+      canEditUntil: new Date(now.getTime() + 5 * 60 * 1000),
       isReply: false,
     };
 
@@ -1420,7 +1445,7 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
 
     if (now > canEditUntil) {
       throw new Error(
-        "Edit time expired. You can only edit messages within 15 minutes of sending.",
+        "Edit time expired. You can only edit messages within 5 minutes of sending.",
       );
     }
 
@@ -1678,7 +1703,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       isSaved: false,
       isEdited: false,
       editHistory: [],
-      canEditUntil: new Date(Date.now() + 15 * 60 * 1000),
+      canEditUntil: new Date(Date.now() + 5 * 60 * 1000),
       isReply: true,
       originalMessageId: originalMessageId,
       originalSenderId: originalMessage.senderId,
@@ -1799,6 +1824,190 @@ export const deleteFriend = async (userId, friendId, options = { deleteChat: tru
     return { success: true };
   } catch (error) {
     console.error("Error deleting friend:", error);
+    throw error;
+  }
+};
+
+export const deleteUserAccount = async (userId, options = { deleteAuth: true }) => {
+  const { deleteAuth } = options;
+
+  if (!userId) {
+    throw new Error("User ID is required for account deletion");
+  }
+
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      if (deleteAuth && auth?.currentUser?.uid === userId) {
+        try {
+          await deleteUser(auth.currentUser);
+        } catch (authError) {
+          console.error("Error deleting auth user for missing profile:", authError);
+        }
+      }
+
+      return { success: true, message: "User profile already removed" };
+    }
+
+    const userData = userSnap.data() || {};
+    const username = userData.username;
+
+    // 1) Delete all chats and messages involving this user
+    const chatsSnap = await getDocs(
+      query(collection(db, "chats"), where("participants", "array-contains", userId)),
+    );
+
+    for (const chatDoc of chatsSnap.docs) {
+      const messagesSnap = await getDocs(collection(db, "chats", chatDoc.id, "messages"));
+      await deleteInChunks(messagesSnap.docs.map((d) => d.ref));
+      await deleteInChunks([chatDoc.ref]);
+    }
+
+    // 2) Clean friendships and friend subcollection entries
+    const friendIds = userData.friends || [];
+    for (const friendId of friendIds) {
+      const friendRef = doc(db, "users", friendId);
+      const friendSnap = await getDoc(friendRef);
+
+      if (friendSnap.exists()) {
+        const friendData = friendSnap.data() || {};
+
+        // Use arrayRemove for atomic operations
+        const updatePayload = {
+          friends: arrayRemove(userId),
+        };
+
+        // Only include these fields if they have data
+        const incomingRequests = (friendData.friendRequests || []).filter((req) => req.from === userId);
+        const outgoingRequests = (friendData.sentFriendRequests || []).filter((req) => req.to === userId);
+        
+        if (incomingRequests.length > 0) {
+          incomingRequests.forEach((req) => {
+            updatePayload.friendRequests = arrayRemove(req);
+          });
+        }
+        
+        if (outgoingRequests.length > 0) {
+          outgoingRequests.forEach((req) => {
+            updatePayload.sentFriendRequests = arrayRemove(req);
+          });
+        }
+
+        if ((friendData.blockedUsers || []).includes(userId)) {
+          updatePayload.blockedUsers = arrayRemove(userId);
+        }
+
+        await updateDoc(friendRef, updatePayload);
+      }
+
+      await deleteDoc(doc(db, "users", friendId, "friends", userId)).catch(() => {});
+    }
+
+    // Remove incoming friend requests (others -> user)
+    const incomingRequests = userData.friendRequests || [];
+    for (const req of incomingRequests) {
+      const fromRef = doc(db, "users", req.from);
+      const fromSnap = await getDoc(fromRef);
+
+      if (fromSnap.exists()) {
+        const fromData = fromSnap.data() || {};
+        const sentReqsToRemove = (fromData.sentFriendRequests || []).filter((r) => r.to === userId);
+        
+        const updatePayload = {};
+        sentReqsToRemove.forEach((r) => {
+          if (!updatePayload.sentFriendRequests) {
+            updatePayload.sentFriendRequests = arrayRemove(r);
+          }
+        });
+
+        if (Object.keys(updatePayload).length > 0) {
+          await updateDoc(fromRef, updatePayload);
+        }
+      }
+    }
+
+    // Remove outgoing friend requests (user -> others)
+    const outgoingRequests = userData.sentFriendRequests || [];
+    for (const req of outgoingRequests) {
+      const toRef = doc(db, "users", req.to);
+      const toSnap = await getDoc(toRef);
+
+      if (toSnap.exists()) {
+        const toData = toSnap.data() || {};
+        const reqsToRemove = (toData.friendRequests || []).filter((r) => r.from === userId);
+        
+        const updatePayload = {};
+        reqsToRemove.forEach((r) => {
+          if (!updatePayload.friendRequests) {
+            updatePayload.friendRequests = arrayRemove(r);
+          }
+        });
+
+        if (Object.keys(updatePayload).length > 0) {
+          await updateDoc(toRef, updatePayload);
+        }
+      }
+    }
+
+    // Clear any blocks pointing at this user
+    const blockedBySnap = await getDocs(
+      query(collection(db, "users"), where("blockedUsers", "array-contains", userId)),
+    );
+
+    for (const blockedDoc of blockedBySnap.docs) {
+      const blockedData = blockedDoc.data() || {};
+      
+      const updatePayload = {
+        blockedUsers: arrayRemove(userId),
+        friends: arrayRemove(userId),
+      };
+
+      // Clean up any friend requests
+      const incomingReqs = (blockedData.friendRequests || []).filter((req) => req.from === userId);
+      const outgoingReqs = (blockedData.sentFriendRequests || []).filter((req) => req.to === userId);
+
+      incomingReqs.forEach((req) => {
+        if (!updatePayload.friendRequests) {
+          updatePayload.friendRequests = arrayRemove(req);
+        }
+      });
+
+      outgoingReqs.forEach((req) => {
+        if (!updatePayload.sentFriendRequests) {
+          updatePayload.sentFriendRequests = arrayRemove(req);
+        }
+      });
+
+      await updateDoc(blockedDoc.ref, updatePayload).catch((err) => console.error("Error cleaning block entry:", err));
+    }
+
+    // Delete the user's friends subcollection documents
+    const friendsSubSnap = await getDocs(collection(db, "users", userId, "friends"));
+    await deleteInChunks(friendsSubSnap.docs.map((d) => d.ref));
+
+    // Remove username mapping if present
+    if (username) {
+      await deleteDoc(doc(db, "usernames", username)).catch(() => {});
+    }
+
+    // Delete the user document itself
+    await deleteDoc(userRef);
+    USER_PROFILE_CACHE.delete(userId);
+
+    // Delete authentication record when requested and available
+    if (deleteAuth && auth?.currentUser?.uid === userId) {
+      try {
+        await deleteUser(auth.currentUser);
+      } catch (authError) {
+        console.error("Error deleting Firebase Auth user:", authError);
+      }
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting user account:", error);
     throw error;
   }
 };
