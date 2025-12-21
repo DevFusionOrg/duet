@@ -161,17 +161,18 @@ function Chat({ user, friend, onBack }) {
 
   useEffect(() => {
     if (messages.length > 0 && pendingMessages.length > 0) {
-      const latestMessage = messages[messages.length - 1];
-      
-      const matchingPending = pendingMessages.find(pm => 
-        pm.senderId === latestMessage.senderId &&
-        pm.text === latestMessage.text &&
-        Math.abs(new Date(latestMessage.timestamp?.toDate?.() || latestMessage.timestamp) - new Date(pm.timestamp)) < 5000
-      );
-      
-      if (matchingPending) {
-        setPendingMessages(prev => prev.filter(m => m.id !== matchingPending.id));
-      }
+      setPendingMessages(prev => prev.filter(pm => {
+        // Check if this pending message has a matching real message
+        const hasMatch = messages.some(m => 
+          m.senderId === pm.senderId &&
+          m.text === pm.text &&
+          m.type === pm.type &&
+          Math.abs(new Date(m.timestamp?.toDate?.() || m.timestamp) - new Date(pm.timestamp)) < 5000
+        );
+        // If no match and pending for more than 15 seconds, remove it (failed send)
+        const isExpired = Date.now() - new Date(pm.timestamp).getTime() > 15000;
+        return !hasMatch && !isExpired;
+      }));
     }
   }, [messages, pendingMessages]);
 

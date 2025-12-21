@@ -1070,8 +1070,6 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50)
         continue;
       }
 
-      // Encryption removed: messages are already plaintext.
-
       messages.push({
         id: doc.id,
         ...messageData,
@@ -1085,7 +1083,7 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50)
   }
 };
 
-export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 50) => {
+export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 200) => {
   const currentUserRef = doc(db, "users", currentUserId);
   let unsubscribeMessages;
   let bufferedMessages = [];
@@ -1109,56 +1107,71 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
     }
     
     unsubscribeMessages = onSnapshot(q, async (snapshot) => {
-      const now = new Date();
-      const changes = snapshot.docChanges();
+      try {
+        const now = new Date();
+        const changes = snapshot.docChanges();
 
-      // On first load, snapshot may not include docChanges for all docs; ensure buffer is seeded
-      if (bufferedMessages.length === 0 && snapshot.docs.length > 0 && changes.length === 0) {
-        bufferedMessages = snapshot.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((m) => !blockedUsers.includes(m.senderId))
-          .filter((m) => !(m.deletionTime && now > m.deletionTime.toDate() && !m.isSaved));
-        callback(bufferedMessages);
-        return;
-      }
-
-      for (const change of changes) {
-        const doc = change.doc;
-        const messageData = doc.data();
-
-        // Skip blocked or expired without writing deletions client-side
-        const isBlocked = blockedUsers.includes(messageData.senderId);
-        const isExpired = messageData.deletionTime && now > messageData.deletionTime.toDate() && !messageData.isSaved;
-
-        if (change.type === "added") {
-          if (!isBlocked && !isExpired) {
-            bufferedMessages.push({ id: doc.id, ...messageData });
-          }
-        } else if (change.type === "modified") {
-          const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
-          if (idx !== -1) {
-            if (!isBlocked && !isExpired) {
-              bufferedMessages[idx] = { id: doc.id, ...messageData };
-            } else {
-              bufferedMessages.splice(idx, 1);
-            }
-          } else if (!isBlocked && !isExpired) {
-            bufferedMessages.push({ id: doc.id, ...messageData });
-          }
-        } else if (change.type === "removed") {
-          const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
-          if (idx !== -1) bufferedMessages.splice(idx, 1);
+        // On first load, snapshot may not include docChanges for all docs; ensure buffer is seeded
+        if (bufferedMessages.length === 0 && snapshot.docs.length > 0 && changes.length === 0) {
+          bufferedMessages = snapshot.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((m) => !blockedUsers.includes(m.senderId))
+            .filter((m) => !(m.deletionTime && now > m.deletionTime.toDate() && !m.isSaved));
+          callback(bufferedMessages);
+          return;
         }
+
+        for (const change of changes) {
+          const doc = change.doc;
+          const messageData = doc.data();
+
+          // Skip blocked or expired without writing deletions client-side
+          const isBlocked = blockedUsers.includes(messageData.senderId);
+          const isExpired = messageData.deletionTime && now > messageData.deletionTime.toDate() && !messageData.isSaved;
+
+          if (change.type === "added") {
+            if (!isBlocked && !isExpired) {
+              // Check if already exists to prevent duplicates
+              const exists = bufferedMessages.some(m => m.id === doc.id);
+              if (!exists) {
+                bufferedMessages.push({ id: doc.id, ...messageData });
+              }
+            }
+          } else if (change.type === "modified") {
+            const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
+            if (idx !== -1) {
+              if (!isBlocked && !isExpired) {
+                bufferedMessages[idx] = { id: doc.id, ...messageData };
+              } else {
+                bufferedMessages.splice(idx, 1);
+              }
+            } else if (!isBlocked && !isExpired) {
+              // If modified but not in buffer, add it (shouldn't happen, but safety)
+              bufferedMessages.push({ id: doc.id, ...messageData });
+            }
+          } else if (change.type === "removed") {
+            const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
+            if (idx !== -1) bufferedMessages.splice(idx, 1);
+          }
+        }
+
+        // Keep buffer sorted ascending by timestamp
+        bufferedMessages.sort((a, b) => {
+          const ta = a.timestamp?.toDate?.() || a.timestamp || 0;
+          const tb = b.timestamp?.toDate?.() || b.timestamp || 0;
+          return ta - tb;
+        });
+
+        callback(bufferedMessages);
+      } catch (error) {
+        console.error("Error processing chat messages snapshot:", error);
+        // Still call callback with current buffer to avoid loading forever
+        callback(bufferedMessages);
       }
-
-      // Keep buffer sorted ascending by timestamp
-      bufferedMessages.sort((a, b) => {
-        const ta = a.timestamp?.toDate?.() || a.timestamp || 0;
-        const tb = b.timestamp?.toDate?.() || b.timestamp || 0;
-        return ta - tb;
-      });
-
-      callback(bufferedMessages);
+    }, (error) => {
+      console.error("Error in chat messages listener:", error);
+      // Call callback with empty or current to stop loading
+      callback([]);
     });
   });
   

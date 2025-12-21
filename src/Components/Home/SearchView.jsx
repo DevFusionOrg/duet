@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import UserBadge from "../UserBadge";
+import Spinner from "../Spinner";
 
 function SearchView({ user }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -43,10 +44,6 @@ function SearchView({ user }) {
           (result) => result.uid !== user.uid,
         );
         setSearchResults(filteredResults);
-
-        if (filteredResults.length === 0) {
-          setMessage("No users found. Try a different search term.");
-        }
       } catch (error) {
         console.error("Error searching users:", error);
         setMessage("Error searching users: " + error.message);
@@ -275,7 +272,7 @@ function SearchView({ user }) {
       <div className="search-results">
         {loading && searchTerm.trim() && (
           <div className="search-loading">
-            <div className="spinner"></div>
+            <Spinner size="medium" />
             <p>Searching for users...</p>
           </div>
         )}

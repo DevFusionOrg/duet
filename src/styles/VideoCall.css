@@ -501,20 +501,6 @@
   z-index: 1000;
 }
 
-.connecting-spinner {
-  width: 60px;
-  height: 60px;
-  border: 3px solid rgba(255,255,255,0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 20px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 /* Mobile responsive */
 @media (max-width: 768px) {
   .local-video-container {
