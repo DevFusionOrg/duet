@@ -575,7 +575,8 @@
 .profile-fallback-button,
 .unblock-user-button,
 .blocked-users-close-footer-button,
-.profile-logout-button {
+.profile-logout-button,
+.profile-delete-button {
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -635,6 +636,37 @@
 
 .profile-fallback-button:hover {
   background-color: #3367d6;
+}
+
+.profile-logout-button {
+  padding: 10px 18px;
+  background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 14px;
+}
+
+.profile-logout-button:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.profile-delete-button {
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #ff0000 0%, #ef4444 100%);
+  color: #fff;
+  font-size: 14px;
+}
+
+.profile-delete-button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.profile-delete-button:disabled,
+.profile-logout-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Display Card */
@@ -1255,6 +1287,12 @@
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.profile-settings-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .profile-edit-inline-button {
