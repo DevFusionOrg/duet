@@ -1,5 +1,51 @@
 /* Loading Screen - MacBook Style */
 
+/* Global Spinner Styles - Use these everywhere for consistency */
+.spinner-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.spinner-wrapper.small {
+  width: 20px;
+  height: 20px;
+}
+
+.spinner-wrapper.medium {
+  width: 40px;
+  height: 40px;
+}
+
+.spinner-wrapper.large {
+  width: 60px;
+  height: 60px;
+}
+
+.spinner-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.spinner-circle {
+  animation: spinnerRotate 1.5s linear infinite;
+  transform-origin: 50px 50px;
+}
+
+@keyframes spinnerRotate {
+  0% {
+    transform: rotate(0deg);
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dashoffset: -70.7px;
+  }
+  100% {
+    transform: rotate(360deg);
+    stroke-dashoffset: -141.4px;
+  }
+}
+
+/* Legacy support - keep for backward compatibility */
 .loading-screen {
   display: flex;
   align-items: center;
@@ -49,25 +95,6 @@
   height: 100%;
 }
 
-.spinner-circle {
-  animation: spinnerRotate 1.5s linear infinite;
-  transform-origin: 50px 50px;
-}
-
-@keyframes spinnerRotate {
-  0% {
-    transform: rotate(0deg);
-    stroke-dashoffset: 0;
-  }
-  50% {
-    stroke-dashoffset: -70.7px;
-  }
-  100% {
-    transform: rotate(360deg);
-    stroke-dashoffset: -141.4px;
-  }
-}
-
 .loading-text {
   font-size: 14px;
   font-weight: 500;
@@ -107,37 +134,70 @@
   }
 }
 
-/* Multiple Spinners for Different States */
+/* Multiple Spinners for Different States - Updated to use global styles */
+.loading-spinner-small,
+.loading-spinner-medium,
+.loading-spinner-large,
+.upload-spinner,
+.upload-spinner-small,
+.send-spinner,
+.voice-loading-spinner,
+.connecting-spinner,
+.search-loading .spinner,
+.loading-spinner {
+  position: relative;
+  display: inline-block;
+  border: none;
+  background: none;
+}
+
 .loading-spinner-small {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(102, 126, 234, 0.2);
-  border-top: 2px solid #667eea;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
 }
 
-.loading-spinner-medium {
+.loading-spinner-medium,
+.loading-spinner,
+.search-loading .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(102, 126, 234, 0.2);
-  border-top: 3px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
 }
 
 .loading-spinner-large {
   width: 60px;
   height: 60px;
-  border: 4px solid rgba(102, 126, 234, 0.1);
-  border-top: 4px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1.2s linear infinite;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.upload-spinner {
+  width: 16px;
+  height: 16px;
+}
+
+.upload-spinner-small {
+  width: 20px;
+  height: 20px;
+}
+
+.send-spinner {
+  width: 18px;
+  height: 18px;
+}
+
+.voice-loading-spinner {
+  width: 12px;
+  height: 12px;
+}
+
+.connecting-spinner {
+  width: 60px;
+  height: 60px;
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .spinner-circle {
+    animation: none;
+  }
 }
 
 /* Skeleton Loading (for list items) */
@@ -189,4 +249,9 @@
   border-top: 1px solid #667eea;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
