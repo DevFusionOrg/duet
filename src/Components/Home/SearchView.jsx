@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import UserBadge from "../UserBadge";
+import Spinner from "../Spinner";
 
 function SearchView({ user }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -275,7 +276,7 @@ function SearchView({ user }) {
       <div className="search-results">
         {loading && searchTerm.trim() && (
           <div className="search-loading">
-            <div className="spinner"></div>
+            <Spinner size="medium" />
             <p>Searching for users...</p>
           </div>
         )}
