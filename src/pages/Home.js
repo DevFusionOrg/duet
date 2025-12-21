@@ -6,8 +6,8 @@ import ChatsView from '../Components/Home/ChatsView';
 import FriendsView from '../Components/Home/FriendsView';
 import SearchView from '../Components/Home/SearchView';
 import NotificationsModal from '../Components/Home/NotificationsModal';
-import SuggestedFriends from '../Components/Home/SuggestedFriends';
 import RecentlyActiveFriends from '../Components/Home/RecentlyActiveFriends';
+import WelcomeOnboarding from '../Components/Home/WelcomeOnboarding';
 import DevFusionModal from '../Components/Home/DevFusionModal';
 import LoadingScreen from '../Components/LoadingScreen';
 import { useFriends } from "../hooks/useFriends";
@@ -209,20 +209,19 @@ function Home({ user, isDarkMode, toggleTheme }) {
                 hideHeading={true}
               />
               <div style={{ paddingLeft: '20px', paddingRight: '20px' }}>
-                {filteredFriends.length > 0 && (
-                  <RecentlyActiveFriends 
+                {filteredFriends.length > 0 ? (
+                  <RecentlyActiveFriends
                     key="recently-active"
                     friends={filteredFriends}
                     friendsOnlineStatus={friendsOnlineStatus}
                     onStartChat={handleStartChat}
                   />
+                ) : (
+                  <WelcomeOnboarding
+                    user={user}
+                    onSwitchToSearch={() => setActiveView('search')}
+                  />
                 )}
-                <SuggestedFriends 
-                  key="suggested-friends"
-                  user={user}
-                  currentFriends={filteredFriends}
-                  friendRequests={userProfile?.friendRequests || []}
-                />
               </div>
             </>
           ) : activeView === 'chats' ? (
