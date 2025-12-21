@@ -44,10 +44,6 @@ function SearchView({ user }) {
           (result) => result.uid !== user.uid,
         );
         setSearchResults(filteredResults);
-
-        if (filteredResults.length === 0) {
-          setMessage("No users found. Try a different search term.");
-        }
       } catch (error) {
         console.error("Error searching users:", error);
         setMessage("Error searching users: " + error.message);
