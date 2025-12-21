@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import VideoCallControls from './VideoCallControls';
 import CallTimer from './CallTimer';
+import Spinner from '../Spinner';
 import '../../styles/VideoCall.css';
 
 const VideoCallScreen = ({ 
@@ -220,7 +221,7 @@ const VideoCallScreen = ({
         {}
         {callState === 'connecting' && (
           <div className="connecting-overlay">
-            <div className="connecting-spinner"></div>
+            <Spinner size="large" />
             <p>Connecting to {friend?.displayName}...</p>
           </div>
         )}
