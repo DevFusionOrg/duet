@@ -22,8 +22,34 @@ export const getOptimizedCoverImageUrl = (url, width = 400, height = 200) => {
   return url;
 };
 
-export const preloadImage = (src) => {
+// Enhanced preloading with priority
+export const preloadImage = (src, priority = 'low') => {
   if (!src) return;
+  
   const img = new Image();
+  if (priority === 'high') {
+    img.fetchPriority = 'high';
+  }
   img.src = src;
+  return img;
+};
+
+// Batch preload multiple images
+export const preloadImages = (urls, priority = 'low') => {
+  return urls.map(url => preloadImage(url, priority));
+};
+
+// Intersection Observer for lazy loading
+export const createImageObserver = (callback) => {
+  if (!window.IntersectionObserver) return null;
+  
+  return new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        callback(entry.target);
+      }
+    });
+  }, {
+    rootMargin: '50px'
+  });
 };

@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { db } from '../../firebase/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { sendFriendRequest } from '../../firebase/firestore';
 import UserBadge from '../UserBadge';
 import LoadingScreen from '../LoadingScreen';
-import { getOptimizedImageUrl } from '../../utils/imageOptimization';
 import '../../styles/Home.css';
 
 function SuggestedFriends({ user, currentFriends, friendRequests }) {
@@ -21,10 +20,21 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
   const fetchSuggestedFriends = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('Fetching suggested friends...');
 
-      const usersSnap = await getDocs(collection(db, 'users'));
+      const usersSnap = await getDocs(
+        query(collection(db, 'users'), limit(50)) // Limit to prevent loading all users
+      );
       const allUsers = usersSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-
+      
+      console.log('Total users found:', allUsers.length);
+      console.log('Sample user data:', allUsers.slice(0, 3).map(u => ({ 
+        uid: u.uid, 
+        displayName: u.displayName, 
+        photoURL: u.photoURL ? 'HAS_PHOTO' : 'NO_PHOTO',
+        photoURLPreview: u.photoURL ? u.photoURL.substring(0, 50) + '...' : null
+      })));
+      
       const currentUserData = allUsers.find(u => u.uid === user.uid);
       const sentFriendRequestIds = new Set(
         (currentUserData?.sentFriendRequests || [])
@@ -149,12 +159,16 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
               style={{ cursor: 'pointer' }}
             >
               <img 
-                src={getOptimizedImageUrl(suggestion.photoURL, 100, 100)}
+                src={suggestion.photoURL || '/default-avatar.png'}
                 alt={suggestion.displayName}
                 className="suggested-friend-avatar"
                 onError={(e) => {
+                  console.log('Image failed to load for user:', suggestion.displayName, 'URL:', suggestion.photoURL);
                   e.currentTarget.onerror = null;
                   e.currentTarget.src = '/default-avatar.png';
+                }}
+                onLoad={() => {
+                  console.log('Image loaded successfully for user:', suggestion.displayName);
                 }}
               />
             </div>
@@ -310,4 +324,4 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
   );
 }
 
-export default SuggestedFriends;
+export default memo(SuggestedFriends);

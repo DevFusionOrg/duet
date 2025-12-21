@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, Suspense } from "react";
 import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { auth } from "./firebase/firebase";
@@ -6,13 +6,15 @@ import { createUserProfile } from "./firebase/firestore";
 import { setupPresence } from "./firebase/presence";
 import Auth from "./pages/Auth";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Home from "./pages/Home";
-import Profile from "./pages/Profile";
-import SecurityWarning from "./Components/SecurityWarning";
-import UpdateChecker from "./Components/UpdateChecker";
 import LoadingScreen from "./Components/LoadingScreen";
 import "./App.css";
 import { initPushNotifications } from "./push-init";
+
+// Lazy load heavy components
+const Home = React.lazy(() => import("./pages/Home"));
+const Profile = React.lazy(() => import("./pages/Profile"));
+const SecurityWarning = React.lazy(() => import("./Components/SecurityWarning"));
+const UpdateChecker = React.lazy(() => import("./Components/UpdateChecker"));
 
 if (Capacitor.isNativePlatform()) {
   SplashScreen.hide().catch(console.error);
@@ -258,11 +260,13 @@ function App() {
       <SecurityWarning />
       <UpdateChecker showButton={false} />
       <Router>
-        <Routes>
-          <Route path="/" element={<Home user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />
-          <Route path="/profile" element={<Profile user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />
-          <Route path="/profile/:uid" element={<Profile user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />
-        </Routes>
+        <Suspense fallback={<LoadingScreen message="Loading..." />}>
+          <Routes>
+            <Route path="/" element={<Home user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />
+            <Route path="/profile" element={<Profile user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />
+            <Route path="/profile/:uid" element={<Profile user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} />
+          </Routes>
+        </Suspense>
       </Router>
     </>
   );

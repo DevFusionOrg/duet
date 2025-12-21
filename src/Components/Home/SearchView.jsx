@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import UserBadge from "../UserBadge";
 import Spinner from "../Spinner";
+import SuggestedFriends from "./SuggestedFriends";
+import { useFriends } from "../../hooks/useFriends";
+import { useProfiles } from "../../hooks/useProfiles";
 
 function SearchView({ user }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -12,6 +15,9 @@ function SearchView({ user }) {
   const [loadingPending, setLoadingPending] = useState(true);
   const hasFetchedPending = useRef(false);
   const searchTimeoutRef = useRef(null);
+
+  const { friends } = useFriends(user);
+  const { profile: userProfile } = useProfiles(user);
 
   useEffect(() => {
     if (!hasFetchedPending.current && user?.uid) {
@@ -268,6 +274,14 @@ function SearchView({ user }) {
           <svg aria-label="Search" class="x1lliihq x1n2onr6 x5n08af" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><title>Search</title><path d="M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><line fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x1="16.511" x2="22" y1="16.511" y2="22"></line></svg>
         </button>
       </form>
+
+      {!searchTerm.trim() && (
+        <SuggestedFriends 
+          user={user}
+          currentFriends={friends}
+          friendRequests={userProfile?.friendRequests || []}
+        />
+      )}
 
       <div className="search-results">
         {loading && searchTerm.trim() && (
