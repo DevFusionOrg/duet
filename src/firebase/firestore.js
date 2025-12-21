@@ -1070,8 +1070,6 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50)
         continue;
       }
 
-      // Encryption removed: messages are already plaintext.
-
       messages.push({
         id: doc.id,
         ...messageData,
