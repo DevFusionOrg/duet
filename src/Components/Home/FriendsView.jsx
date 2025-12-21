@@ -4,7 +4,6 @@ import UserBadge from '../UserBadge';
 import FriendProfilePopup from '../FriendProfilePopup';
 import LoadingScreen from '../LoadingScreen';
 import { deleteFriend } from '../../firebase/firestore';
-import { getOptimizedImageUrl } from '../../utils/imageOptimization';
 
 function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friendsOnlineStatus, currentUserId, hideHeaders = false, hideHeading = false, hideGrid = false, allowRemove = false }) {
   const [showDevFusionModal, setShowDevFusionModal] = useState(false);
@@ -49,7 +48,7 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
           >
             <div className="friend-avatar-section">
               <img 
-                src={getOptimizedImageUrl(friend.photoURL, 100, 100)}
+                src={friend.photoURL || '/default-avatar.png'}
                 alt={friend.displayName}
                 className="friend-avatar"
                 onError={(e) => {
