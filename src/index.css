@@ -40,10 +40,6 @@ h3 {
   margin-top: 0;
 }
 
-.home-container {
-  height: calc(100vh - 50px);
-}
-
 .friends-list {
   width: 300px;
   background-color: white;
