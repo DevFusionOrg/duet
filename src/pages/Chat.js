@@ -115,6 +115,8 @@ function Chat({ user, friend, onBack }) {
   const isInitialLoadRef = useRef(true);
   const firstUnreadMessageRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const isUserAtBottomRef = useRef(true);
+  const previousMessagesLengthRef = useRef(0);
   const loading = setupLoading || messagesLoading;
 
   useEffect(() => {
@@ -165,20 +167,27 @@ function Chat({ user, friend, onBack }) {
 
   useEffect(() => {
     if (messages.length > 0 && pendingMessages.length > 0) {
-      setPendingMessages(prev => prev.filter(pm => {
-        // Check if this pending message has a matching real message
-        const hasMatch = messages.some(m => 
-          m.senderId === pm.senderId &&
-          m.text === pm.text &&
-          m.type === pm.type &&
-          Math.abs(new Date(m.timestamp?.toDate?.() || m.timestamp) - new Date(pm.timestamp)) < 5000
-        );
-        // If no match and pending for more than 15 seconds, remove it (failed send)
-        const isExpired = Date.now() - new Date(pm.timestamp).getTime() > 15000;
-        return !hasMatch && !isExpired;
-      }));
+      setPendingMessages(prev => {
+        const filtered = prev.filter(pm => {
+          // Check if this pending message has a matching real message
+          const hasMatch = messages.some(m => 
+            m.senderId === pm.senderId &&
+            m.text === pm.text &&
+            m.type === pm.type &&
+            Math.abs(new Date(m.timestamp?.toDate?.() || m.timestamp) - new Date(pm.timestamp)) < 5000
+          );
+          // If no match and pending for more than 15 seconds, remove it (failed send)
+          const isExpired = Date.now() - new Date(pm.timestamp).getTime() > 15000;
+          return !hasMatch && !isExpired;
+        });
+        
+        // Only update if there's actually a change
+        if (filtered.length === prev.length) return prev;
+        return filtered;
+      });
     }
-  }, [messages, pendingMessages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, pendingMessages.length]); // Intentionally using lengths to avoid infinite loop
 
   const handleVoiceRecordClick = () => {
     setIsRecordingVoice(true);
@@ -335,15 +344,25 @@ function Chat({ user, friend, onBack }) {
           isInitialLoadRef.current = false;
         });
       } else {
+        // Only auto-scroll if:
+        // 1. User was already at the bottom (reading latest messages)
+        // 2. New message was added (not loading older messages)
+        const messagesIncreased = messages.length > previousMessagesLengthRef.current;
+        const newMessagesAtEnd = messagesIncreased && messages.length > previousMessagesLengthRef.current;
         
-        scrollToBottom();
+        if (isUserAtBottomRef.current && newMessagesAtEnd) {
+          scrollToBottom();
+        }
       }
+      previousMessagesLengthRef.current = messages.length;
     }
   }, [messages, loading, user?.uid]);
 
   useEffect(() => {
     isInitialLoadRef.current = true;
     firstUnreadMessageRef.current = null;
+    isUserAtBottomRef.current = true;
+    previousMessagesLengthRef.current = 0;
   }, [chatId]);
 
   const handleImageUploadClick = async () => {
@@ -446,6 +465,8 @@ function Chat({ user, friend, onBack }) {
       const isAtBottom =
         container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
 
+      // Track if user is at bottom for auto-scroll decisions
+      isUserAtBottomRef.current = isAtBottom;
       setShowScrollButton(!isAtBottom);
 
       // Load older messages when scrolling to top
@@ -456,6 +477,9 @@ function Chat({ user, friend, onBack }) {
         const oldestTimestamp = oldestMessage.timestamp?.toDate ? 
           oldestMessage.timestamp.toDate() : 
           new Date(oldestMessage.timestamp);
+        
+        // Save current scroll position to restore after loading
+        const previousScrollHeight = container.scrollHeight;
         
         try {
           const { messages: olderMsgs, hasMore } = await loadOlderMessages(
@@ -469,6 +493,13 @@ function Chat({ user, friend, onBack }) {
             // Prepend older messages
             setMessages(prevMsgs => [...olderMsgs, ...prevMsgs]);
             setHasMoreMessages(hasMore);
+            
+            // Restore scroll position after DOM updates
+            requestAnimationFrame(() => {
+              const newScrollHeight = container.scrollHeight;
+              const scrollDifference = newScrollHeight - previousScrollHeight;
+              container.scrollTop = scrollDifference;
+            });
           }
         } catch (error) {
           console.error("Error loading older messages:", error);

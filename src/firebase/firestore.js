@@ -21,6 +21,7 @@ import {
   serverTimestamp,
   limit,
 } from "firebase/firestore";
+import { handleIndexError } from '../utils/indexHelper';
 
 // Simple in-memory cache for user profiles and blocked users to reduce repeated reads
 const USER_PROFILE_CACHE = new Map();
@@ -1193,16 +1194,18 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 25)
 };
 
 export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 25) => {
-  // Fetch blocked users once via cache to avoid user doc snapshot churn
   let blockedUsers = [];
   let unsubscribeMessages;
   let bufferedMessages = [];
+  let needsSort = false;
+  const MAX_BUFFER_SIZE = messagesLimit * 2; // Prevent unbounded memory growth
 
   const init = async () => {
     blockedUsers = await getBlockedUsersForUser(currentUserId);
 
     const messagesRef = collection(db, "chats", chatId, "messages");
-    const q = query(messagesRef, orderBy("timestamp", "asc"), limit(messagesLimit));
+    // Get the NEWEST messages by ordering descending, then reverse them for display
+    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(messagesLimit));
 
     if (unsubscribeMessages) {
       unsubscribeMessages();
@@ -1215,62 +1218,78 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
           const now = new Date();
           const changes = snapshot.docChanges();
 
-          // Refresh blockedUsers from cache if updated by block/unblock actions
+          // Refresh blockedUsers from cache once per snapshot
           const cached = BLOCKED_USERS_CACHE.get(currentUserId);
           if (cached && Array.isArray(cached.data)) {
             blockedUsers = cached.data;
           }
 
+          // Optimization: Initial snapshot - get newest messages and reverse for chronological order
           if (bufferedMessages.length === 0 && snapshot.docs.length > 0 && changes.length === 0) {
             bufferedMessages = snapshot.docs
               .map((d) => ({ id: d.id, ...d.data() }))
               .filter((m) => !blockedUsers.includes(m.senderId))
               .filter(
                 (m) => !(m.deletionTime && now > m.deletionTime.toDate() && !m.isSaved)
-              );
+              )
+              .reverse(); // Reverse to show oldest first (chronological order)
             callback(bufferedMessages);
             return;
           }
 
-          for (const change of changes) {
-            const doc = change.doc;
-            const messageData = doc.data();
+          // Optimization: Only process changes if there are any
+          if (changes.length > 0) {
+            for (const change of changes) {
+              const doc = change.doc;
+              const messageData = doc.data();
 
-            const isBlocked = blockedUsers.includes(messageData.senderId);
-            const isExpired =
-              messageData.deletionTime &&
-              now > messageData.deletionTime.toDate() &&
-              !messageData.isSaved;
+              const isBlocked = blockedUsers.includes(messageData.senderId);
+              const isExpired =
+                messageData.deletionTime &&
+                now > messageData.deletionTime.toDate() &&
+                !messageData.isSaved;
 
-            if (change.type === "added") {
-              if (!isBlocked && !isExpired) {
-                const exists = bufferedMessages.some((m) => m.id === doc.id);
-                if (!exists) {
-                  bufferedMessages.push({ id: doc.id, ...messageData });
-                }
-              }
-            } else if (change.type === "modified") {
-              const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
-              if (idx !== -1) {
+              if (change.type === "added") {
                 if (!isBlocked && !isExpired) {
-                  bufferedMessages[idx] = { id: doc.id, ...messageData };
-                } else {
-                  bufferedMessages.splice(idx, 1);
+                  const exists = bufferedMessages.some((m) => m.id === doc.id);
+                  if (!exists) {
+                    bufferedMessages.push({ id: doc.id, ...messageData });
+                    needsSort = true;
+                  }
                 }
-              } else if (!isBlocked && !isExpired) {
-                bufferedMessages.push({ id: doc.id, ...messageData });
+              } else if (change.type === "modified") {
+                const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
+                if (idx !== -1) {
+                  if (!isBlocked && !isExpired) {
+                    bufferedMessages[idx] = { id: doc.id, ...messageData };
+                  } else {
+                    bufferedMessages.splice(idx, 1);
+                  }
+                } else if (!isBlocked && !isExpired) {
+                  bufferedMessages.push({ id: doc.id, ...messageData });
+                  needsSort = true;
+                }
+              } else if (change.type === "removed") {
+                const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
+                if (idx !== -1) bufferedMessages.splice(idx, 1);
               }
-            } else if (change.type === "removed") {
-              const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
-              if (idx !== -1) bufferedMessages.splice(idx, 1);
+            }
+
+            // Optimization: Only sort if needed and prevent unbounded growth
+            if (needsSort) {
+              bufferedMessages.sort((a, b) => {
+                const ta = a.timestamp?.toDate?.() || a.timestamp || 0;
+                const tb = b.timestamp?.toDate?.() || b.timestamp || 0;
+                return ta - tb;
+              });
+              needsSort = false;
+            }
+
+            // Optimization: Keep buffer size bounded - keep NEWEST messages
+            if (bufferedMessages.length > MAX_BUFFER_SIZE) {
+              bufferedMessages = bufferedMessages.slice(-MAX_BUFFER_SIZE);
             }
           }
-
-          bufferedMessages.sort((a, b) => {
-            const ta = a.timestamp?.toDate?.() || a.timestamp || 0;
-            const tb = b.timestamp?.toDate?.() || b.timestamp || 0;
-            return ta - tb;
-          });
 
           callback(bufferedMessages);
         } catch (error) {
@@ -1292,6 +1311,7 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
     if (unsubscribeMessages) {
       unsubscribeMessages();
     }
+    bufferedMessages = []; // Clear buffer on unmount
   };
 };
 
@@ -1450,6 +1470,10 @@ export const markMessagesAsRead = async (chatId, userId) => {
     console.log(`${messageCount} messages marked as read in chat ${chatId}`);
     return messageCount;
   } catch (error) {
+    // Handle index building error gracefully
+    if (handleIndexError(error)) {
+      return 0; // Silently skip if index is building
+    }
     console.error("Error marking messages as read:", error);
     return 0;
   }
