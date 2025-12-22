@@ -6,31 +6,36 @@ export function useChats(user, friends = []) {
   const [loading, setLoading] = useState(true);
 
   const friendIds = useMemo(
-    () => friends.map(f => f.uid),
+    () => new Set(friends.map(f => f.uid)),
     [friends]
   );
+
+  // Memoize the filtered and sorted chats to prevent unnecessary re-renders
+  // Only recompute when chats or friendIds actually change
+  const sortedChats = useMemo(() => {
+    if (chats.length === 0) return [];
+    
+    return chats
+      .filter(chat =>
+        chat.participants?.some(id => friendIds.has(id))
+      )
+      .sort((a, b) => {
+        const timeA = a.lastMessageAt?.toDate?.() || new Date(0);
+        const timeB = b.lastMessageAt?.toDate?.() || new Date(0);
+        return timeB - timeA;
+      });
+  }, [chats, friendIds]);
 
   useEffect(() => {
     if (!user?.uid) return;
 
     const unsubscribe = listenToUserChats(user.uid, (userChats) => {
-      const filteredChats = userChats
-        .filter(chat =>
-          chat.participants?.some(id => friendIds.includes(id))
-        )
-        .sort((a, b) => {
-          const timeA = a.lastMessageAt?.toDate?.() || new Date(0);
-          const timeB = b.lastMessageAt?.toDate?.() || new Date(0);
-          return timeB - timeA;
-        });
-
-      setChats(filteredChats);
+      setChats(userChats);
       setLoading(false);
     });
 
     return unsubscribe;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, friendIds.join(",")]);
+  }, [user?.uid]);
 
-  return { chats, loading };
+  return { chats: sortedChats, loading };
 }

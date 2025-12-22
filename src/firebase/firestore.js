@@ -21,10 +21,13 @@ import {
   serverTimestamp,
   limit,
 } from "firebase/firestore";
+import { handleIndexError } from '../utils/indexHelper';
 
-// Simple in-memory cache for user profiles to reduce repeated reads
+// Simple in-memory cache for user profiles and blocked users to reduce repeated reads
 const USER_PROFILE_CACHE = new Map();
-const PROFILE_CACHE_TTL_MS = 60 * 1000; // 1 minute
+const BLOCKED_USERS_CACHE = new Map();
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const BLOCKED_USERS_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Batch-delete helper that respects Firestore's 500 writes per batch limit
 const deleteInChunks = async (refs, chunkSize = 450) => {
@@ -131,51 +134,70 @@ export const sendPushNotification = async (senderId, receiverId, message, chatId
 };
 
 export const listenToUserFriends = (userId, callback) => {
-  const userRef = doc(db, "users", userId);
+  // Listen to the friends subcollection to avoid churn from user doc updates (presence, profile edits)
+  const friendsRef = collection(db, "users", userId, "friends");
 
-  return onSnapshot(userRef, (snap) => {
-    if (!snap.exists()) {
+  return onSnapshot(friendsRef, (snap) => {
+    if (!snap || snap.empty) {
       callback([]);
       return;
     }
 
-    const data = snap.data();
-    callback(data.friends || []);
+    const ids = snap.docs.map((d) => d.id);
+    callback(ids);
+  }, (error) => {
+    console.error("Error listening to friends subcollection:", error);
+    callback([]);
   });
 };
 
 export const getUserFriendsWithProfiles = async (friendIds) => {
   if (!friendIds || friendIds.length === 0) return [];
-  
+
   const uniqueIds = [...new Set(friendIds)];
-  const batches = [];
-  
-  for (let i = 0; i < uniqueIds.length; i += 10) {
-    batches.push(uniqueIds.slice(i, i + 10));
+
+  // Return cached profiles where available and collect missing IDs
+  const cachedProfiles = [];
+  const missingIds = [];
+  uniqueIds.forEach((id) => {
+    const cached = USER_PROFILE_CACHE.get(id);
+    if (cached && Date.now() - cached.ts < PROFILE_CACHE_TTL_MS) {
+      cachedProfiles.push({ ...cached.data, uid: id, id });
+    } else {
+      missingIds.push(id);
+    }
+  });
+
+  if (missingIds.length === 0) {
+    return cachedProfiles;
   }
-  
+
+  // Firestore `in` queries are limited to 10 values; batch accordingly
+  const batches = [];
+  for (let i = 0; i < missingIds.length; i += 10) {
+    batches.push(missingIds.slice(i, i + 10));
+  }
+
   try {
     const results = await Promise.all(
-      batches.map(ids =>
-        getDocs(query(collection(db, 'users'), where('__name__', 'in', ids)))
+      batches.map((ids) =>
+        getDocs(query(collection(db, "users"), where("__name__", "in", ids)))
       )
     );
-    
-    const profiles = [];
-    results.forEach(snapshot => {
-      snapshot.docs.forEach(doc => {
-        profiles.push({
-          ...doc.data(),
-          uid: doc.id,
-          id: doc.id
-        });
+
+    const fetched = [];
+    results.forEach((snapshot) => {
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        USER_PROFILE_CACHE.set(docSnap.id, { data, ts: Date.now() });
+        fetched.push({ ...data, uid: docSnap.id, id: docSnap.id });
       });
     });
-    
-    return profiles;
+
+    return [...cachedProfiles, ...fetched];
   } catch (error) {
-    console.error('Error fetching friend profiles in batch:', error);
-    return [];
+    console.error("Error fetching friend profiles in batch:", error);
+    return cachedProfiles; // Return what we have cached
   }
 };
 
@@ -313,6 +335,8 @@ export const getUsernameSuggestions = async (baseUsername) => {
     const suggestions = [];
     const maxAttempts = 10;
 
+    // Generate suggestions
+    const generatedSuggestions = [];
     for (let i = 0; i < maxAttempts; i++) {
       let suggestion;
 
@@ -330,14 +354,24 @@ export const getUsernameSuggestions = async (baseUsername) => {
         )}${String.fromCharCode(97 + Math.floor(Math.random() * 26))}`;
       }
 
-      const usernameRef = doc(db, "usernames", suggestion);
-      const snap = await getDoc(usernameRef);
+      generatedSuggestions.push(suggestion);
+    }
 
-      if (!snap.exists()) {
+    // Check all in parallel
+    const checks = await Promise.all(
+      generatedSuggestions.map(async (suggestion) => {
+        const usernameRef = doc(db, "usernames", suggestion);
+        const snap = await getDoc(usernameRef);
+        return { suggestion, exists: snap.exists() };
+      })
+    );
+
+    // Collect available suggestions
+    for (const { suggestion, exists } of checks) {
+      if (!exists) {
         suggestions.push(suggestion);
+        if (suggestions.length >= 3) break;
       }
-
-      if (suggestions.length >= 3) break;
     }
 
     return suggestions;
@@ -403,6 +437,26 @@ export const getUserProfile = async (userId) => {
       friends: [],
       friendRequests: [],
     };
+  }
+};
+
+// Aggressive caching for blocked users to avoid repeated fetches
+export const getBlockedUsersForUser = async (userId) => {
+  try {
+    const cached = BLOCKED_USERS_CACHE.get(userId);
+    if (cached && Date.now() - cached.ts < BLOCKED_USERS_CACHE_TTL_MS) {
+      return cached.data;
+    }
+
+    const userSnap = await getDoc(doc(db, "users", userId));
+    if (!userSnap.exists()) return [];
+
+    const blockedIds = userSnap.data().blockedUsers || [];
+    BLOCKED_USERS_CACHE.set(userId, { data: blockedIds, ts: Date.now() });
+    return blockedIds;
+  } catch (error) {
+    console.error("Error getting blocked users:", error);
+    return [];
   }
 };
 
@@ -562,21 +616,15 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
     const toUserRef = doc(db, "users", toUserId);
     const fromUserRef = doc(db, "users", fromUserId);
 
+    // Write to arrays (legacy) and subcollections (new) for compatibility
+    const payloadIncoming = { from: fromUserId, timestamp: new Date(), status: "pending" };
+    const payloadOutgoing = { to: toUserId, timestamp: new Date(), status: "pending" };
+
     await Promise.all([
-      updateDoc(toUserRef, {
-        friendRequests: arrayUnion({
-          from: fromUserId,
-          timestamp: new Date(),
-          status: "pending",
-        }),
-      }),
-      updateDoc(fromUserRef, {
-        sentFriendRequests: arrayUnion({
-          to: toUserId,
-          timestamp: new Date(),
-          status: "pending",
-        }),
-      })
+      updateDoc(toUserRef, { friendRequests: arrayUnion(payloadIncoming) }),
+      updateDoc(fromUserRef, { sentFriendRequests: arrayUnion(payloadOutgoing) }).catch(() => {}),
+      setDoc(doc(db, "users", toUserId, "friendRequests", fromUserId), payloadIncoming).catch(() => {}),
+      setDoc(doc(db, "users", fromUserId, "sentFriendRequests", toUserId), payloadOutgoing).catch(() => {})
     ]);
 
     return { success: true };
@@ -678,11 +726,75 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
     );
 
     await batch.commit();
+
+    // Remove subcollection entries
+    await Promise.all([
+      deleteDoc(doc(db, "users", userId, "friendRequests", requestFromId)).catch(() => {}),
+      deleteDoc(doc(db, "users", requestFromId, "sentFriendRequests", userId)).catch(() => {}),
+    ]);
     return { success: true };
 
   } catch (error) {
     console.error("Error accepting friend request:", error);
     throw new Error(error.message || "Error accepting friend request");
+  }
+};
+
+export const loadFriendRequests = async (userId, pageSize = 20, lastDocTimestamp = null) => {
+  try {
+    // Prefer subcollection to avoid transferring large arrays on each user doc read
+    const requestsRef = collection(db, "users", userId, "friendRequests");
+
+    let q;
+    if (lastDocTimestamp) {
+      q = query(
+        requestsRef,
+        where("timestamp", "<", lastDocTimestamp),
+        orderBy("timestamp", "desc"),
+        limit(pageSize)
+      );
+    } else {
+      q = query(requestsRef, orderBy("timestamp", "desc"), limit(pageSize));
+    }
+
+    const snap = await getDocs(q);
+
+    // Fallback to legacy array if subcollection empty
+    if (snap.empty) {
+      const userSnap = await getDoc(doc(db, "users", userId));
+      if (!userSnap.exists()) return { requests: [], hasMore: false };
+      const friendRequests = userSnap.data().friendRequests || [];
+      let filtered = friendRequests.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      if (lastDocTimestamp) {
+        filtered = filtered.filter((req) => new Date(req.timestamp) < new Date(lastDocTimestamp));
+      }
+      const page = filtered.slice(0, pageSize);
+      const hasMore = filtered.length > pageSize;
+      const senderIds = page.map((req) => req.from);
+      const profiles = await getUserFriendsWithProfiles(senderIds);
+      const profileMap = new Map(profiles.map((p) => [p.uid || p.id, p]));
+      const requests = page.map((req) => ({ ...req, senderProfile: profileMap.get(req.from) || null }));
+      return {
+        requests,
+        hasMore,
+        nextCursor: requests.length > 0 ? requests[requests.length - 1].timestamp : null,
+      };
+    }
+
+    const page = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const senderIds = page.map((req) => req.from);
+    const profiles = await getUserFriendsWithProfiles(senderIds);
+    const profileMap = new Map(profiles.map((p) => [p.uid || p.id, p]));
+    const requests = page.map((req) => ({ ...req, senderProfile: profileMap.get(req.from) || null }));
+
+    return {
+      requests,
+      hasMore: snap.size === pageSize,
+      nextCursor: requests.length > 0 ? requests[requests.length - 1].timestamp : null,
+    };
+  } catch (error) {
+    console.error("Error loading friend requests:", error);
+    return { requests: [], hasMore: false };
   }
 };
 
@@ -728,6 +840,12 @@ export const rejectFriendRequest = async (userId, requestFromId) => {
     }
 
     await batch.commit();
+
+    // Remove subcollection entries
+    await Promise.all([
+      deleteDoc(doc(db, "users", userId, "friendRequests", requestFromId)).catch(() => {}),
+      deleteDoc(doc(db, "users", requestFromId, "sentFriendRequests", userId)).catch(() => {}),
+    ]);
   } catch (error) {
     console.error("Error rejecting friend request:", error);
     let errorMessage = "Error rejecting friend request";
@@ -784,6 +902,7 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
         createdAt: new Date(),
         lastMessage: null,
         lastMessageAt: new Date(),
+        unreadCount: 0, // Initialize unread count cache
       });
     }
 
@@ -860,6 +979,8 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       messageData.image = {
         publicId: imageData.public_id,
         url: imageData.secure_url,
+        // Generate thumbnail URL (200x200, quality 80) for faster loading
+        thumbnailUrl: imageData.secure_url.replace(/upload\//, 'upload/w_200,q_80/'),
         width: imageData.width,
         height: imageData.height,
         format: imageData.format,
@@ -876,6 +997,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       lastMessage: text || "📷 Image",
       lastMessageAt: now,
       lastMessageId: messageRef.id,
+      unreadCount: 1, // Initialize unreadCount for receiver
     }).catch(err => console.error("Error updating chat lastMessage:", err));
 
     sendPushNotification(senderId, receiverId, { ...messageData, text: text || "" }, chatId).catch(
@@ -961,6 +1083,7 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
       lastMessage: "🎤 Voice message",
       lastMessageAt: now,
       lastMessageId: messageRef.id,
+      unreadCount: 1, // Initialize unreadCount for receiver
     });
 
     return messageRef.id;
@@ -972,8 +1095,7 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
 
 export const getUserChats = async (userId) => {
   try {
-    const userProfile = await getUserProfile(userId);
-    const blockedUsers = userProfile?.blockedUsers || [];
+    const blockedUsers = await getBlockedUsersForUser(userId);
     
     const chatsRef = collection(db, "chats");
     const q = query(chatsRef, where("participants", "array-contains", userId));
@@ -996,24 +1118,13 @@ export const getUserChats = async (userId) => {
     const profilesArr = await getUserFriendsWithProfiles(otherIdList);
     const profileMap = new Map(profilesArr.map((p) => [p.uid || p.id, p]));
 
-    // Fetch unread counts via aggregate queries in parallel
-    const countPromises = filteredChatDocs.map((docSnap) => {
-      const chatId = docSnap.data().id;
-      const messagesRef = collection(db, "chats", chatId, "messages");
-      const cq = query(
-        messagesRef,
-        where("senderId", "!=", userId),
-        where("read", "==", false)
-      );
-      return getCountFromServer(cq).catch(() => null);
-    });
-    const counts = await Promise.all(countPromises);
-
-    const chats = filteredChatDocs.map((docSnap, idx) => {
+    // Use cached unreadCount from chat document instead of counting
+    const chats = filteredChatDocs.map((docSnap) => {
       const chatData = docSnap.data();
       const otherParticipantId = chatData.participants.find((id) => id !== userId);
       const otherUser = profileMap.get(otherParticipantId) || null;
-      const unreadCount = counts[idx]?.data()?.count ?? 0;
+      // Get unreadCount directly from chat document (cached)
+      const unreadCount = chatData.unreadCount || 0;
       return {
         id: chatData.id,
         ...chatData,
@@ -1083,102 +1194,124 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 25)
 };
 
 export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 25) => {
-  const currentUserRef = doc(db, "users", currentUserId);
+  let blockedUsers = [];
   let unsubscribeMessages;
   let bufferedMessages = [];
-  
-  const unsubscribeUser = onSnapshot(currentUserRef, async (userSnap) => {
-    let blockedUsers = [];
-    if (userSnap.exists()) {
-      const userData = userSnap.data();
-      blockedUsers = userData.blockedUsers || [];
-    }
+  let needsSort = false;
+  const MAX_BUFFER_SIZE = messagesLimit * 2; // Prevent unbounded memory growth
+
+  const init = async () => {
+    blockedUsers = await getBlockedUsersForUser(currentUserId);
 
     const messagesRef = collection(db, "chats", chatId, "messages");
-    const q = query(
-      messagesRef, 
-      orderBy("timestamp", "asc"),
-      limit(messagesLimit)
-    );
-    
+    // Get the NEWEST messages by ordering descending, then reverse them for display
+    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(messagesLimit));
+
     if (unsubscribeMessages) {
       unsubscribeMessages();
     }
-    
-    unsubscribeMessages = onSnapshot(q, async (snapshot) => {
-      try {
-        const now = new Date();
-        const changes = snapshot.docChanges();
 
-        // On first load, snapshot may not include docChanges for all docs; ensure buffer is seeded
-        if (bufferedMessages.length === 0 && snapshot.docs.length > 0 && changes.length === 0) {
-          bufferedMessages = snapshot.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((m) => !blockedUsers.includes(m.senderId))
-            .filter((m) => !(m.deletionTime && now > m.deletionTime.toDate() && !m.isSaved));
-          callback(bufferedMessages);
-          return;
-        }
+    unsubscribeMessages = onSnapshot(
+      q,
+      async (snapshot) => {
+        try {
+          const now = new Date();
+          const changes = snapshot.docChanges();
 
-        for (const change of changes) {
-          const doc = change.doc;
-          const messageData = doc.data();
-
-          // Skip blocked or expired without writing deletions client-side
-          const isBlocked = blockedUsers.includes(messageData.senderId);
-          const isExpired = messageData.deletionTime && now > messageData.deletionTime.toDate() && !messageData.isSaved;
-
-          if (change.type === "added") {
-            if (!isBlocked && !isExpired) {
-              // Check if already exists to prevent duplicates
-              const exists = bufferedMessages.some(m => m.id === doc.id);
-              if (!exists) {
-                bufferedMessages.push({ id: doc.id, ...messageData });
-              }
-            }
-          } else if (change.type === "modified") {
-            const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
-            if (idx !== -1) {
-              if (!isBlocked && !isExpired) {
-                bufferedMessages[idx] = { id: doc.id, ...messageData };
-              } else {
-                bufferedMessages.splice(idx, 1);
-              }
-            } else if (!isBlocked && !isExpired) {
-              // If modified but not in buffer, add it (shouldn't happen, but safety)
-              bufferedMessages.push({ id: doc.id, ...messageData });
-            }
-          } else if (change.type === "removed") {
-            const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
-            if (idx !== -1) bufferedMessages.splice(idx, 1);
+          // Refresh blockedUsers from cache once per snapshot
+          const cached = BLOCKED_USERS_CACHE.get(currentUserId);
+          if (cached && Array.isArray(cached.data)) {
+            blockedUsers = cached.data;
           }
+
+          // Optimization: Initial snapshot - get newest messages and reverse for chronological order
+          if (bufferedMessages.length === 0 && snapshot.docs.length > 0 && changes.length === 0) {
+            bufferedMessages = snapshot.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .filter((m) => !blockedUsers.includes(m.senderId))
+              .filter(
+                (m) => !(m.deletionTime && now > m.deletionTime.toDate() && !m.isSaved)
+              )
+              .reverse(); // Reverse to show oldest first (chronological order)
+            callback(bufferedMessages);
+            return;
+          }
+
+          // Optimization: Only process changes if there are any
+          if (changes.length > 0) {
+            for (const change of changes) {
+              const doc = change.doc;
+              const messageData = doc.data();
+
+              const isBlocked = blockedUsers.includes(messageData.senderId);
+              const isExpired =
+                messageData.deletionTime &&
+                now > messageData.deletionTime.toDate() &&
+                !messageData.isSaved;
+
+              if (change.type === "added") {
+                if (!isBlocked && !isExpired) {
+                  const exists = bufferedMessages.some((m) => m.id === doc.id);
+                  if (!exists) {
+                    bufferedMessages.push({ id: doc.id, ...messageData });
+                    needsSort = true;
+                  }
+                }
+              } else if (change.type === "modified") {
+                const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
+                if (idx !== -1) {
+                  if (!isBlocked && !isExpired) {
+                    bufferedMessages[idx] = { id: doc.id, ...messageData };
+                  } else {
+                    bufferedMessages.splice(idx, 1);
+                  }
+                } else if (!isBlocked && !isExpired) {
+                  bufferedMessages.push({ id: doc.id, ...messageData });
+                  needsSort = true;
+                }
+              } else if (change.type === "removed") {
+                const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
+                if (idx !== -1) bufferedMessages.splice(idx, 1);
+              }
+            }
+
+            // Optimization: Only sort if needed and prevent unbounded growth
+            if (needsSort) {
+              bufferedMessages.sort((a, b) => {
+                const ta = a.timestamp?.toDate?.() || a.timestamp || 0;
+                const tb = b.timestamp?.toDate?.() || b.timestamp || 0;
+                return ta - tb;
+              });
+              needsSort = false;
+            }
+
+            // Optimization: Keep buffer size bounded - keep NEWEST messages
+            if (bufferedMessages.length > MAX_BUFFER_SIZE) {
+              bufferedMessages = bufferedMessages.slice(-MAX_BUFFER_SIZE);
+            }
+          }
+
+          callback(bufferedMessages);
+        } catch (error) {
+          console.error("Error processing chat messages snapshot:", error);
+          callback(bufferedMessages);
         }
-
-        // Keep buffer sorted ascending by timestamp
-        bufferedMessages.sort((a, b) => {
-          const ta = a.timestamp?.toDate?.() || a.timestamp || 0;
-          const tb = b.timestamp?.toDate?.() || b.timestamp || 0;
-          return ta - tb;
-        });
-
-        callback(bufferedMessages);
-      } catch (error) {
-        console.error("Error processing chat messages snapshot:", error);
-        // Still call callback with current buffer to avoid loading forever
-        callback(bufferedMessages);
+      },
+      (error) => {
+        console.error("Error in chat messages listener:", error);
+        callback([]);
       }
-    }, (error) => {
-      console.error("Error in chat messages listener:", error);
-      // Call callback with empty or current to stop loading
-      callback([]);
-    });
-  });
-  
+    );
+  };
+
+  // Kick off listener
+  init();
+
   return () => {
-    unsubscribeUser();
     if (unsubscribeMessages) {
       unsubscribeMessages();
     }
+    bufferedMessages = []; // Clear buffer on unmount
   };
 };
 
@@ -1248,62 +1381,52 @@ export const loadOlderMessages = async (chatId, currentUserId, cursorTimestamp, 
 };
 
 export const listenToUserChats = (userId, callback) => {
-  const userRef = doc(db, "users", userId);
-  
-  return onSnapshot(userRef, (userSnap) => {
-    let blockedUsers = [];
-    if (userSnap.exists()) {
-      const userData = userSnap.data();
-      blockedUsers = userData.blockedUsers || [];
+  const chatsRef = collection(db, "chats");
+  const q = query(chatsRef, where("participants", "array-contains", userId));
+  let lastParticipantsKey = "";
+  let lastProfileMap = new Map();
+
+  return onSnapshot(q, async (snapshot) => {
+    // Get cached blocked users
+    const blockedUsers = await getBlockedUsersForUser(userId);
+    
+    const docs = snapshot.docs;
+    const otherIds = new Set();
+    const filteredDocs = [];
+
+    for (const docSnap of docs) {
+      const chatData = docSnap.data();
+      const otherParticipantId = chatData.participants.find((id) => id !== userId);
+      if (blockedUsers.includes(otherParticipantId)) continue;
+      filteredDocs.push(docSnap);
+      if (otherParticipantId) otherIds.add(otherParticipantId);
     }
-    
-    const chatsRef = collection(db, "chats");
-    const q = query(chatsRef, where("participants", "array-contains", userId));
-    
-    return onSnapshot(q, async (snapshot) => {
-      const docs = snapshot.docs;
-      const otherIds = new Set();
-      const filteredDocs = [];
 
-      for (const docSnap of docs) {
-        const chatData = docSnap.data();
-        const otherParticipantId = chatData.participants.find((id) => id !== userId);
-        if (blockedUsers.includes(otherParticipantId)) continue;
-        filteredDocs.push(docSnap);
-        if (otherParticipantId) otherIds.add(otherParticipantId);
-      }
-
+    const participantsKey = Array.from(otherIds).sort().join(",");
+    let profileMap = lastProfileMap;
+    if (participantsKey !== lastParticipantsKey) {
       const profilesArr = await getUserFriendsWithProfiles(Array.from(otherIds));
-      const profileMap = new Map(profilesArr.map((p) => [p.uid || p.id, p]));
+      profileMap = new Map(profilesArr.map((p) => [p.uid || p.id, p]));
+      lastParticipantsKey = participantsKey;
+      lastProfileMap = profileMap;
+    }
 
-      const countPromises = filteredDocs.map((docSnap) => {
-        const chatId = docSnap.data().id;
-        const messagesRef = collection(db, "chats", chatId, "messages");
-        const cq = query(
-          messagesRef,
-          where("senderId", "!=", userId),
-          where("read", "==", false)
-        );
-        return getCountFromServer(cq).catch(() => null);
-      });
-      const counts = await Promise.all(countPromises);
-
-      const chats = filteredDocs.map((docSnap, idx) => {
-        const chatData = docSnap.data();
-        const otherParticipantId = chatData.participants.find((id) => id !== userId);
-        const otherUser = profileMap.get(otherParticipantId) || null;
-        const unreadCount = counts[idx]?.data()?.count ?? 0;
-        return {
-          id: chatData.id,
-          ...chatData,
-          otherParticipant: otherUser,
-          unreadCount,
-        };
-      });
-
-      chats.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
-      callback(chats);
+    // Use unreadCount cached on chat document
+    const chats = filteredDocs.map((docSnap) => {
+      const chatData = docSnap.data();
+      const otherParticipantId = chatData.participants.find((id) => id !== userId);
+      const otherUser = profileMap.get(otherParticipantId) || null;
+      const unreadCount = chatData.unreadCount || 0;
+      return {
+        id: chatData.id,
+        ...chatData,
+        otherParticipant: otherUser,
+        unreadCount,
+      };
     });
+
+    chats.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
+    callback(chats);
   });
 };
 
@@ -1326,6 +1449,7 @@ export const markMessagesAsRead = async (chatId, userId) => {
     const batch = writeBatch(db);
     const readAt = new Date();
     const deletionTime = new Date(readAt.getTime() + 24 * 60 * 60 * 1000);
+    const messageCount = querySnapshot.size;
 
     querySnapshot.docs.forEach((doc) => {
       batch.update(doc.ref, { 
@@ -1335,10 +1459,21 @@ export const markMessagesAsRead = async (chatId, userId) => {
       });
     });
 
+    // Update unreadCount on chat document (cache it)
+    const chatRef = doc(db, "chats", chatId);
+    batch.update(chatRef, {
+      unreadCount: 0, // Reset to 0 when all marked as read
+      lastReadAt: readAt
+    });
+
     await batch.commit();
-    console.log(`${querySnapshot.size} messages marked as read in chat ${chatId}`);
-    return querySnapshot.size;
+    console.log(`${messageCount} messages marked as read in chat ${chatId}`);
+    return messageCount;
   } catch (error) {
+    // Handle index building error gracefully
+    if (handleIndexError(error)) {
+      return 0; // Silently skip if index is building
+    }
     console.error("Error marking messages as read:", error);
     return 0;
   }
@@ -1418,16 +1553,8 @@ export const listenToMusicState = (chatId, callback) => {
 
 export const addToMusicQueue = async (chatId, videoData, addedBy) => {
   try {
-    const chatRef = doc(db, "chats", chatId);
-    const chatSnap = await getDoc(chatRef);
-
-    if (!chatSnap.exists()) return;
-
-    const chatData = chatSnap.data();
-    const currentQueue = chatData.musicQueue || [];
-
+    const queueRef = collection(db, "chats", chatId, "queueItems");
     const queueItem = {
-      id: Date.now().toString(),
       videoId: videoData.videoId,
       title: videoData.title,
       thumbnail: videoData.thumbnail,
@@ -1437,11 +1564,8 @@ export const addToMusicQueue = async (chatId, videoData, addedBy) => {
       played: false,
     };
 
-    await updateDoc(chatRef, {
-      musicQueue: [...currentQueue, queueItem],
-    });
-
-    console.log("Added to music queue:", queueItem);
+    await addDoc(queueRef, queueItem);
+    console.log("Added to music queue (subcollection):", queueItem);
   } catch (error) {
     console.error("Error adding to music queue:", error);
     throw error;
@@ -1450,8 +1574,14 @@ export const addToMusicQueue = async (chatId, videoData, addedBy) => {
 
 export const getMusicQueue = async (chatId) => {
   try {
-    const chatRef = doc(db, "chats", chatId);
-    const chatSnap = await getDoc(chatRef);
+    // Prefer subcollection
+    const queueRef = collection(db, "chats", chatId, "queueItems");
+    const snap = await getDocs(query(queueRef, orderBy("addedAt", "asc")));
+    if (!snap.empty) {
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
+    // Fallback to legacy array
+    const chatSnap = await getDoc(doc(db, "chats", chatId));
     return chatSnap.exists() ? chatSnap.data().musicQueue || [] : [];
   } catch (error) {
     console.error("Error getting music queue:", error);
@@ -1460,14 +1590,73 @@ export const getMusicQueue = async (chatId) => {
 };
 
 export const listenToMusicQueue = (chatId, callback) => {
-  const chatRef = doc(db, "chats", chatId);
+  // Prefer subcollection listener with bounds
+  const queueRef = collection(db, "chats", chatId, "queueItems");
+  const q = query(queueRef, orderBy("addedAt", "desc"), limit(50));
 
-  return onSnapshot(chatRef, (doc) => {
-    if (doc.exists()) {
-      const chatData = doc.data();
-      callback(chatData.musicQueue || []);
+  return onSnapshot(q, (snapshot) => {
+    if (!snapshot.empty) {
+      const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      callback(items.reverse()); // oldest first for UI
+    } else {
+      // Fallback to legacy array on chat doc
+      const chatRef = doc(db, "chats", chatId);
+      getDoc(chatRef)
+        .then((docSnap) => {
+          if (docSnap.exists()) {
+            const chatData = docSnap.data();
+            const queue = (chatData.musicQueue || []).slice(-50);
+            callback(queue);
+          } else {
+            callback([]);
+          }
+        })
+        .catch(() => callback([]));
     }
   });
+};
+
+// Load older songs from music queue with pagination
+export const loadOlderMusicQueue = async (chatId, pageSize = 20, lastIndex = null) => {
+  try {
+    // Prefer subcollection pagination by timestamp
+    const queueRef = collection(db, "chats", chatId, "queueItems");
+    let q;
+    if (lastIndex) {
+      q = query(queueRef, where("addedAt", "<", lastIndex), orderBy("addedAt", "desc"), limit(pageSize));
+    } else {
+      q = query(queueRef, orderBy("addedAt", "desc"), limit(pageSize));
+    }
+
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const hasMore = snap.size === pageSize;
+      return {
+        items: items.reverse(),
+        hasMore,
+        nextCursor: items.length > 0 ? items[0].addedAt : null,
+      };
+    }
+
+    // Fallback to legacy array on chat doc
+    const chatSnap = await getDoc(doc(db, "chats", chatId));
+    if (!chatSnap.exists()) return { items: [], hasMore: false };
+    const chatData = chatSnap.data();
+    const fullQueue = chatData.musicQueue || [];
+    let startIndex = fullQueue.length - 50;
+    if (lastIndex !== null) {
+      startIndex = lastIndex - 1;
+    }
+    if (startIndex <= 0) return { items: [], hasMore: false };
+    const endIndex = Math.max(0, startIndex - pageSize);
+    const items = fullQueue.slice(endIndex, startIndex);
+    const hasMore = endIndex > 0;
+    return { items: items.reverse(), hasMore, nextCursor: items.length > 0 ? endIndex : null };
+  } catch (error) {
+    console.error("Error loading older music queue:", error);
+    return { items: [], hasMore: false };
+  }
 };
 
 export const saveMessage = async (chatId, messageId, userId) => {
@@ -1533,6 +1722,10 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
       previousText: messageData.text, 
       editedAt: new Date(),
     });
+    // Keep only last 5 edits to prevent unbounded array growth
+    if (editHistory.length > 5) {
+      editHistory.shift();
+    }
 
     await updateDoc(messageRef, {
       text: newText,
@@ -1627,7 +1820,7 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
       messageId,
       publicId: imageData.publicId,
       deletedAt: new Date(),
-      scheduledForDeletion: new Date(Date.now() + 12 * 60 * 60 * 1000), 
+      scheduledForDeletion: new Date(Date.now() + 24 * 60 * 60 * 1000), 
     });
 
     console.log("Cloudinary deletion tracked for:", imageData.publicId);
@@ -1726,6 +1919,15 @@ export const blockUser = async (userId, userToBlockId) => {
   batch.delete(chatRef);
 
   await batch.commit();
+  // Update local blocked users cache for faster propagation
+  try {
+    const cached = BLOCKED_USERS_CACHE.get(userId);
+    const current = cached?.data || [];
+    const updated = Array.from(new Set([...current, userToBlockId]));
+    BLOCKED_USERS_CACHE.set(userId, { data: updated, ts: Date.now() });
+  } catch (e) {
+    // noop
+  }
   return { success: true };
 };
 
@@ -1736,6 +1938,15 @@ export const unblockUser = async (userId, userToUnblockId) => {
     blockedUsers: arrayRemove(userToUnblockId),
   });
 
+  // Update local cache immediately
+  try {
+    const cached = BLOCKED_USERS_CACHE.get(userId);
+    const current = cached?.data || [];
+    const updated = current.filter((id) => id !== userToUnblockId);
+    BLOCKED_USERS_CACHE.set(userId, { data: updated, ts: Date.now() });
+  } catch (e) {
+    // noop
+  }
   return { success: true };
 };
 
@@ -1794,6 +2005,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       replyData.image = {
         publicId: imageData.public_id,
         url: imageData.secure_url,
+        thumbnailUrl: imageData.secure_url.replace(/upload\//, 'upload/w_200,q_80/'),
         width: imageData.width,
         height: imageData.height,
         format: imageData.format,
@@ -1806,6 +2018,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     if (originalMessage.image) {
       replyData.originalMessageImage = {
         url: originalMessage.image.url,
+        thumbnailUrl: originalMessage.image.url.replace(/upload\//, 'upload/w_200,q_80/'),
         publicId: originalMessage.image.publicId,
       };
     }
