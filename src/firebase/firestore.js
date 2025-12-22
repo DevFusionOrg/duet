@@ -832,7 +832,6 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
 
     const messagesRef = collection(db, "chats", chatId, "messages");
     const now = new Date();
-    const deletionTime = new Date(now.getTime() + 15 * 60 * 1000);
 
     const senderName = senderData?.displayName || senderData?.username || "Someone";
     const senderPhoto = senderData?.photoURL || "";
@@ -849,7 +848,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       readBy: null,
       readAt: null,
       seenBy: [],
-      deletionTime: deletionTime,
+      deletionTime: null,
       isSaved: false,
       isEdited: false,
       editHistory: [],
@@ -1032,7 +1031,7 @@ export const getUserChats = async (userId) => {
   }
 };
 
-export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50) => {
+export const getChatMessages = async (chatId, currentUserId, messagesLimit = 25) => {
   try {
     const currentUserRef = doc(db, "users", currentUserId);
     const currentUserSnap = await getDoc(currentUserRef);
@@ -1083,7 +1082,7 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50)
   }
 };
 
-export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 200) => {
+export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 25) => {
   const currentUserRef = doc(db, "users", currentUserId);
   let unsubscribeMessages;
   let bufferedMessages = [];
@@ -1183,6 +1182,71 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
   };
 };
 
+// Pagination function to load older messages (call when user scrolls up)
+export const loadOlderMessages = async (chatId, currentUserId, cursorTimestamp, pageSize = 15) => {
+  try {
+    const currentUserRef = doc(db, "users", currentUserId);
+    const currentUserSnap = await getDoc(currentUserRef);
+    
+    let blockedUsers = [];
+    if (currentUserSnap.exists()) {
+      const currentUserData = currentUserSnap.data();
+      blockedUsers = currentUserData.blockedUsers || [];
+    }
+
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    
+    // Query messages older than cursor (before the oldest currently loaded message)
+    const q = query(
+      messagesRef,
+      orderBy("timestamp", "desc"),
+      where("timestamp", "<", cursorTimestamp),
+      limit(pageSize)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const now = new Date();
+    const messages = [];
+
+    // Collect messages in reverse order (oldest first for proper display order)
+    const docsArray = querySnapshot.docs.reverse();
+    
+    for (const doc of docsArray) {
+      const messageData = doc.data();
+      
+      if (blockedUsers.includes(messageData.senderId)) {
+        continue;
+      }
+
+      if (
+        messageData.deletionTime &&
+        now > messageData.deletionTime.toDate() &&
+        !messageData.isSaved
+      ) {
+        continue;
+      }
+
+      messages.push({
+        id: doc.id,
+        ...messageData,
+      });
+    }
+
+    return {
+      messages,
+      newCursor: messages.length > 0 ? messages[0].timestamp : cursorTimestamp,
+      hasMore: querySnapshot.docs.length === pageSize,
+    };
+  } catch (error) {
+    console.error("Error loading older messages:", error);
+    return {
+      messages: [],
+      newCursor: cursorTimestamp,
+      hasMore: false,
+    };
+  }
+};
+
 export const listenToUserChats = (userId, callback) => {
   const userRef = doc(db, "users", userId);
   
@@ -1261,11 +1325,13 @@ export const markMessagesAsRead = async (chatId, userId) => {
 
     const batch = writeBatch(db);
     const readAt = new Date();
+    const deletionTime = new Date(readAt.getTime() + 24 * 60 * 60 * 1000);
 
     querySnapshot.docs.forEach((doc) => {
       batch.update(doc.ref, { 
         read: true,
-        readAt
+        readAt,
+        deletionTime
       });
     });
 
