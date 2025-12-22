@@ -122,7 +122,7 @@ function ChatMessage({
           {renderReplyIndicator()}
           
           <img
-            src={getOptimizedImageUrl(message.image.publicId, 400, 400)}
+            src={message.image.thumbnailUrl || getOptimizedImageUrl(message.image.publicId, 400, 400)}
             alt={message.text || "Attachment"}
             className="chat-image"
             style={{ cursor: 'pointer' }}
@@ -142,9 +142,11 @@ function ChatMessage({
         {message.text && <p className="chat-message-text">{message.text}</p>}
         {message.image && (
           <img 
-            src={message.image.url} 
+            src={message.image.thumbnailUrl || message.image.url} 
             alt="Message attachment" 
             className="message-image" 
+            onClick={() => setExpandedImage(message.image.url)}
+            style={{ cursor: 'pointer' }}
           />
         )}
         {renderMessageStatus(message, isSeenByRecipient)}
@@ -256,4 +258,17 @@ function ChatMessage({
   );
 }
 
-export default ChatMessage;
+// Memoize to prevent re-renders when props haven't changed
+export default React.memo(ChatMessage, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.text === nextProps.message.text &&
+    prevProps.message.read === nextProps.message.read &&
+    prevProps.message.pending === nextProps.message.pending &&
+    prevProps.hoveredMessage === nextProps.hoveredMessage &&
+    prevProps.editingMessageId === nextProps.editingMessageId &&
+    prevProps.selectedMessage?.id === nextProps.selectedMessage?.id &&
+    prevProps.showMessageMenu === nextProps.showMessageMenu
+  );
+});

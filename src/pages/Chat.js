@@ -27,12 +27,13 @@ import {
   editMessage,
   blockUser,
   unblockUser,
-  getBlockedUsers,
+  getBlockedUsersForUser,
   getOrCreateChat,
   deleteChat,
   replyToMessage,
   setTypingStatus,
   listenToTypingStatus,
+  loadOlderMessages,
 } from "../firebase/firestore";
 import { getOptimizedImageUrl, uploadVoiceNote } from "../services/cloudinary";
 import { notificationService } from "../services/notifications";
@@ -43,7 +44,7 @@ function Chat({ user, friend, onBack }) {
   const isActiveChatRef = useRef(true);
   
   const { chatId, friends, loading: setupLoading } = useChatSetup(user, friend);
-  const { messages, loading: messagesLoading } = useChatMessages(chatId, user, isActiveChatRef);
+  const { messages, loading: messagesLoading, setMessages } = useChatMessages(chatId, user, isActiveChatRef);
   const { isBlocked } = useBlockedUsers(user?.uid, friend?.uid);
   const { isFriendOnline, lastSeen } = useFriendOnlineStatus(friend?.uid);
   
@@ -104,6 +105,9 @@ function Chat({ user, friend, onBack }) {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [sendingVoice, setSendingVoice] = useState(false);
   const [isFriendTyping, setIsFriendTyping] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  // Removed unused messagesLoadedCount tracking
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -111,13 +115,15 @@ function Chat({ user, friend, onBack }) {
   const isInitialLoadRef = useRef(true);
   const firstUnreadMessageRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const isUserAtBottomRef = useRef(true);
+  const previousMessagesLengthRef = useRef(0);
   const loading = setupLoading || messagesLoading;
 
   useEffect(() => {
-    isActiveChatRef.current = true;
-    return () => {
-      isActiveChatRef.current = false;
-    };
+    if (chatId) {
+      setHasMoreMessages(true);
+      setLoadingOlderMessages(false);
+    }
   }, [chatId]);
 
   const handleAudioCall = () => {
@@ -161,20 +167,27 @@ function Chat({ user, friend, onBack }) {
 
   useEffect(() => {
     if (messages.length > 0 && pendingMessages.length > 0) {
-      setPendingMessages(prev => prev.filter(pm => {
-        // Check if this pending message has a matching real message
-        const hasMatch = messages.some(m => 
-          m.senderId === pm.senderId &&
-          m.text === pm.text &&
-          m.type === pm.type &&
-          Math.abs(new Date(m.timestamp?.toDate?.() || m.timestamp) - new Date(pm.timestamp)) < 5000
-        );
-        // If no match and pending for more than 15 seconds, remove it (failed send)
-        const isExpired = Date.now() - new Date(pm.timestamp).getTime() > 15000;
-        return !hasMatch && !isExpired;
-      }));
+      setPendingMessages(prev => {
+        const filtered = prev.filter(pm => {
+          // Check if this pending message has a matching real message
+          const hasMatch = messages.some(m => 
+            m.senderId === pm.senderId &&
+            m.text === pm.text &&
+            m.type === pm.type &&
+            Math.abs(new Date(m.timestamp?.toDate?.() || m.timestamp) - new Date(pm.timestamp)) < 5000
+          );
+          // If no match and pending for more than 15 seconds, remove it (failed send)
+          const isExpired = Date.now() - new Date(pm.timestamp).getTime() > 15000;
+          return !hasMatch && !isExpired;
+        });
+        
+        // Only update if there's actually a change
+        if (filtered.length === prev.length) return prev;
+        return filtered;
+      });
     }
-  }, [messages, pendingMessages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, pendingMessages.length]); // Intentionally using lengths to avoid infinite loop
 
   const handleVoiceRecordClick = () => {
     setIsRecordingVoice(true);
@@ -331,15 +344,25 @@ function Chat({ user, friend, onBack }) {
           isInitialLoadRef.current = false;
         });
       } else {
+        // Only auto-scroll if:
+        // 1. User was already at the bottom (reading latest messages)
+        // 2. New message was added (not loading older messages)
+        const messagesIncreased = messages.length > previousMessagesLengthRef.current;
+        const newMessagesAtEnd = messagesIncreased && messages.length > previousMessagesLengthRef.current;
         
-        scrollToBottom();
+        if (isUserAtBottomRef.current && newMessagesAtEnd) {
+          scrollToBottom();
+        }
       }
+      previousMessagesLengthRef.current = messages.length;
     }
   }, [messages, loading, user?.uid]);
 
   useEffect(() => {
     isInitialLoadRef.current = true;
     firstUnreadMessageRef.current = null;
+    isUserAtBottomRef.current = true;
+    previousMessagesLengthRef.current = 0;
   }, [chatId]);
 
   const handleImageUploadClick = async () => {
@@ -436,17 +459,59 @@ function Chat({ user, friend, onBack }) {
 
   useEffect(() => {
     const container = document.querySelector(".chat-messages-container");
+    if (!container) return;
 
-    const handleScroll = () => {
+    const handleScroll = async () => {
       const isAtBottom =
         container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
 
+      // Track if user is at bottom for auto-scroll decisions
+      isUserAtBottomRef.current = isAtBottom;
       setShowScrollButton(!isAtBottom);
+
+      // Load older messages when scrolling to top
+      const isAtTop = container.scrollTop < 100;
+      if (isAtTop && !loadingOlderMessages && hasMoreMessages && messages.length > 0) {
+        setLoadingOlderMessages(true);
+        const oldestMessage = messages[0];
+        const oldestTimestamp = oldestMessage.timestamp?.toDate ? 
+          oldestMessage.timestamp.toDate() : 
+          new Date(oldestMessage.timestamp);
+        
+        // Save current scroll position to restore after loading
+        const previousScrollHeight = container.scrollHeight;
+        
+        try {
+          const { messages: olderMsgs, hasMore } = await loadOlderMessages(
+            chatId,
+            user.uid,
+            oldestTimestamp,
+            15 // Load 15 messages per scroll
+          );
+          
+          if (olderMsgs.length > 0) {
+            // Prepend older messages
+            setMessages(prevMsgs => [...olderMsgs, ...prevMsgs]);
+            setHasMoreMessages(hasMore);
+            
+            // Restore scroll position after DOM updates
+            requestAnimationFrame(() => {
+              const newScrollHeight = container.scrollHeight;
+              const scrollDifference = newScrollHeight - previousScrollHeight;
+              container.scrollTop = scrollDifference;
+            });
+          }
+        } catch (error) {
+          console.error("Error loading older messages:", error);
+        } finally {
+          setLoadingOlderMessages(false);
+        }
+      }
     };
 
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [loadingOlderMessages, hasMoreMessages, messages, chatId, user.uid, setMessages]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -679,7 +744,7 @@ function Chat({ user, friend, onBack }) {
     try {
       if (isBlocked) {
         await unblockUser(user.uid, friend.uid);
-        await getBlockedUsers(user.uid);
+        await getBlockedUsersForUser(user.uid);
         alert(`${friend.displayName} has been unblocked.`);
       } else {
         const confirmBlock = window.confirm(
@@ -687,7 +752,7 @@ function Chat({ user, friend, onBack }) {
         );
         if (confirmBlock) {
           await blockUser(user.uid, friend.uid);
-          await getBlockedUsers(user.uid);
+          await getBlockedUsersForUser(user.uid);
           alert(`${friend.displayName} has been blocked.`);
         }
       }
@@ -766,6 +831,11 @@ function Chat({ user, friend, onBack }) {
       <ChatHeader {...chatHeaderProps} />
 
       <div className="chat-messages-container">
+        {loadingOlderMessages && hasMoreMessages && (
+          <div className="chat-loading-older" style={{ textAlign: 'center', padding: '8px 0', color: '#666' }}>
+            Loading earlier messages...
+          </div>
+        )}
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '400px' }}>
             <LoadingScreen message="Loading messages..." size="small" />
