@@ -1820,7 +1820,7 @@ export const trackCloudinaryDeletion = async (chatId, messageId, imageData) => {
       messageId,
       publicId: imageData.publicId,
       deletedAt: new Date(),
-      scheduledForDeletion: new Date(Date.now() + 12 * 60 * 60 * 1000), 
+      scheduledForDeletion: new Date(Date.now() + 24 * 60 * 60 * 1000), 
     });
 
     console.log("Cloudinary deletion tracked for:", imageData.publicId);
