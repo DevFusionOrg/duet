@@ -832,7 +832,6 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
 
     const messagesRef = collection(db, "chats", chatId, "messages");
     const now = new Date();
-    const deletionTime = new Date(now.getTime() + 15 * 60 * 1000);
 
     const senderName = senderData?.displayName || senderData?.username || "Someone";
     const senderPhoto = senderData?.photoURL || "";
@@ -849,7 +848,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       readBy: null,
       readAt: null,
       seenBy: [],
-      deletionTime: deletionTime,
+      deletionTime: null,
       isSaved: false,
       isEdited: false,
       editHistory: [],
@@ -1261,11 +1260,13 @@ export const markMessagesAsRead = async (chatId, userId) => {
 
     const batch = writeBatch(db);
     const readAt = new Date();
+    const deletionTime = new Date(readAt.getTime() + 24 * 60 * 60 * 1000);
 
     querySnapshot.docs.forEach((doc) => {
       batch.update(doc.ref, { 
         read: true,
-        readAt
+        readAt,
+        deletionTime
       });
     });
 
