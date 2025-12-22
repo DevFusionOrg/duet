@@ -107,7 +107,7 @@ function Chat({ user, friend, onBack }) {
   const [isFriendTyping, setIsFriendTyping] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
-  const [messagesLoadedCount, setMessagesLoadedCount] = useState(25); // Initial limit
+  // Removed unused messagesLoadedCount tracking
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -119,7 +119,6 @@ function Chat({ user, friend, onBack }) {
 
   useEffect(() => {
     if (chatId) {
-      setMessagesLoadedCount(25);
       setHasMoreMessages(true);
       setLoadingOlderMessages(false);
     }
@@ -470,7 +469,6 @@ function Chat({ user, friend, onBack }) {
             // Prepend older messages
             setMessages(prevMsgs => [...olderMsgs, ...prevMsgs]);
             setHasMoreMessages(hasMore);
-            setMessagesLoadedCount(prev => prev + olderMsgs.length);
           }
         } catch (error) {
           console.error("Error loading older messages:", error);
@@ -482,7 +480,7 @@ function Chat({ user, friend, onBack }) {
 
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [loadingOlderMessages, hasMoreMessages, messages, chatId, user.uid]);
+  }, [loadingOlderMessages, hasMoreMessages, messages, chatId, user.uid, setMessages]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();

@@ -133,51 +133,70 @@ export const sendPushNotification = async (senderId, receiverId, message, chatId
 };
 
 export const listenToUserFriends = (userId, callback) => {
-  const userRef = doc(db, "users", userId);
+  // Listen to the friends subcollection to avoid churn from user doc updates (presence, profile edits)
+  const friendsRef = collection(db, "users", userId, "friends");
 
-  return onSnapshot(userRef, (snap) => {
-    if (!snap.exists()) {
+  return onSnapshot(friendsRef, (snap) => {
+    if (!snap || snap.empty) {
       callback([]);
       return;
     }
 
-    const data = snap.data();
-    callback(data.friends || []);
+    const ids = snap.docs.map((d) => d.id);
+    callback(ids);
+  }, (error) => {
+    console.error("Error listening to friends subcollection:", error);
+    callback([]);
   });
 };
 
 export const getUserFriendsWithProfiles = async (friendIds) => {
   if (!friendIds || friendIds.length === 0) return [];
-  
+
   const uniqueIds = [...new Set(friendIds)];
-  const batches = [];
-  
-  for (let i = 0; i < uniqueIds.length; i += 10) {
-    batches.push(uniqueIds.slice(i, i + 10));
+
+  // Return cached profiles where available and collect missing IDs
+  const cachedProfiles = [];
+  const missingIds = [];
+  uniqueIds.forEach((id) => {
+    const cached = USER_PROFILE_CACHE.get(id);
+    if (cached && Date.now() - cached.ts < PROFILE_CACHE_TTL_MS) {
+      cachedProfiles.push({ ...cached.data, uid: id, id });
+    } else {
+      missingIds.push(id);
+    }
+  });
+
+  if (missingIds.length === 0) {
+    return cachedProfiles;
   }
-  
+
+  // Firestore `in` queries are limited to 10 values; batch accordingly
+  const batches = [];
+  for (let i = 0; i < missingIds.length; i += 10) {
+    batches.push(missingIds.slice(i, i + 10));
+  }
+
   try {
     const results = await Promise.all(
-      batches.map(ids =>
-        getDocs(query(collection(db, 'users'), where('__name__', 'in', ids)))
+      batches.map((ids) =>
+        getDocs(query(collection(db, "users"), where("__name__", "in", ids)))
       )
     );
-    
-    const profiles = [];
-    results.forEach(snapshot => {
-      snapshot.docs.forEach(doc => {
-        profiles.push({
-          ...doc.data(),
-          uid: doc.id,
-          id: doc.id
-        });
+
+    const fetched = [];
+    results.forEach((snapshot) => {
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        USER_PROFILE_CACHE.set(docSnap.id, { data, ts: Date.now() });
+        fetched.push({ ...data, uid: docSnap.id, id: docSnap.id });
       });
     });
-    
-    return profiles;
+
+    return [...cachedProfiles, ...fetched];
   } catch (error) {
-    console.error('Error fetching friend profiles in batch:', error);
-    return [];
+    console.error("Error fetching friend profiles in batch:", error);
+    return cachedProfiles; // Return what we have cached
   }
 };
 
@@ -314,7 +333,6 @@ export const getUsernameSuggestions = async (baseUsername) => {
   try {
     const suggestions = [];
     const maxAttempts = 10;
-    const checkPromises = [];
 
     // Generate suggestions
     const generatedSuggestions = [];
@@ -597,21 +615,15 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
     const toUserRef = doc(db, "users", toUserId);
     const fromUserRef = doc(db, "users", fromUserId);
 
+    // Write to arrays (legacy) and subcollections (new) for compatibility
+    const payloadIncoming = { from: fromUserId, timestamp: new Date(), status: "pending" };
+    const payloadOutgoing = { to: toUserId, timestamp: new Date(), status: "pending" };
+
     await Promise.all([
-      updateDoc(toUserRef, {
-        friendRequests: arrayUnion({
-          from: fromUserId,
-          timestamp: new Date(),
-          status: "pending",
-        }),
-      }),
-      updateDoc(fromUserRef, {
-        sentFriendRequests: arrayUnion({
-          to: toUserId,
-          timestamp: new Date(),
-          status: "pending",
-        }),
-      })
+      updateDoc(toUserRef, { friendRequests: arrayUnion(payloadIncoming) }),
+      updateDoc(fromUserRef, { sentFriendRequests: arrayUnion(payloadOutgoing) }).catch(() => {}),
+      setDoc(doc(db, "users", toUserId, "friendRequests", fromUserId), payloadIncoming).catch(() => {}),
+      setDoc(doc(db, "users", fromUserId, "sentFriendRequests", toUserId), payloadOutgoing).catch(() => {})
     ]);
 
     return { success: true };
@@ -713,6 +725,12 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
     );
 
     await batch.commit();
+
+    // Remove subcollection entries
+    await Promise.all([
+      deleteDoc(doc(db, "users", userId, "friendRequests", requestFromId)).catch(() => {}),
+      deleteDoc(doc(db, "users", requestFromId, "sentFriendRequests", userId)).catch(() => {}),
+    ]);
     return { success: true };
 
   } catch (error) {
@@ -723,43 +741,55 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
 
 export const loadFriendRequests = async (userId, pageSize = 20, lastDocTimestamp = null) => {
   try {
-    const userRef = doc(db, "users", userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) return { requests: [], hasMore: false };
+    // Prefer subcollection to avoid transferring large arrays on each user doc read
+    const requestsRef = collection(db, "users", userId, "friendRequests");
 
-    const friendRequests = userSnap.data().friendRequests || [];
-    
-    // Filter and paginate requests
-    let filtered = friendRequests.sort((a, b) => 
-      new Date(b.timestamp) - new Date(a.timestamp)
-    );
-    
-    // If cursor provided, start from that point
+    let q;
     if (lastDocTimestamp) {
-      filtered = filtered.filter(req => 
-        new Date(req.timestamp) < new Date(lastDocTimestamp)
+      q = query(
+        requestsRef,
+        where("timestamp", "<", lastDocTimestamp),
+        orderBy("timestamp", "desc"),
+        limit(pageSize)
       );
+    } else {
+      q = query(requestsRef, orderBy("timestamp", "desc"), limit(pageSize));
     }
-    
-    // Get page
-    const page = filtered.slice(0, pageSize);
-    const hasMore = filtered.length > pageSize;
-    
-    // Fetch sender profiles for requests
-    const senderIds = page.map(req => req.from);
+
+    const snap = await getDocs(q);
+
+    // Fallback to legacy array if subcollection empty
+    if (snap.empty) {
+      const userSnap = await getDoc(doc(db, "users", userId));
+      if (!userSnap.exists()) return { requests: [], hasMore: false };
+      const friendRequests = userSnap.data().friendRequests || [];
+      let filtered = friendRequests.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      if (lastDocTimestamp) {
+        filtered = filtered.filter((req) => new Date(req.timestamp) < new Date(lastDocTimestamp));
+      }
+      const page = filtered.slice(0, pageSize);
+      const hasMore = filtered.length > pageSize;
+      const senderIds = page.map((req) => req.from);
+      const profiles = await getUserFriendsWithProfiles(senderIds);
+      const profileMap = new Map(profiles.map((p) => [p.uid || p.id, p]));
+      const requests = page.map((req) => ({ ...req, senderProfile: profileMap.get(req.from) || null }));
+      return {
+        requests,
+        hasMore,
+        nextCursor: requests.length > 0 ? requests[requests.length - 1].timestamp : null,
+      };
+    }
+
+    const page = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const senderIds = page.map((req) => req.from);
     const profiles = await getUserFriendsWithProfiles(senderIds);
-    const profileMap = new Map(profiles.map(p => [p.uid || p.id, p]));
-    
-    const requests = page.map(req => ({
-      ...req,
-      senderProfile: profileMap.get(req.from) || null
-    }));
-    
+    const profileMap = new Map(profiles.map((p) => [p.uid || p.id, p]));
+    const requests = page.map((req) => ({ ...req, senderProfile: profileMap.get(req.from) || null }));
+
     return {
       requests,
-      hasMore,
-      nextCursor: requests.length > 0 ? requests[requests.length - 1].timestamp : null
+      hasMore: snap.size === pageSize,
+      nextCursor: requests.length > 0 ? requests[requests.length - 1].timestamp : null,
     };
   } catch (error) {
     console.error("Error loading friend requests:", error);
@@ -809,6 +839,12 @@ export const rejectFriendRequest = async (userId, requestFromId) => {
     }
 
     await batch.commit();
+
+    // Remove subcollection entries
+    await Promise.all([
+      deleteDoc(doc(db, "users", userId, "friendRequests", requestFromId)).catch(() => {}),
+      deleteDoc(doc(db, "users", requestFromId, "sentFriendRequests", userId)).catch(() => {}),
+    ]);
   } catch (error) {
     console.error("Error rejecting friend request:", error);
     let errorMessage = "Error rejecting friend request";
@@ -1157,99 +1193,102 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 25)
 };
 
 export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 25) => {
-  const currentUserRef = doc(db, "users", currentUserId);
+  // Fetch blocked users once via cache to avoid user doc snapshot churn
+  let blockedUsers = [];
   let unsubscribeMessages;
   let bufferedMessages = [];
-  
-  const unsubscribeUser = onSnapshot(currentUserRef, async (userSnap) => {
-    let blockedUsers = [];
-    if (userSnap.exists()) {
-      const userData = userSnap.data();
-      blockedUsers = userData.blockedUsers || [];
-    }
+
+  const init = async () => {
+    blockedUsers = await getBlockedUsersForUser(currentUserId);
 
     const messagesRef = collection(db, "chats", chatId, "messages");
-    const q = query(
-      messagesRef, 
-      orderBy("timestamp", "asc"),
-      limit(messagesLimit)
-    );
-    
+    const q = query(messagesRef, orderBy("timestamp", "asc"), limit(messagesLimit));
+
     if (unsubscribeMessages) {
       unsubscribeMessages();
     }
-    
-    unsubscribeMessages = onSnapshot(q, async (snapshot) => {
-      try {
-        const now = new Date();
-        const changes = snapshot.docChanges();
 
-        // On first load, snapshot may not include docChanges for all docs; ensure buffer is seeded
-        if (bufferedMessages.length === 0 && snapshot.docs.length > 0 && changes.length === 0) {
-          bufferedMessages = snapshot.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((m) => !blockedUsers.includes(m.senderId))
-            .filter((m) => !(m.deletionTime && now > m.deletionTime.toDate() && !m.isSaved));
-          callback(bufferedMessages);
-          return;
-        }
+    unsubscribeMessages = onSnapshot(
+      q,
+      async (snapshot) => {
+        try {
+          const now = new Date();
+          const changes = snapshot.docChanges();
 
-        for (const change of changes) {
-          const doc = change.doc;
-          const messageData = doc.data();
+          // Refresh blockedUsers from cache if updated by block/unblock actions
+          const cached = BLOCKED_USERS_CACHE.get(currentUserId);
+          if (cached && Array.isArray(cached.data)) {
+            blockedUsers = cached.data;
+          }
 
-          // Skip blocked or expired without writing deletions client-side
-          const isBlocked = blockedUsers.includes(messageData.senderId);
-          const isExpired = messageData.deletionTime && now > messageData.deletionTime.toDate() && !messageData.isSaved;
+          if (bufferedMessages.length === 0 && snapshot.docs.length > 0 && changes.length === 0) {
+            bufferedMessages = snapshot.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .filter((m) => !blockedUsers.includes(m.senderId))
+              .filter(
+                (m) => !(m.deletionTime && now > m.deletionTime.toDate() && !m.isSaved)
+              );
+            callback(bufferedMessages);
+            return;
+          }
 
-          if (change.type === "added") {
-            if (!isBlocked && !isExpired) {
-              // Check if already exists to prevent duplicates
-              const exists = bufferedMessages.some(m => m.id === doc.id);
-              if (!exists) {
+          for (const change of changes) {
+            const doc = change.doc;
+            const messageData = doc.data();
+
+            const isBlocked = blockedUsers.includes(messageData.senderId);
+            const isExpired =
+              messageData.deletionTime &&
+              now > messageData.deletionTime.toDate() &&
+              !messageData.isSaved;
+
+            if (change.type === "added") {
+              if (!isBlocked && !isExpired) {
+                const exists = bufferedMessages.some((m) => m.id === doc.id);
+                if (!exists) {
+                  bufferedMessages.push({ id: doc.id, ...messageData });
+                }
+              }
+            } else if (change.type === "modified") {
+              const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
+              if (idx !== -1) {
+                if (!isBlocked && !isExpired) {
+                  bufferedMessages[idx] = { id: doc.id, ...messageData };
+                } else {
+                  bufferedMessages.splice(idx, 1);
+                }
+              } else if (!isBlocked && !isExpired) {
                 bufferedMessages.push({ id: doc.id, ...messageData });
               }
+            } else if (change.type === "removed") {
+              const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
+              if (idx !== -1) bufferedMessages.splice(idx, 1);
             }
-          } else if (change.type === "modified") {
-            const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
-            if (idx !== -1) {
-              if (!isBlocked && !isExpired) {
-                bufferedMessages[idx] = { id: doc.id, ...messageData };
-              } else {
-                bufferedMessages.splice(idx, 1);
-              }
-            } else if (!isBlocked && !isExpired) {
-              // If modified but not in buffer, add it (shouldn't happen, but safety)
-              bufferedMessages.push({ id: doc.id, ...messageData });
-            }
-          } else if (change.type === "removed") {
-            const idx = bufferedMessages.findIndex((m) => m.id === doc.id);
-            if (idx !== -1) bufferedMessages.splice(idx, 1);
           }
+
+          bufferedMessages.sort((a, b) => {
+            const ta = a.timestamp?.toDate?.() || a.timestamp || 0;
+            const tb = b.timestamp?.toDate?.() || b.timestamp || 0;
+            return ta - tb;
+          });
+
+          callback(bufferedMessages);
+        } catch (error) {
+          console.error("Error processing chat messages snapshot:", error);
+          callback(bufferedMessages);
         }
-
-        // Keep buffer sorted ascending by timestamp
-        bufferedMessages.sort((a, b) => {
-          const ta = a.timestamp?.toDate?.() || a.timestamp || 0;
-          const tb = b.timestamp?.toDate?.() || b.timestamp || 0;
-          return ta - tb;
-        });
-
-        callback(bufferedMessages);
-      } catch (error) {
-        console.error("Error processing chat messages snapshot:", error);
-        // Still call callback with current buffer to avoid loading forever
-        callback(bufferedMessages);
+      },
+      (error) => {
+        console.error("Error in chat messages listener:", error);
+        callback([]);
       }
-    }, (error) => {
-      console.error("Error in chat messages listener:", error);
-      // Call callback with empty or current to stop loading
-      callback([]);
-    });
-  });
-  
+    );
+  };
+
+  // Kick off listener
+  init();
+
   return () => {
-    unsubscribeUser();
     if (unsubscribeMessages) {
       unsubscribeMessages();
     }
@@ -1324,7 +1363,9 @@ export const loadOlderMessages = async (chatId, currentUserId, cursorTimestamp, 
 export const listenToUserChats = (userId, callback) => {
   const chatsRef = collection(db, "chats");
   const q = query(chatsRef, where("participants", "array-contains", userId));
-  
+  let lastParticipantsKey = "";
+  let lastProfileMap = new Map();
+
   return onSnapshot(q, async (snapshot) => {
     // Get cached blocked users
     const blockedUsers = await getBlockedUsersForUser(userId);
@@ -1341,8 +1382,14 @@ export const listenToUserChats = (userId, callback) => {
       if (otherParticipantId) otherIds.add(otherParticipantId);
     }
 
-    const profilesArr = await getUserFriendsWithProfiles(Array.from(otherIds));
-    const profileMap = new Map(profilesArr.map((p) => [p.uid || p.id, p]));
+    const participantsKey = Array.from(otherIds).sort().join(",");
+    let profileMap = lastProfileMap;
+    if (participantsKey !== lastParticipantsKey) {
+      const profilesArr = await getUserFriendsWithProfiles(Array.from(otherIds));
+      profileMap = new Map(profilesArr.map((p) => [p.uid || p.id, p]));
+      lastParticipantsKey = participantsKey;
+      lastProfileMap = profileMap;
+    }
 
     // Use unreadCount cached on chat document
     const chats = filteredDocs.map((docSnap) => {
@@ -1482,16 +1529,8 @@ export const listenToMusicState = (chatId, callback) => {
 
 export const addToMusicQueue = async (chatId, videoData, addedBy) => {
   try {
-    const chatRef = doc(db, "chats", chatId);
-    const chatSnap = await getDoc(chatRef);
-
-    if (!chatSnap.exists()) return;
-
-    const chatData = chatSnap.data();
-    const currentQueue = chatData.musicQueue || [];
-
+    const queueRef = collection(db, "chats", chatId, "queueItems");
     const queueItem = {
-      id: Date.now().toString(),
       videoId: videoData.videoId,
       title: videoData.title,
       thumbnail: videoData.thumbnail,
@@ -1501,11 +1540,8 @@ export const addToMusicQueue = async (chatId, videoData, addedBy) => {
       played: false,
     };
 
-    await updateDoc(chatRef, {
-      musicQueue: [...currentQueue, queueItem],
-    });
-
-    console.log("Added to music queue:", queueItem);
+    await addDoc(queueRef, queueItem);
+    console.log("Added to music queue (subcollection):", queueItem);
   } catch (error) {
     console.error("Error adding to music queue:", error);
     throw error;
@@ -1514,8 +1550,14 @@ export const addToMusicQueue = async (chatId, videoData, addedBy) => {
 
 export const getMusicQueue = async (chatId) => {
   try {
-    const chatRef = doc(db, "chats", chatId);
-    const chatSnap = await getDoc(chatRef);
+    // Prefer subcollection
+    const queueRef = collection(db, "chats", chatId, "queueItems");
+    const snap = await getDocs(query(queueRef, orderBy("addedAt", "asc")));
+    if (!snap.empty) {
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
+    // Fallback to legacy array
+    const chatSnap = await getDoc(doc(db, "chats", chatId));
     return chatSnap.exists() ? chatSnap.data().musicQueue || [] : [];
   } catch (error) {
     console.error("Error getting music queue:", error);
@@ -1524,14 +1566,28 @@ export const getMusicQueue = async (chatId) => {
 };
 
 export const listenToMusicQueue = (chatId, callback) => {
-  const chatRef = doc(db, "chats", chatId);
+  // Prefer subcollection listener with bounds
+  const queueRef = collection(db, "chats", chatId, "queueItems");
+  const q = query(queueRef, orderBy("addedAt", "desc"), limit(50));
 
-  return onSnapshot(chatRef, (doc) => {
-    if (doc.exists()) {
-      const chatData = doc.data();
-      // Load only last 50 songs to avoid unbounded array
-      const queue = (chatData.musicQueue || []).slice(-50);
-      callback(queue);
+  return onSnapshot(q, (snapshot) => {
+    if (!snapshot.empty) {
+      const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      callback(items.reverse()); // oldest first for UI
+    } else {
+      // Fallback to legacy array on chat doc
+      const chatRef = doc(db, "chats", chatId);
+      getDoc(chatRef)
+        .then((docSnap) => {
+          if (docSnap.exists()) {
+            const chatData = docSnap.data();
+            const queue = (chatData.musicQueue || []).slice(-50);
+            callback(queue);
+          } else {
+            callback([]);
+          }
+        })
+        .catch(() => callback([]));
     }
   });
 };
@@ -1539,34 +1595,40 @@ export const listenToMusicQueue = (chatId, callback) => {
 // Load older songs from music queue with pagination
 export const loadOlderMusicQueue = async (chatId, pageSize = 20, lastIndex = null) => {
   try {
-    const chatRef = doc(db, "chats", chatId);
-    const chatSnap = await getDoc(chatRef);
+    // Prefer subcollection pagination by timestamp
+    const queueRef = collection(db, "chats", chatId, "queueItems");
+    let q;
+    if (lastIndex) {
+      q = query(queueRef, where("addedAt", "<", lastIndex), orderBy("addedAt", "desc"), limit(pageSize));
+    } else {
+      q = query(queueRef, orderBy("addedAt", "desc"), limit(pageSize));
+    }
 
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const hasMore = snap.size === pageSize;
+      return {
+        items: items.reverse(),
+        hasMore,
+        nextCursor: items.length > 0 ? items[0].addedAt : null,
+      };
+    }
+
+    // Fallback to legacy array on chat doc
+    const chatSnap = await getDoc(doc(db, "chats", chatId));
     if (!chatSnap.exists()) return { items: [], hasMore: false };
-
     const chatData = chatSnap.data();
     const fullQueue = chatData.musicQueue || [];
-    
-    // Determine start index
-    let startIndex = fullQueue.length - 50; // Current loaded songs
+    let startIndex = fullQueue.length - 50;
     if (lastIndex !== null) {
       startIndex = lastIndex - 1;
     }
-    
-    if (startIndex <= 0) {
-      return { items: [], hasMore: false };
-    }
-
-    // Get page of older songs
+    if (startIndex <= 0) return { items: [], hasMore: false };
     const endIndex = Math.max(0, startIndex - pageSize);
     const items = fullQueue.slice(endIndex, startIndex);
     const hasMore = endIndex > 0;
-
-    return {
-      items: items.reverse(), // Show oldest first
-      hasMore,
-      nextCursor: items.length > 0 ? endIndex : null
-    };
+    return { items: items.reverse(), hasMore, nextCursor: items.length > 0 ? endIndex : null };
   } catch (error) {
     console.error("Error loading older music queue:", error);
     return { items: [], hasMore: false };
@@ -1833,6 +1895,15 @@ export const blockUser = async (userId, userToBlockId) => {
   batch.delete(chatRef);
 
   await batch.commit();
+  // Update local blocked users cache for faster propagation
+  try {
+    const cached = BLOCKED_USERS_CACHE.get(userId);
+    const current = cached?.data || [];
+    const updated = Array.from(new Set([...current, userToBlockId]));
+    BLOCKED_USERS_CACHE.set(userId, { data: updated, ts: Date.now() });
+  } catch (e) {
+    // noop
+  }
   return { success: true };
 };
 
@@ -1843,6 +1914,15 @@ export const unblockUser = async (userId, userToUnblockId) => {
     blockedUsers: arrayRemove(userToUnblockId),
   });
 
+  // Update local cache immediately
+  try {
+    const cached = BLOCKED_USERS_CACHE.get(userId);
+    const current = cached?.data || [];
+    const updated = current.filter((id) => id !== userToUnblockId);
+    BLOCKED_USERS_CACHE.set(userId, { data: updated, ts: Date.now() });
+  } catch (e) {
+    // noop
+  }
   return { success: true };
 };
 
