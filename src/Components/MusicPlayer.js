@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { updateMusicState, listenToMusicState } from "../firebase/firestore";
+import { updateMusicState, listenToMusicState, listenToMusicQueue, loadOlderMusicQueue } from "../firebase/firestore";
 import { Capacitor } from "@capacitor/core";
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import './MusicPlayer.css';
@@ -10,6 +10,10 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentlyPlaying, setCurrentlyPlaying] = useState("");
   const [loading, setLoading] = useState(false);
+  const [queueItems, setQueueItems] = useState([]);
+  const [queueHasMore, setQueueHasMore] = useState(false);
+  const [queueCursor, setQueueCursor] = useState(null);
+  const [queueLoading, setQueueLoading] = useState(false);
   const playerRef = useRef(null);
   const wakeLockRef = useRef(null);
   const keepAwakeActive = useRef(false);
@@ -127,6 +131,37 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
     });
     return unsubscribe;
   }, [chatId, isVisible, user.uid, videoId, isPlaying, currentlyPlaying]);
+
+  // Subscribe to recent music queue (last 50)
+  useEffect(() => {
+    if (!chatId || !isVisible) return;
+    const unsubscribe = listenToMusicQueue(chatId, (queue) => {
+      setQueueItems(queue);
+      // If queue length is >= 50, there may be older items
+      setQueueHasMore((queue || []).length >= 50);
+      // Reset cursor when new items push in
+      setQueueCursor(null);
+    });
+    return unsubscribe;
+  }, [chatId, isVisible]);
+
+  const loadOlderQueue = async () => {
+    if (!queueHasMore || queueLoading) return;
+    setQueueLoading(true);
+    try {
+      const { items, hasMore, nextCursor } = await loadOlderMusicQueue(chatId, 20, queueCursor);
+      if (items.length > 0) {
+        // Prepend older items
+        setQueueItems(prev => [...items, ...prev]);
+      }
+      setQueueHasMore(hasMore);
+      setQueueCursor(nextCursor);
+    } catch (err) {
+      console.error('Error loading older queue:', err);
+    } finally {
+      setQueueLoading(false);
+    }
+  };
 
   const searchAndPlaySong = async () => {
     if (!songName.trim()) {
@@ -398,6 +433,24 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
             </>
           )}
         </div>
+
+        {queueItems.length > 0 && (
+          <div className="queueSection" style={{ marginTop: 8 }}>
+            <div className="queueHeader" style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Queue</div>
+            <div className="queueList" style={{ maxHeight: 120, overflowY: 'auto' }}>
+              {queueItems.map((q, idx) => (
+                <div key={`${q.videoId || q.id || 'item'}_${idx}`} className="queueItem" style={{ fontSize: 12, padding: '4px 0' }}>
+                  {q.title || q.name || 'Unknown Title'}
+                </div>
+              ))}
+            </div>
+            {queueHasMore && (
+              <button onClick={loadOlderQueue} className="loadOlderQueueButton" disabled={queueLoading} style={{ marginTop: 6, fontSize: 12 }}>
+                {queueLoading ? 'Loading...' : 'Load older'}
+              </button>
+            )}
+          </div>
+        )}
 
         <div id="youtube-player"></div>
       </div>
