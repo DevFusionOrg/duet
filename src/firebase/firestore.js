@@ -1031,7 +1031,7 @@ export const getUserChats = async (userId) => {
   }
 };
 
-export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50) => {
+export const getChatMessages = async (chatId, currentUserId, messagesLimit = 25) => {
   try {
     const currentUserRef = doc(db, "users", currentUserId);
     const currentUserSnap = await getDoc(currentUserRef);
@@ -1082,7 +1082,7 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 50)
   }
 };
 
-export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 200) => {
+export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 25) => {
   const currentUserRef = doc(db, "users", currentUserId);
   let unsubscribeMessages;
   let bufferedMessages = [];
@@ -1180,6 +1180,71 @@ export const listenToChatMessages = (chatId, currentUserId, callback, messagesLi
       unsubscribeMessages();
     }
   };
+};
+
+// Pagination function to load older messages (call when user scrolls up)
+export const loadOlderMessages = async (chatId, currentUserId, cursorTimestamp, pageSize = 15) => {
+  try {
+    const currentUserRef = doc(db, "users", currentUserId);
+    const currentUserSnap = await getDoc(currentUserRef);
+    
+    let blockedUsers = [];
+    if (currentUserSnap.exists()) {
+      const currentUserData = currentUserSnap.data();
+      blockedUsers = currentUserData.blockedUsers || [];
+    }
+
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    
+    // Query messages older than cursor (before the oldest currently loaded message)
+    const q = query(
+      messagesRef,
+      orderBy("timestamp", "desc"),
+      where("timestamp", "<", cursorTimestamp),
+      limit(pageSize)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const now = new Date();
+    const messages = [];
+
+    // Collect messages in reverse order (oldest first for proper display order)
+    const docsArray = querySnapshot.docs.reverse();
+    
+    for (const doc of docsArray) {
+      const messageData = doc.data();
+      
+      if (blockedUsers.includes(messageData.senderId)) {
+        continue;
+      }
+
+      if (
+        messageData.deletionTime &&
+        now > messageData.deletionTime.toDate() &&
+        !messageData.isSaved
+      ) {
+        continue;
+      }
+
+      messages.push({
+        id: doc.id,
+        ...messageData,
+      });
+    }
+
+    return {
+      messages,
+      newCursor: messages.length > 0 ? messages[0].timestamp : cursorTimestamp,
+      hasMore: querySnapshot.docs.length === pageSize,
+    };
+  } catch (error) {
+    console.error("Error loading older messages:", error);
+    return {
+      messages: [],
+      newCursor: cursorTimestamp,
+      hasMore: false,
+    };
+  }
 };
 
 export const listenToUserChats = (userId, callback) => {
