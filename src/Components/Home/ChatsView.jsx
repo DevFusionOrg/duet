@@ -148,7 +148,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, onO
       </div>
 
       <div className="chats-list">
-        <VirtualizedChats
+        <MemoizedVirtualizedChats
           chats={sortedChats}
           pinnedChatId={pinnedChatId}
           mutedChats={mutedChats}
@@ -295,3 +295,13 @@ function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus
     </div>
   );
 }
+
+// Memoize VirtualizedChats to prevent unnecessary re-renders
+const MemoizedVirtualizedChats = React.memo(VirtualizedChats, (prev, next) => {
+  return (
+    prev.chats === next.chats &&
+    prev.pinnedChatId === next.pinnedChatId &&
+    prev.mutedChats === next.mutedChats &&
+    prev.friendsOnlineStatus === next.friendsOnlineStatus
+  );
+});

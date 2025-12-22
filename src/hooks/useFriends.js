@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { listenToUserFriends, getUserFriendsWithProfiles } from "../firebase/firestore";
 
 export function useFriends(user) {
@@ -17,6 +17,7 @@ export function useFriends(user) {
         }
 
         const profiles = await getUserFriendsWithProfiles(friendIds);
+        // Memoization happens in useMemo below
         setFriends(profiles);
       } catch (err) {
         console.error("Error loading friends:", err);
@@ -28,5 +29,13 @@ export function useFriends(user) {
     return unsubscribe;
   }, [user?.uid]);
 
-  return { friends, loading };
+  // Memoize friends list to prevent unnecessary re-renders in child components
+  const memoizedFriends = useMemo(() => {
+    // Sort friends alphabetically for consistent UI
+    return [...friends].sort((a, b) => 
+      (a.displayName || '').localeCompare(b.displayName || '')
+    );
+  }, [friends]);
+
+  return { friends: memoizedFriends, loading };
 }

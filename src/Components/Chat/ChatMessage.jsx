@@ -258,4 +258,17 @@ function ChatMessage({
   );
 }
 
-export default ChatMessage;
+// Memoize to prevent re-renders when props haven't changed
+export default React.memo(ChatMessage, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.text === nextProps.message.text &&
+    prevProps.message.read === nextProps.message.read &&
+    prevProps.message.pending === nextProps.message.pending &&
+    prevProps.hoveredMessage === nextProps.hoveredMessage &&
+    prevProps.editingMessageId === nextProps.editingMessageId &&
+    prevProps.selectedMessage?.id === nextProps.selectedMessage?.id &&
+    prevProps.showMessageMenu === nextProps.showMessageMenu
+  );
+});

@@ -109,26 +109,27 @@ export const openChatImageUploadWidget = (options = {}) => {
 
 export const openUploadWidget = openChatImageUploadWidget;
 
-export const getOptimizedProfilePictureUrl = (publicId, size = 200) => {
-  
+export const getOptimizedProfilePictureUrl = (publicId, size = 80) => {
+  // Optimize for chat list avatar size (80px)
   const fullPublicId = publicId.startsWith('duet-dp/') 
     ? publicId 
     : publicId.includes('/') 
       ? publicId 
       : `duet-dp/${publicId}`;
   
-  return `https://res.cloudinary.com/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload/w_${size},h_${size},c_fill,g_face,q_auto,f_auto,r_max/${fullPublicId}`;
+  // q_auto uses best quality, f_auto uses best format (WebP/AVIF), dpr_auto handles high DPI screens
+  return `https://res.cloudinary.com/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload/w_${size},h_${size},c_fill,g_face,q_auto,f_auto,dpr_auto/${fullPublicId}`;
 };
 
 export const getOptimizedImageUrl = (publicId, width = 400, height = 400) => {
-  
+  // Optimize for chat message images
   const fullPublicId = publicId.startsWith('duet-chat/') 
     ? publicId 
     : publicId.includes('/') 
       ? publicId 
       : `duet-chat/${publicId}`;
   
-  return `https://res.cloudinary.com/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload/w_${width},h_${height},c_fill,q_auto,f_auto/${fullPublicId}`;
+  return `https://res.cloudinary.com/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload/w_${width},h_${height},c_fill,q_auto,f_auto,dpr_auto/${fullPublicId}`;
 };
 
 export const isProfilePictureUrl = (url) => {
