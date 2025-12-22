@@ -27,12 +27,13 @@ import {
   editMessage,
   blockUser,
   unblockUser,
-  getBlockedUsers,
+  getBlockedUsersForUser,
   getOrCreateChat,
   deleteChat,
   replyToMessage,
   setTypingStatus,
   listenToTypingStatus,
+  loadOlderMessages,
 } from "../firebase/firestore";
 import { getOptimizedImageUrl, uploadVoiceNote } from "../services/cloudinary";
 import { notificationService } from "../services/notifications";
@@ -43,7 +44,7 @@ function Chat({ user, friend, onBack }) {
   const isActiveChatRef = useRef(true);
   
   const { chatId, friends, loading: setupLoading } = useChatSetup(user, friend);
-  const { messages, loading: messagesLoading } = useChatMessages(chatId, user, isActiveChatRef);
+  const { messages, loading: messagesLoading, setMessages } = useChatMessages(chatId, user, isActiveChatRef);
   const { isBlocked } = useBlockedUsers(user?.uid, friend?.uid);
   const { isFriendOnline, lastSeen } = useFriendOnlineStatus(friend?.uid);
   
@@ -104,6 +105,9 @@ function Chat({ user, friend, onBack }) {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [sendingVoice, setSendingVoice] = useState(false);
   const [isFriendTyping, setIsFriendTyping] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [messagesLoadedCount, setMessagesLoadedCount] = useState(25); // Initial limit
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -114,10 +118,11 @@ function Chat({ user, friend, onBack }) {
   const loading = setupLoading || messagesLoading;
 
   useEffect(() => {
-    isActiveChatRef.current = true;
-    return () => {
-      isActiveChatRef.current = false;
-    };
+    if (chatId) {
+      setMessagesLoadedCount(25);
+      setHasMoreMessages(true);
+      setLoadingOlderMessages(false);
+    }
   }, [chatId]);
 
   const handleAudioCall = () => {
@@ -436,17 +441,48 @@ function Chat({ user, friend, onBack }) {
 
   useEffect(() => {
     const container = document.querySelector(".chat-messages-container");
+    if (!container) return;
 
-    const handleScroll = () => {
+    const handleScroll = async () => {
       const isAtBottom =
         container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
 
       setShowScrollButton(!isAtBottom);
+
+      // Load older messages when scrolling to top
+      const isAtTop = container.scrollTop < 100;
+      if (isAtTop && !loadingOlderMessages && hasMoreMessages && messages.length > 0) {
+        setLoadingOlderMessages(true);
+        const oldestMessage = messages[0];
+        const oldestTimestamp = oldestMessage.timestamp?.toDate ? 
+          oldestMessage.timestamp.toDate() : 
+          new Date(oldestMessage.timestamp);
+        
+        try {
+          const { messages: olderMsgs, hasMore } = await loadOlderMessages(
+            chatId,
+            user.uid,
+            oldestTimestamp,
+            15 // Load 15 messages per scroll
+          );
+          
+          if (olderMsgs.length > 0) {
+            // Prepend older messages
+            setMessages(prevMsgs => [...olderMsgs, ...prevMsgs]);
+            setHasMoreMessages(hasMore);
+            setMessagesLoadedCount(prev => prev + olderMsgs.length);
+          }
+        } catch (error) {
+          console.error("Error loading older messages:", error);
+        } finally {
+          setLoadingOlderMessages(false);
+        }
+      }
     };
 
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [loadingOlderMessages, hasMoreMessages, messages, chatId, user.uid]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -679,7 +715,7 @@ function Chat({ user, friend, onBack }) {
     try {
       if (isBlocked) {
         await unblockUser(user.uid, friend.uid);
-        await getBlockedUsers(user.uid);
+        await getBlockedUsersForUser(user.uid);
         alert(`${friend.displayName} has been unblocked.`);
       } else {
         const confirmBlock = window.confirm(
@@ -687,7 +723,7 @@ function Chat({ user, friend, onBack }) {
         );
         if (confirmBlock) {
           await blockUser(user.uid, friend.uid);
-          await getBlockedUsers(user.uid);
+          await getBlockedUsersForUser(user.uid);
           alert(`${friend.displayName} has been blocked.`);
         }
       }
@@ -766,6 +802,11 @@ function Chat({ user, friend, onBack }) {
       <ChatHeader {...chatHeaderProps} />
 
       <div className="chat-messages-container">
+        {loadingOlderMessages && hasMoreMessages && (
+          <div className="chat-loading-older" style={{ textAlign: 'center', padding: '8px 0', color: '#666' }}>
+            Loading earlier messages...
+          </div>
+        )}
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '400px' }}>
             <LoadingScreen message="Loading messages..." size="small" />

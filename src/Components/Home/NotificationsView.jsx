@@ -1,26 +1,52 @@
 import React, { useState, useEffect } from "react";
-import { listenToUserProfile } from "../../firebase/firestore";
+import { loadFriendRequests } from "../../firebase/firestore";
 import FriendRequestItem from "./FriendRequestItem";
 
 function NotificationsView({ user, onFriendRequestUpdate }) {
-  const [profile, setProfile] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState({});
+  const [loadingPage, setLoadingPage] = useState(false);
   const [processedRequests, setProcessedRequests] = useState(new Set());
   const [actionMessage, setActionMessage] = useState("");
 
   useEffect(() => {
     if (!user) return;
-
-    const unsubscribe = listenToUserProfile(user.uid, (userProfile) => {
-      console.log("Notifications - Profile updated:", userProfile);
-      setProfile(userProfile);
-    });
-
-    return unsubscribe;
+    const fetchInitial = async () => {
+      setLoadingPage(true);
+      setProcessedRequests(new Set());
+      try {
+        const { requests: page, hasMore, nextCursor } = await loadFriendRequests(user.uid, 20, null);
+        setRequests(page);
+        setHasMore(hasMore);
+        setNextCursor(nextCursor || null);
+      } catch (err) {
+        console.error("Error loading friend requests:", err);
+      } finally {
+        setLoadingPage(false);
+      }
+    };
+    fetchInitial();
   }, [user]);
 
-  const handleAccept = async (requestFromId, requestIndex, requesterName) => {
-    const requestKey = `${requestFromId}_${requestIndex}`;
+  const handleLoadMore = async () => {
+    if (!hasMore || loadingPage) return;
+    setLoadingPage(true);
+    try {
+      const { requests: page, hasMore: more, nextCursor: cursor } = await loadFriendRequests(user.uid, 20, nextCursor);
+      setRequests(prev => [...prev, ...page]);
+      setHasMore(more);
+      setNextCursor(cursor || null);
+    } catch (err) {
+      console.error("Error loading more requests:", err);
+    } finally {
+      setLoadingPage(false);
+    }
+  };
+
+  const handleAccept = async (requestFromId, requestIndex, requesterName, requestTimestamp) => {
+    const requestKey = `${requestFromId}_${requestTimestamp}`;
 
     if (processedRequests.has(requestKey)) {
       return;
@@ -51,8 +77,8 @@ function NotificationsView({ user, onFriendRequestUpdate }) {
     }
   };
 
-  const handleReject = async (requestFromId, requestIndex, requesterName) => {
-    const requestKey = `${requestFromId}_${requestIndex}`;
+  const handleReject = async (requestFromId, requestIndex, requesterName, requestTimestamp) => {
+    const requestKey = `${requestFromId}_${requestTimestamp}`;
 
     if (processedRequests.has(requestKey)) {
       return;
@@ -83,15 +109,9 @@ function NotificationsView({ user, onFriendRequestUpdate }) {
     }
   };
 
-  if (!profile) {
-    return (
-      <div className="notifications-loading">Loading notifications...</div>
-    );
-  }
-
-  const friendRequests = profile.friendRequests || [];
-  const activeFriendRequests = friendRequests.filter((request, index) => {
-    const requestKey = `${request.from}_${index}`;
+  const activeFriendRequests = requests.filter((request) => {
+    const ts = request.timestamp?.toDate ? request.timestamp.toDate().getTime() : new Date(request.timestamp).getTime();
+    const requestKey = `${request.from}_${ts}`;
     return !processedRequests.has(requestKey);
   });
 
@@ -120,15 +140,34 @@ function NotificationsView({ user, onFriendRequestUpdate }) {
           </h3>
           {activeFriendRequests.map((request, index) => (
             <FriendRequestItem
-              key={`${request.from}_${index}`}
+              key={`${request.from}_${request.timestamp}`}
               request={request}
               index={index}
-              onAccept={handleAccept}
-              onReject={handleReject}
-              loading={loading[`${request.from}_${index}`] || false}
-              isProcessed={processedRequests.has(`${request.from}_${index}`)}
+              onAccept={(fromId, idx, name) => {
+                const ts = request.timestamp?.toDate ? request.timestamp.toDate().getTime() : new Date(request.timestamp).getTime();
+                return handleAccept(fromId, idx, name, ts);
+              }}
+              onReject={(fromId, idx, name) => {
+                const ts = request.timestamp?.toDate ? request.timestamp.toDate().getTime() : new Date(request.timestamp).getTime();
+                return handleReject(fromId, idx, name, ts);
+              }}
+              loading={(() => {
+                const ts = request.timestamp?.toDate ? request.timestamp.toDate().getTime() : new Date(request.timestamp).getTime();
+                return loading[`${request.from}_${ts}`] || false;
+              })()}
+              isProcessed={(() => {
+                const ts = request.timestamp?.toDate ? request.timestamp.toDate().getTime() : new Date(request.timestamp).getTime();
+                return processedRequests.has(`${request.from}_${ts}`);
+              })()}
             />
           ))}
+          {hasMore && (
+            <div className="load-more-container">
+              <button className="load-more-button" onClick={handleLoadMore} disabled={loadingPage}>
+                {loadingPage ? "Loading..." : "Load more"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

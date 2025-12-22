@@ -22,9 +22,11 @@ import {
   limit,
 } from "firebase/firestore";
 
-// Simple in-memory cache for user profiles to reduce repeated reads
+// Simple in-memory cache for user profiles and blocked users to reduce repeated reads
 const USER_PROFILE_CACHE = new Map();
-const PROFILE_CACHE_TTL_MS = 60 * 1000; // 1 minute
+const BLOCKED_USERS_CACHE = new Map();
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const BLOCKED_USERS_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Batch-delete helper that respects Firestore's 500 writes per batch limit
 const deleteInChunks = async (refs, chunkSize = 450) => {
@@ -312,7 +314,10 @@ export const getUsernameSuggestions = async (baseUsername) => {
   try {
     const suggestions = [];
     const maxAttempts = 10;
+    const checkPromises = [];
 
+    // Generate suggestions
+    const generatedSuggestions = [];
     for (let i = 0; i < maxAttempts; i++) {
       let suggestion;
 
@@ -330,14 +335,24 @@ export const getUsernameSuggestions = async (baseUsername) => {
         )}${String.fromCharCode(97 + Math.floor(Math.random() * 26))}`;
       }
 
-      const usernameRef = doc(db, "usernames", suggestion);
-      const snap = await getDoc(usernameRef);
+      generatedSuggestions.push(suggestion);
+    }
 
-      if (!snap.exists()) {
+    // Check all in parallel
+    const checks = await Promise.all(
+      generatedSuggestions.map(async (suggestion) => {
+        const usernameRef = doc(db, "usernames", suggestion);
+        const snap = await getDoc(usernameRef);
+        return { suggestion, exists: snap.exists() };
+      })
+    );
+
+    // Collect available suggestions
+    for (const { suggestion, exists } of checks) {
+      if (!exists) {
         suggestions.push(suggestion);
+        if (suggestions.length >= 3) break;
       }
-
-      if (suggestions.length >= 3) break;
     }
 
     return suggestions;
@@ -403,6 +418,26 @@ export const getUserProfile = async (userId) => {
       friends: [],
       friendRequests: [],
     };
+  }
+};
+
+// Aggressive caching for blocked users to avoid repeated fetches
+export const getBlockedUsersForUser = async (userId) => {
+  try {
+    const cached = BLOCKED_USERS_CACHE.get(userId);
+    if (cached && Date.now() - cached.ts < BLOCKED_USERS_CACHE_TTL_MS) {
+      return cached.data;
+    }
+
+    const userSnap = await getDoc(doc(db, "users", userId));
+    if (!userSnap.exists()) return [];
+
+    const blockedIds = userSnap.data().blockedUsers || [];
+    BLOCKED_USERS_CACHE.set(userId, { data: blockedIds, ts: Date.now() });
+    return blockedIds;
+  } catch (error) {
+    console.error("Error getting blocked users:", error);
+    return [];
   }
 };
 
@@ -686,6 +721,52 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
   }
 };
 
+export const loadFriendRequests = async (userId, pageSize = 20, lastDocTimestamp = null) => {
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) return { requests: [], hasMore: false };
+
+    const friendRequests = userSnap.data().friendRequests || [];
+    
+    // Filter and paginate requests
+    let filtered = friendRequests.sort((a, b) => 
+      new Date(b.timestamp) - new Date(a.timestamp)
+    );
+    
+    // If cursor provided, start from that point
+    if (lastDocTimestamp) {
+      filtered = filtered.filter(req => 
+        new Date(req.timestamp) < new Date(lastDocTimestamp)
+      );
+    }
+    
+    // Get page
+    const page = filtered.slice(0, pageSize);
+    const hasMore = filtered.length > pageSize;
+    
+    // Fetch sender profiles for requests
+    const senderIds = page.map(req => req.from);
+    const profiles = await getUserFriendsWithProfiles(senderIds);
+    const profileMap = new Map(profiles.map(p => [p.uid || p.id, p]));
+    
+    const requests = page.map(req => ({
+      ...req,
+      senderProfile: profileMap.get(req.from) || null
+    }));
+    
+    return {
+      requests,
+      hasMore,
+      nextCursor: requests.length > 0 ? requests[requests.length - 1].timestamp : null
+    };
+  } catch (error) {
+    console.error("Error loading friend requests:", error);
+    return { requests: [], hasMore: false };
+  }
+};
+
 export const rejectFriendRequest = async (userId, requestFromId) => {
   try {
     const userRef = doc(db, "users", userId);
@@ -784,6 +865,7 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
         createdAt: new Date(),
         lastMessage: null,
         lastMessageAt: new Date(),
+        unreadCount: 0, // Initialize unread count cache
       });
     }
 
@@ -860,6 +942,8 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       messageData.image = {
         publicId: imageData.public_id,
         url: imageData.secure_url,
+        // Generate thumbnail URL (200x200, quality 80) for faster loading
+        thumbnailUrl: imageData.secure_url.replace(/upload\//, 'upload/w_200,q_80/'),
         width: imageData.width,
         height: imageData.height,
         format: imageData.format,
@@ -876,6 +960,7 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       lastMessage: text || "📷 Image",
       lastMessageAt: now,
       lastMessageId: messageRef.id,
+      unreadCount: 1, // Initialize unreadCount for receiver
     }).catch(err => console.error("Error updating chat lastMessage:", err));
 
     sendPushNotification(senderId, receiverId, { ...messageData, text: text || "" }, chatId).catch(
@@ -961,6 +1046,7 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
       lastMessage: "🎤 Voice message",
       lastMessageAt: now,
       lastMessageId: messageRef.id,
+      unreadCount: 1, // Initialize unreadCount for receiver
     });
 
     return messageRef.id;
@@ -972,8 +1058,7 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
 
 export const getUserChats = async (userId) => {
   try {
-    const userProfile = await getUserProfile(userId);
-    const blockedUsers = userProfile?.blockedUsers || [];
+    const blockedUsers = await getBlockedUsersForUser(userId);
     
     const chatsRef = collection(db, "chats");
     const q = query(chatsRef, where("participants", "array-contains", userId));
@@ -996,24 +1081,13 @@ export const getUserChats = async (userId) => {
     const profilesArr = await getUserFriendsWithProfiles(otherIdList);
     const profileMap = new Map(profilesArr.map((p) => [p.uid || p.id, p]));
 
-    // Fetch unread counts via aggregate queries in parallel
-    const countPromises = filteredChatDocs.map((docSnap) => {
-      const chatId = docSnap.data().id;
-      const messagesRef = collection(db, "chats", chatId, "messages");
-      const cq = query(
-        messagesRef,
-        where("senderId", "!=", userId),
-        where("read", "==", false)
-      );
-      return getCountFromServer(cq).catch(() => null);
-    });
-    const counts = await Promise.all(countPromises);
-
-    const chats = filteredChatDocs.map((docSnap, idx) => {
+    // Use cached unreadCount from chat document instead of counting
+    const chats = filteredChatDocs.map((docSnap) => {
       const chatData = docSnap.data();
       const otherParticipantId = chatData.participants.find((id) => id !== userId);
       const otherUser = profileMap.get(otherParticipantId) || null;
-      const unreadCount = counts[idx]?.data()?.count ?? 0;
+      // Get unreadCount directly from chat document (cached)
+      const unreadCount = chatData.unreadCount || 0;
       return {
         id: chatData.id,
         ...chatData,
@@ -1248,62 +1322,44 @@ export const loadOlderMessages = async (chatId, currentUserId, cursorTimestamp, 
 };
 
 export const listenToUserChats = (userId, callback) => {
-  const userRef = doc(db, "users", userId);
+  const chatsRef = collection(db, "chats");
+  const q = query(chatsRef, where("participants", "array-contains", userId));
   
-  return onSnapshot(userRef, (userSnap) => {
-    let blockedUsers = [];
-    if (userSnap.exists()) {
-      const userData = userSnap.data();
-      blockedUsers = userData.blockedUsers || [];
+  return onSnapshot(q, async (snapshot) => {
+    // Get cached blocked users
+    const blockedUsers = await getBlockedUsersForUser(userId);
+    
+    const docs = snapshot.docs;
+    const otherIds = new Set();
+    const filteredDocs = [];
+
+    for (const docSnap of docs) {
+      const chatData = docSnap.data();
+      const otherParticipantId = chatData.participants.find((id) => id !== userId);
+      if (blockedUsers.includes(otherParticipantId)) continue;
+      filteredDocs.push(docSnap);
+      if (otherParticipantId) otherIds.add(otherParticipantId);
     }
-    
-    const chatsRef = collection(db, "chats");
-    const q = query(chatsRef, where("participants", "array-contains", userId));
-    
-    return onSnapshot(q, async (snapshot) => {
-      const docs = snapshot.docs;
-      const otherIds = new Set();
-      const filteredDocs = [];
 
-      for (const docSnap of docs) {
-        const chatData = docSnap.data();
-        const otherParticipantId = chatData.participants.find((id) => id !== userId);
-        if (blockedUsers.includes(otherParticipantId)) continue;
-        filteredDocs.push(docSnap);
-        if (otherParticipantId) otherIds.add(otherParticipantId);
-      }
+    const profilesArr = await getUserFriendsWithProfiles(Array.from(otherIds));
+    const profileMap = new Map(profilesArr.map((p) => [p.uid || p.id, p]));
 
-      const profilesArr = await getUserFriendsWithProfiles(Array.from(otherIds));
-      const profileMap = new Map(profilesArr.map((p) => [p.uid || p.id, p]));
-
-      const countPromises = filteredDocs.map((docSnap) => {
-        const chatId = docSnap.data().id;
-        const messagesRef = collection(db, "chats", chatId, "messages");
-        const cq = query(
-          messagesRef,
-          where("senderId", "!=", userId),
-          where("read", "==", false)
-        );
-        return getCountFromServer(cq).catch(() => null);
-      });
-      const counts = await Promise.all(countPromises);
-
-      const chats = filteredDocs.map((docSnap, idx) => {
-        const chatData = docSnap.data();
-        const otherParticipantId = chatData.participants.find((id) => id !== userId);
-        const otherUser = profileMap.get(otherParticipantId) || null;
-        const unreadCount = counts[idx]?.data()?.count ?? 0;
-        return {
-          id: chatData.id,
-          ...chatData,
-          otherParticipant: otherUser,
-          unreadCount,
-        };
-      });
-
-      chats.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
-      callback(chats);
+    // Use unreadCount cached on chat document
+    const chats = filteredDocs.map((docSnap) => {
+      const chatData = docSnap.data();
+      const otherParticipantId = chatData.participants.find((id) => id !== userId);
+      const otherUser = profileMap.get(otherParticipantId) || null;
+      const unreadCount = chatData.unreadCount || 0;
+      return {
+        id: chatData.id,
+        ...chatData,
+        otherParticipant: otherUser,
+        unreadCount,
+      };
     });
+
+    chats.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
+    callback(chats);
   });
 };
 
@@ -1326,6 +1382,7 @@ export const markMessagesAsRead = async (chatId, userId) => {
     const batch = writeBatch(db);
     const readAt = new Date();
     const deletionTime = new Date(readAt.getTime() + 24 * 60 * 60 * 1000);
+    const messageCount = querySnapshot.size;
 
     querySnapshot.docs.forEach((doc) => {
       batch.update(doc.ref, { 
@@ -1335,9 +1392,16 @@ export const markMessagesAsRead = async (chatId, userId) => {
       });
     });
 
+    // Update unreadCount on chat document (cache it)
+    const chatRef = doc(db, "chats", chatId);
+    batch.update(chatRef, {
+      unreadCount: 0, // Reset to 0 when all marked as read
+      lastReadAt: readAt
+    });
+
     await batch.commit();
-    console.log(`${querySnapshot.size} messages marked as read in chat ${chatId}`);
-    return querySnapshot.size;
+    console.log(`${messageCount} messages marked as read in chat ${chatId}`);
+    return messageCount;
   } catch (error) {
     console.error("Error marking messages as read:", error);
     return 0;
@@ -1465,9 +1529,48 @@ export const listenToMusicQueue = (chatId, callback) => {
   return onSnapshot(chatRef, (doc) => {
     if (doc.exists()) {
       const chatData = doc.data();
-      callback(chatData.musicQueue || []);
+      // Load only last 50 songs to avoid unbounded array
+      const queue = (chatData.musicQueue || []).slice(-50);
+      callback(queue);
     }
   });
+};
+
+// Load older songs from music queue with pagination
+export const loadOlderMusicQueue = async (chatId, pageSize = 20, lastIndex = null) => {
+  try {
+    const chatRef = doc(db, "chats", chatId);
+    const chatSnap = await getDoc(chatRef);
+
+    if (!chatSnap.exists()) return { items: [], hasMore: false };
+
+    const chatData = chatSnap.data();
+    const fullQueue = chatData.musicQueue || [];
+    
+    // Determine start index
+    let startIndex = fullQueue.length - 50; // Current loaded songs
+    if (lastIndex !== null) {
+      startIndex = lastIndex - 1;
+    }
+    
+    if (startIndex <= 0) {
+      return { items: [], hasMore: false };
+    }
+
+    // Get page of older songs
+    const endIndex = Math.max(0, startIndex - pageSize);
+    const items = fullQueue.slice(endIndex, startIndex);
+    const hasMore = endIndex > 0;
+
+    return {
+      items: items.reverse(), // Show oldest first
+      hasMore,
+      nextCursor: items.length > 0 ? endIndex : null
+    };
+  } catch (error) {
+    console.error("Error loading older music queue:", error);
+    return { items: [], hasMore: false };
+  }
 };
 
 export const saveMessage = async (chatId, messageId, userId) => {
@@ -1533,6 +1636,10 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
       previousText: messageData.text, 
       editedAt: new Date(),
     });
+    // Keep only last 5 edits to prevent unbounded array growth
+    if (editHistory.length > 5) {
+      editHistory.shift();
+    }
 
     await updateDoc(messageRef, {
       text: newText,
@@ -1794,6 +1901,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       replyData.image = {
         publicId: imageData.public_id,
         url: imageData.secure_url,
+        thumbnailUrl: imageData.secure_url.replace(/upload\//, 'upload/w_200,q_80/'),
         width: imageData.width,
         height: imageData.height,
         format: imageData.format,
@@ -1806,6 +1914,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     if (originalMessage.image) {
       replyData.originalMessageImage = {
         url: originalMessage.image.url,
+        thumbnailUrl: originalMessage.image.url.replace(/upload\//, 'upload/w_200,q_80/'),
         publicId: originalMessage.image.publicId,
       };
     }
