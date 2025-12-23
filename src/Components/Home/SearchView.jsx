@@ -4,8 +4,10 @@ import Spinner from "../Spinner";
 import SuggestedFriends from "./SuggestedFriends";
 import { useFriends } from "../../hooks/useFriends";
 import { useProfiles } from "../../hooks/useProfiles";
+import DevFusionModal from "./DevFusionModal";
 
 function SearchView({ user }) {
+  const [showDevFusion, setShowDevFusion] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -201,7 +203,20 @@ function SearchView({ user }) {
 
   return (
     <div className="search-container">
-      <h1 className="SearchHeading">Lookup Friends</h1>
+      <div className="search-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <h1 className="SearchHeading" style={{ margin: 0 }}>Lookup Friends</h1>
+        <button
+          className="devfusion-trigger-btn"
+          title="About DevFusion"
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 6 }}
+          onClick={() => setShowDevFusion(true)}
+        >
+          <img src="/DevFusion.png" alt="DevFusion Logo" style={{ width: 50, height: 50, borderRadius: '50%' }} />
+        </button>
+      </div>
+      {showDevFusion && (
+        <DevFusionModal isOpen={showDevFusion} onClose={() => setShowDevFusion(false)} currentUserId={user?.uid} />
+      )}
 
       {message && (
         <div className={`search-message ${message.includes("Error") ? "search-message-error" : "search-message-success"}`}>
