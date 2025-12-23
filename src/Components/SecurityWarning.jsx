@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { secureOriginCheck } from '../utils/secureOriginCheck';
-import './SecurityWarning.css';
+import '../styles/SecurityWarning.css';
 
 function SecurityWarning() {
   const [warning, setWarning] = useState(null);

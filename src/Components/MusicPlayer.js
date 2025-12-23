@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { updateMusicState, listenToMusicState, listenToMusicQueue, loadOlderMusicQueue } from "../firebase/firestore";
 import { Capacitor } from "@capacitor/core";
 import { KeepAwake } from '@capacitor-community/keep-awake';
-import './MusicPlayer.css';
+import '../styles/MusicPlayer.css';
 
 function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   const [songName, setSongName] = useState("");

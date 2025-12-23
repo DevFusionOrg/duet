@@ -8,7 +8,6 @@ import SearchView from '../Components/Home/SearchView';
 import NotificationsModal from '../Components/Home/NotificationsModal';
 import RecentlyActiveFriends from '../Components/Home/RecentlyActiveFriends';
 import WelcomeOnboarding from '../Components/Home/WelcomeOnboarding';
-import DevFusionModal from '../Components/Home/DevFusionModal';
 import LoadingScreen from '../Components/LoadingScreen';
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
@@ -24,26 +23,24 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const location = useLocation();
   const { friends, loading: friendsLoading } = useFriends(user);
   const { chats, loading: chatsLoading } = useChats(user, friends);
-  const { profile: userProfile,getProfilePictureUrl} = useProfiles(user);
+  const { profile: userProfile} = useProfiles(user);
   const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
   const { unreadFriendsCount } = useUnreadCount(user);
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [activeView, setActiveView] = useState('friends');
   const [showAlertsModal, setShowAlertsModal] = useState(false);
-  
+
   const [pendingFriendId, setPendingFriendId] = useState(null);
-  const [showConnectWithUs, setShowConnectWithUs] = useState(false);
   const loading = friendsLoading;
 
   const pendingFriendRequestCount = (userProfile?.friendRequests || []).filter(
     (req) => (req.status || 'pending') === 'pending'
   ).length;
 
-  // Run migration once to convert old unreadCount to user-specific counts
   useEffect(() => {
     if (!user?.uid) return;
     
-    const migrationKey = `unreadCountMigrated_${user.uid}_v2`; // v2 to force re-run
+    const migrationKey = `unreadCountMigrated_${user.uid}_v2`;
     const alreadyMigrated = localStorage.getItem(migrationKey);
     
     if (!alreadyMigrated) {
@@ -62,21 +59,6 @@ function Home({ user, isDarkMode, toggleTheme }) {
       console.log('Migration already completed for this user');
     }
   }, [user?.uid]);
-
-  useEffect(() => {
-    if (!loading) {
-      if (friends.length === 0) {
-        
-        const timer = setTimeout(() => {
-          setShowConnectWithUs(true);
-        }, 1000); 
-        return () => clearTimeout(timer);
-      } else {
-        
-        setShowConnectWithUs(false);
-      }
-    }
-  }, [friends.length, loading]);
   
   const handleFriendRequestUpdate = () => {};
 
@@ -88,10 +70,8 @@ function Home({ user, isDarkMode, toggleTheme }) {
     setSelectedFriend(null);
   };
 
-  const handleFriendCardClick = () => {};
-
-  const getDisplayName = () => {
-    return userProfile?.displayName || user?.displayName || "User";
+  const handleFriendCardClick = (type) => {
+    if (type === 'profile') setActiveView('profile');
   };
 
   const openChatForFriendId = useCallback((friendId) => {
@@ -199,23 +179,6 @@ function Home({ user, isDarkMode, toggleTheme }) {
             <span className="nav-text">CHAT</span>
             {unreadFriendsCount > 0 && <span className="nav-badge">{unreadFriendsCount}</span>}
           </button>
-          <button 
-            className={`nav-item ${activeView === 'search' ? 'active' : ''}`}
-            onClick={() => setActiveView('search')}
-          >
-            <svg aria-label="Search" fill="none" stroke="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24" strokeWidth="2"><title>Search</title><path d="M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z" strokeLinecap="round" strokeLinejoin="round"></path><line strokeLinecap="round" strokeLinejoin="round" x1="16.511" x2="22" y1="16.511" y2="22"></line></svg>
-            <span className="nav-text">SEARCH</span>
-          </button>
-          <button 
-            className={`nav-item ${activeView === 'profile' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveView('profile');
-            }}
-            title="View profile"
-          >
-            <div className="user-profile-section"><img src={getProfilePictureUrl()} alt={getDisplayName()} className="user-avatar" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/default-avatar.png";}}/></div>
-            <span className="nav-text">PROFILE</span>
-          </button>
         </nav>
       </div>
 
@@ -269,16 +232,20 @@ function Home({ user, isDarkMode, toggleTheme }) {
         </div>
       </div>
 
+      <button 
+        className="floating-search-btn"
+        onClick={() => setActiveView('search')}
+        title="Search"
+        aria-label="Search"
+      >
+        <svg fill="currentColor" viewBox="0 0 24 24" width="32" height="32"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
+      </button>
+
       <NotificationsModal 
         isOpen={showAlertsModal}
         onClose={() => setShowAlertsModal(false)}
         user={user}
         onFriendRequestUpdate={handleFriendRequestUpdate}
-      />
-      <DevFusionModal 
-        isOpen={showConnectWithUs}
-        onClose={() => setShowConnectWithUs(false)}
-        currentUserId={user?.uid}
       />
     </div>
   );

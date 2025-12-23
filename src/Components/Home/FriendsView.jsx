@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import DevFusionModal from './DevFusionModal';
 import UserBadge from '../UserBadge';
+import { useProfiles } from '../../hooks/useProfiles';
 import FriendProfilePopup from '../FriendProfilePopup';
 import LoadingScreen from '../LoadingScreen';
 import { deleteFriend } from '../../firebase/firestore';
 
 function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friendsOnlineStatus, currentUserId, hideHeaders = false, hideHeading = false, hideGrid = false, allowRemove = false }) {
-  const [showDevFusionModal, setShowDevFusionModal] = useState(false);
+  const { profile: userProfile } = useProfiles({ uid: currentUserId });
   const [selectedFriend, setSelectedFriend] = useState(null);
 
   if (loading) {
@@ -17,15 +17,22 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
     <div className="friends-container">
       {!hideHeaders && (
         <>
-          <div className='home-title'>
+          <div className='home-title' style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <img className="home-img" src="./logo512.png" alt="Duet Logo" />
             <h1 className="SearchHeading appname">Duet</h1>
-            <button 
-              className="company-logo-btn" 
-              onClick={() => setShowDevFusionModal(true)}
-              title="About DevFusion"
+            <button
+              className="profile-trigger-btn friends-header-profile"
+              title="View Profile"
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, marginLeft: 'auto' }}
+              onClick={() => onFriendCardClick && onFriendCardClick('profile')}
             >
-              <img className="company-logo" src="./DevFusion.png" alt="DevFusion Logo" />
+              <img
+                src={userProfile?.photoURL || '/default-avatar.png'}
+                alt="Profile"
+                className="user-avatar"
+                style={{ width: 50, height: 50, borderRadius: '50%' }}
+                onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = '/default-avatar.png'; }}
+              />
             </button>
           </div>
           {!hideHeading && <h1 className="SearchHeading">Connections</h1>}
@@ -109,13 +116,6 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
       </div>
       )}
 
-      {!hideHeaders && (
-        <DevFusionModal 
-          isOpen={showDevFusionModal}
-          onClose={() => setShowDevFusionModal(false)}
-          currentUserId={currentUserId}
-        />
-      )}
 
       {selectedFriend && (
         <FriendProfilePopup

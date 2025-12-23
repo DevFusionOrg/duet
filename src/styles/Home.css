@@ -105,12 +105,7 @@
   font-size: 14px;
   font-weight: 500;
   color: var(--home-text-muted);
-  transition: all 0.3s ease;
   position: relative;
-}
-
-.nav-item svg {
-  transition: all 0.3s ease;
 }
 
 .nav-item:hover {
@@ -254,7 +249,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.3s ease;
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -345,7 +339,6 @@
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
-  transition: all 0.3s ease;
   white-space: nowrap;
   opacity: 0.7;
 }
@@ -380,7 +373,6 @@
   border-radius: 15px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  transition: all 0.3s ease;
   position: relative;
   gap: 12px;
 }
@@ -420,7 +412,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  opacity: 1; /* always visible */
+  opacity: 1;
   transition: opacity 0.2s ease;
 }
 
@@ -624,7 +616,6 @@
   cursor: pointer;
   font-size: 1rem;
   font-weight: 600;
-  transition: all 0.3s ease;
 }
 
 .edit-profile-button:hover {
@@ -899,7 +890,6 @@
   justify-content: space-between;
   padding: 20px 30px;
   border-bottom: 1px solid #f0f0f0;
-  transition: background 0.3s ease;
 }
 
 .friend-request-item:hover { background: #f9f9f9; }
@@ -956,7 +946,6 @@
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
-  transition: all 0.3s ease;
   white-space: nowrap;
 }
 
@@ -1060,7 +1049,6 @@
 
 .search-button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
-/* ===== PENDING FRIEND REQUESTS SECTION ===== */
 .pending-requests-section {
   margin-bottom: 30px;
   padding: 20px;
@@ -1369,26 +1357,23 @@
   .main-content {
     margin-left: 0;
     width: 100%;
-    min-height: auto;
+    min-height: 100vh;
     max-width: 100%;
-    order:1;
-    padding-bottom: 80px;
+    order: 1;
+    padding-bottom: 90px;
+    overflow-y: auto;
   }
 
   .pane-nav {
     flex-direction: row;
-    justify-content: space-between;
   }
 
   .nav-item {
     flex-direction: column;
     gap: 6px;
-    padding: 10px;
     font-size: 12px;
     flex: 1;
   }
-
-  .nav-text { display: none; }
 
   .friends-grid { grid-template-columns: 1fr; }
 
@@ -1490,8 +1475,8 @@
 }
 
 .home-img{
-  height: 80px;
-  width: 80px;
+  height: 70px;
+  width: 70px;
   border-radius: 50%;
 }
 
@@ -2113,7 +2098,39 @@
   font-style: italic;
 }
 
+.floating-search-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.1);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: all 0.3s ease;
+  z-index: 99;
+}
+
+.floating-search-btn svg {
+  stroke-width: 2;
+  width: 24px;
+  height: 24px;
+  stroke: rgb(0, 0, 0);
+}
+
 @media (max-width: 768px) {
+  .floating-search-btn {
+    bottom: 90px;
+    right: 20px;
+    width: 52px;
+    height: 52px;
+  }
+
   .welcome-onboarding {
     padding: 20px 16px;
   }
