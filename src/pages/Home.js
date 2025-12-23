@@ -15,6 +15,7 @@ import { useChats } from "../hooks/useChats";
 import { useProfiles } from "../hooks/useProfiles";
 import { useFriendsOnlineStatus } from "../hooks/useFriendsOnlineStatus";
 import { useUnreadCount } from "../hooks/useUnreadCount";
+import { migrateOldUnreadCounts } from "../firebase/firestore";
 
 const ProfileView = React.lazy(() => import('../Components/Home/ProfileView'));
 
@@ -37,6 +38,30 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const pendingFriendRequestCount = (userProfile?.friendRequests || []).filter(
     (req) => (req.status || 'pending') === 'pending'
   ).length;
+
+  // Run migration once to convert old unreadCount to user-specific counts
+  useEffect(() => {
+    if (!user?.uid) return;
+    
+    const migrationKey = `unreadCountMigrated_${user.uid}_v2`; // v2 to force re-run
+    const alreadyMigrated = localStorage.getItem(migrationKey);
+    
+    if (!alreadyMigrated) {
+      console.log('Starting unread count migration...');
+      migrateOldUnreadCounts(user.uid)
+        .then((count) => {
+          if (count >= 0) {
+            localStorage.setItem(migrationKey, 'true');
+            console.log(`Migration completed: ${count} chats updated`);
+          }
+        })
+        .catch((error) => {
+          console.error('Migration failed:', error);
+        });
+    } else {
+      console.log('Migration already completed for this user');
+    }
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!loading) {

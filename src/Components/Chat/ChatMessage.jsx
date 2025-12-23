@@ -268,6 +268,7 @@ export default React.memo(ChatMessage, (prevProps, nextProps) => {
     prevProps.message.pending === nextProps.message.pending &&
     prevProps.hoveredMessage === nextProps.hoveredMessage &&
     prevProps.editingMessageId === nextProps.editingMessageId &&
+    prevProps.editText === nextProps.editText &&
     prevProps.selectedMessage?.id === nextProps.selectedMessage?.id &&
     prevProps.showMessageMenu === nextProps.showMessageMenu
   );
