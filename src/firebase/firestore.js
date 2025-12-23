@@ -20,6 +20,7 @@ import {
   writeBatch,
   serverTimestamp,
   limit,
+  increment,
 } from "firebase/firestore";
 import { handleIndexError } from '../utils/indexHelper';
 
@@ -892,7 +893,7 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
     const chatSnap = await getDoc(chatRef);
 
     if (!chatSnap.exists()) {
-      await setDoc(chatRef, {
+      const chatData = {
         id: chatId,
         participants: [user1Id, user2Id],
         participantUsernames: {
@@ -902,8 +903,12 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
         createdAt: new Date(),
         lastMessage: null,
         lastMessageAt: new Date(),
-        unreadCount: 0, // Initialize unread count cache
-      });
+      };
+      // Initialize user-specific unread counts
+      chatData[`unreadCount_${user1Id}`] = 0;
+      chatData[`unreadCount_${user2Id}`] = 0;
+      
+      await setDoc(chatRef, chatData);
     }
 
     return chatId;
@@ -993,12 +998,16 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
     const messageRef = await addDoc(messagesRef, messageData);
 
     const chatRef = doc(db, "chats", chatId);
-    updateDoc(chatRef, {
+    // Set receiver-specific unread count, keep sender's at 0
+    const updateData = {
       lastMessage: text || "📷 Image",
       lastMessageAt: now,
       lastMessageId: messageRef.id,
-      unreadCount: 1, // Initialize unreadCount for receiver
-    }).catch(err => console.error("Error updating chat lastMessage:", err));
+    };
+    updateData[`unreadCount_${receiverId}`] = increment(1); // Increment for receiver
+    updateData[`unreadCount_${senderId}`] = 0; // Keep sender's count at 0
+    
+    updateDoc(chatRef, updateData).catch(err => console.error("Error updating chat lastMessage:", err));
 
     sendPushNotification(senderId, receiverId, { ...messageData, text: text || "" }, chatId).catch(
       err => console.error("Error sending push notification:", err)
@@ -1079,12 +1088,16 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
 
     const chatRef = doc(db, "chats", chatId);
     const now = new Date();
-    await updateDoc(chatRef, {
+    // Set receiver-specific unread count, keep sender's at 0
+    const updateData = {
       lastMessage: "🎤 Voice message",
       lastMessageAt: now,
       lastMessageId: messageRef.id,
-      unreadCount: 1, // Initialize unreadCount for receiver
-    });
+    };
+    updateData[`unreadCount_${receiverId}`] = increment(1); // Increment for receiver
+    updateData[`unreadCount_${senderId}`] = 0; // Keep sender's count at 0
+    
+    await updateDoc(chatRef, updateData);
 
     return messageRef.id;
   } catch (error) {
@@ -1123,8 +1136,14 @@ export const getUserChats = async (userId) => {
       const chatData = docSnap.data();
       const otherParticipantId = chatData.participants.find((id) => id !== userId);
       const otherUser = profileMap.get(otherParticipantId) || null;
-      // Get unreadCount directly from chat document (cached)
-      const unreadCount = chatData.unreadCount || 0;
+      // Get user-specific unreadCount from chat document
+      const unreadCount = chatData[`unreadCount_${userId}`] || 0;
+      
+      // Debug log
+      if (unreadCount > 0) {
+        console.log(`[getUserChats] Chat ${chatData.id} has ${unreadCount} unread messages for user ${userId}`);
+      }
+      
       return {
         id: chatData.id,
         ...chatData,
@@ -1416,7 +1435,14 @@ export const listenToUserChats = (userId, callback) => {
       const chatData = docSnap.data();
       const otherParticipantId = chatData.participants.find((id) => id !== userId);
       const otherUser = profileMap.get(otherParticipantId) || null;
-      const unreadCount = chatData.unreadCount || 0;
+      // Get user-specific unreadCount from chat document
+      const unreadCount = chatData[`unreadCount_${userId}`] || 0;
+      
+      // Debug log to help troubleshoot
+      if (unreadCount > 0) {
+        console.log(`Chat ${chatData.id} has ${unreadCount} unread messages for user ${userId}`);
+      }
+      
       return {
         id: chatData.id,
         ...chatData,
@@ -1459,12 +1485,13 @@ export const markMessagesAsRead = async (chatId, userId) => {
       });
     });
 
-    // Update unreadCount on chat document (cache it)
+    // Update user-specific unreadCount on chat document (cache it)
     const chatRef = doc(db, "chats", chatId);
-    batch.update(chatRef, {
-      unreadCount: 0, // Reset to 0 when all marked as read
+    const updateData = {
       lastReadAt: readAt
-    });
+    };
+    updateData[`unreadCount_${userId}`] = 0; // Reset user-specific count to 0
+    batch.update(chatRef, updateData);
 
     await batch.commit();
     console.log(`${messageCount} messages marked as read in chat ${chatId}`);
@@ -1734,6 +1761,7 @@ export const editMessage = async (chatId, messageId, newText, userId) => {
       lastEditedAt: new Date(),
     });
     
+    // Only update lastMessage text if this is the last message, preserve unread counts
     if (chatData.lastMessageId === messageId) {
       await updateDoc(chatRef, {
         lastMessage: newText, 
@@ -2031,11 +2059,16 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     
     const chatRef = doc(db, "chats", chatId);
     const now = new Date();
-    await updateDoc(chatRef, {
+    // Set receiver-specific unread count, keep sender's at 0
+    const updateData = {
       lastMessage: replyText || "📷 Image",
       lastMessageAt: now,
       lastMessageId: messageRef.id,
-    });
+    };
+    updateData[`unreadCount_${receiverId}`] = increment(1); // Increment for receiver
+    updateData[`unreadCount_${senderId}`] = 0; // Keep sender's count at 0
+    
+    await updateDoc(chatRef, updateData);
     
     return messageRef.id;
     
@@ -2356,4 +2389,71 @@ export const listenToTypingStatus = (chatId, userId, callback) => {
       callback(false);
     }
   });
+};
+
+// Migration function to convert old unreadCount to user-specific counts
+export const migrateOldUnreadCounts = async (userId) => {
+  try {
+    console.log("Starting unreadCount migration for user:", userId);
+    const chatsRef = collection(db, "chats");
+    const q = query(chatsRef, where("participants", "array-contains", userId));
+    const querySnapshot = await getDocs(q);
+
+    const batch = writeBatch(db);
+    let migratedCount = 0;
+
+    for (const docSnap of querySnapshot.docs) {
+      const chatData = docSnap.data();
+      const chatRef = doc(db, "chats", docSnap.id);
+      const chatId = docSnap.id;
+      
+      // Check if this chat needs migration (has old unreadCount or missing user-specific counts)
+      const needsMigration = 'unreadCount' in chatData || 
+                            !(`unreadCount_${userId}` in chatData);
+      
+      if (needsMigration) {
+        const participants = chatData.participants;
+        const updateData = {};
+        
+        // Count actual unread messages for each participant
+        for (const participantId of participants) {
+          try {
+            const messagesRef = collection(db, "chats", chatId, "messages");
+            const unreadQuery = query(
+              messagesRef,
+              where("senderId", "!=", participantId),
+              where("read", "==", false)
+            );
+            const unreadSnapshot = await getDocs(unreadQuery);
+            updateData[`unreadCount_${participantId}`] = unreadSnapshot.size;
+          } catch (err) {
+            // If query fails (e.g., index not ready), set to 0
+            updateData[`unreadCount_${participantId}`] = 0;
+          }
+        }
+        
+        // Remove the old unreadCount field if it exists
+        if ('unreadCount' in chatData) {
+          updateData.unreadCount = null;
+        }
+        
+        batch.update(chatRef, updateData);
+        migratedCount++;
+        
+        console.log(`Migrated chat ${chatId}:`, updateData);
+      }
+    }
+
+    if (migratedCount > 0) {
+      await batch.commit();
+      console.log(`Successfully migrated ${migratedCount} chats`);
+    } else {
+      console.log("No chats needed migration");
+    }
+
+    return migratedCount;
+  } catch (error) {
+    console.error("Error migrating unread counts:", error);
+    throw error;
+  }
 };
