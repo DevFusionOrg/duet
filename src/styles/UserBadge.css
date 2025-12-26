@@ -1,4 +1,3 @@
-/* User Badge Styles */
 .user-badge {
   display: inline-flex;
   align-items: center;
@@ -32,7 +31,6 @@
   padding: 3px;
 }
 
-/* Badge Types - Discord Style */
 .badge-developer {
   background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
   border: 1px solid rgba(34, 197, 94, 0.3);
@@ -63,7 +61,6 @@
   border: 1px solid rgba(109, 40, 217, 0.3);
   color: white;
   box-shadow: 0 2px 8px rgba(109, 40, 217, 0.3);
-  /* Diamond shape */
   clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
 }
 
@@ -72,7 +69,6 @@
   box-shadow: 0 4px 12px rgba(109, 40, 217, 0.5);
 }
 
-/* Dark mode adjustments */
 [data-theme="dark"] .badge-developer {
   background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
   box-shadow: 0 2px 8px rgba(34, 197, 94, 0.5);
@@ -103,7 +99,6 @@
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.6);
 }
 
-/* Inline badge with name */
 .badge-with-name {
   display: inline-flex;
   align-items: center;
@@ -113,7 +108,7 @@
 .badge-with-name .user-badge {
   margin-left: 4px;
 }
-/* Badge Tooltip Wrapper */
+
 .badge-tooltip-wrapper {
   cursor: pointer;
   display: inline-flex;
@@ -125,7 +120,6 @@
   opacity: 0.8;
 }
 
-/* Badge Tooltip Styles */
 .badge-tooltip {
   background: rgba(0, 0, 0, 0.9);
   color: white;

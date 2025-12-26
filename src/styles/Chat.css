@@ -158,7 +158,6 @@
   height: 24px;
 }
 
-/* Call button specific styles */
 .chat-call-button {
   color: var(--chat-icon-color);
 }
@@ -172,7 +171,6 @@
   cursor: not-allowed;
 }
 
-/* Call Message Styles */
 .chat-call-message {
   background: rgba(0, 112, 246, 0.1) !important;
   border: 1px solid rgba(0, 112, 246, 0.2) !important;
@@ -222,24 +220,21 @@
 .call-icon {
   font-size: 15px;
   filter: 
-    sepia(100%)     /* Make brown */
-    saturate(1000%) /* Increase saturation */
-    hue-rotate(90deg) /* Rotate to green */
-    brightness(0.9);   /* Adjust brightness */
+    sepia(100%)
+    saturate(1000%)
+    hue-rotate(90deg)
+    brightness(0.9);
   display: inline-block;
 }
 
-/* Hide reply button for call messages */
 .chat-call-message ~ .reply-button {
   display: none !important;
 }
 
-/* Hide reply button for video call messages */
 .chat-video-call-message ~ .reply-button {
   display: none !important;
 }
 
-/* Hide menu arrow for call messages */
 .chat-call-message-container .chat-menu-arrow-container {
   display: none !important;
 }
@@ -415,7 +410,6 @@
   bottom: -10px;
 }
 
-/* Read receipt indicator styles */
 .chat-read-indicator {
   margin-left: 4px;
   font-size: 11px;
@@ -437,7 +431,7 @@
   height: 8px;
   margin-left: 6px;
   border-radius: 50%;
-  background-color: #ef4444; /* red dot while sending */
+  background-color: #ef4444;
 }
 
 .chat-sent-message .chat-read-indicator.seen {

@@ -23,7 +23,6 @@
   --profile-text-muted: #a0a0a0;
 }
 
-/* Container & Header */
 .profile-container {
   margin: 0 auto;
   background: var(--profile-card-bg);
@@ -222,7 +221,6 @@
   gap: 12px;
 }
 
-/* Tabs */
 .profile-tab-buttons {
   display: flex;
   gap: 8px;
@@ -249,7 +247,6 @@
   margin-top: 12px;
 }
 
-/* Combined Edit Panel */
 .profile-edit-panel {
   display: grid;
   grid-template-columns: 1fr;
@@ -305,7 +302,6 @@
   background-color: var(--profile-card-bg);
 }
 
-/* Picture Section */
 .profile-picture-section {
   text-align: center;
   margin-bottom: 20px;
@@ -389,7 +385,6 @@
   transform: none;
 }
 
-/* Photo Options Modal */
 .photo-options-overlay {
   position: fixed;
   top: 0;
@@ -456,7 +451,6 @@
   cursor: not-allowed;
 }
 
-/* Status Messages */
 .profile-message {
   padding: 10px 16px;
   border-radius: var(--profile-radius-md);
@@ -477,7 +471,6 @@
   color: #c62828;
 }
 
-/* Form */
 .profile-form {
   background-color: var(--profile-card-bg);
   padding: 24px;
@@ -531,7 +524,6 @@
   line-height: 1.4;
 }
 
-/* Buttons */
 .profile-save-button,
 .profile-password-button,
 .profile-password-cancel,
@@ -632,7 +624,6 @@
   transform: none;
 }
 
-/* Display Card */
 .profile-display {
   background-color: var(--profile-card-bg);
   padding: 24px;
@@ -678,7 +669,6 @@
   color: var(--profile-text-muted);
 }
 
-/* Role chip next to name */
 .role-chip {
   display: inline-flex;
   align-items: center;
@@ -705,7 +695,6 @@
   border: 1px solid rgba(109, 40, 217, 0.35);
 }
 
-/* Password Section */
 .profile-password-section {
   margin-top: 20px;
   padding: 20px;
@@ -727,7 +716,6 @@
   color: #999;
 }
 
-/* Loading */
 .profile-loading {
   text-align: center;
   padding: 40px;
@@ -735,7 +723,6 @@
   color: #999;
 }
 
-/* Stats */
 .profile-stats {
   display: flex;
   gap: 20px;
@@ -765,7 +752,6 @@
   letter-spacing: 0.5px;
 }
 
-/* Completion bar (if used) */
 .profile-completion {
   margin-bottom: 20px;
   padding: 15px;
@@ -802,7 +788,6 @@
   opacity: 0.9;
 }
 
-/* Blocked Users Section (preview card) */
 .profile-blocked-section {
   margin-top: 25px;
   padding: 20px;
@@ -864,7 +849,6 @@
   box-shadow: none;
 }
 
-/* Blocked Users Modal */
 .blocked-users-modal-overlay {
   position: fixed;
   inset: 0;
@@ -957,7 +941,6 @@
   line-height: 1.4;
 }
 
-/* Blocked Users List */
 .blocked-users-list {
   display: flex;
   flex-direction: column;
@@ -1056,12 +1039,10 @@
   border-color: #999;
 }
 
-/* Focus states */
 .profile-input:focus-visible {
   outline: 2px solid var(--profile-accent-purple);
 }
 
-/* Animations */
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -1078,7 +1059,6 @@
   }
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .profile-edit-button,
   .profile-save-button,
@@ -1102,7 +1082,6 @@
   }
 }
 
-/* Responsive */
 @media (max-width: 768px) {
   .profile-container {
     padding: 0px 20px;
@@ -1341,7 +1320,6 @@
 .error { color: #c0392b; }
 .notes { color: #444; font-size: 13px; }
 
-/* Summary Card Button */
 .summary-button {
   background: none;
   border: none;
@@ -1349,7 +1327,6 @@
   transition: all 0.2s ease;
 }
 
-/* Friends Modal */
 .profile-friends-modal-overlay {
   position: fixed;
   inset: 0;
@@ -1410,7 +1387,6 @@
   display: none;
 }
 
-/* Settings Inline Section */
 .profile-settings-inline {
   padding: 24px;
   border-top: 1px solid var(--profile-border);

@@ -28,7 +28,6 @@
   overflow: hidden;
 }
 
-/* Remote video container */
 .remote-video-container {
   position: absolute;
   top: 0;
@@ -77,7 +76,6 @@
   opacity: 0.9;
 }
 
-/* Local video container */
 .local-video-container {
   position: absolute;
   width: 120px;
@@ -176,7 +174,6 @@
   z-index: 10;
 }
 
-/* Video call controls */
 .video-call-controls {
   position: absolute;
   bottom: 30px;
@@ -313,7 +310,6 @@
   background: #D32F2F;
 }
 
-/* Permissions modal */
 .permissions-modal-overlay {
   position: fixed;
   top: 0;
@@ -485,7 +481,6 @@
   background: #0d8bf2;
 }
 
-/* Connecting overlay */
 .connecting-overlay {
   position: absolute;
   top: 0;
@@ -501,7 +496,6 @@
   z-index: 1000;
 }
 
-/* Mobile responsive */
 @media (max-width: 768px) {
   .local-video-container {
     width: 100px;
