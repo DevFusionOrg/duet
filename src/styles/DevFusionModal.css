@@ -1,4 +1,3 @@
-/* DevFusion Modal Styles */
 .devfusion-modal-overlay {
   position: fixed;
   top: 0;
@@ -220,7 +219,6 @@
   color: var(--home-text-muted);
 }
 
-/* Responsive Design */
 @media (max-width: 480px) {
   .devfusion-modal-content {
     max-height: 90vh;

@@ -103,7 +103,6 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* Instructions Modal */
 .security-instructions-modal {
   position: fixed;
   top: 0;
@@ -329,7 +328,6 @@
   background: #ee5a6f;
 }
 
-/* Mobile Responsive */
 @media (max-width: 600px) {
   .security-warning-banner {
     padding: 10px 12px;

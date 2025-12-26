@@ -491,7 +491,7 @@
   font-size: 0.75rem;
   color: #999;
   white-space: nowrap;
-  font-weight: 500; /* Make it slightly bolder */
+  font-weight: 500;
   background: rgba(102, 126, 234, 0.1);
   padding: 2px 6px;
   border-radius: 10px;
@@ -1522,7 +1522,6 @@
   border: none;
 }
 
-/* ===== SUGGESTED FRIENDS SECTION ===== */
 .suggested-friends-section {
   margin-bottom: 40px;
 }
@@ -1615,7 +1614,6 @@
   font-size: 13px;
 }
 
-/* Profile Popup Styles */
 .profile-popup-overlay {
   position: fixed;
   top: 0;
@@ -1782,7 +1780,6 @@
   font-size: 14px;
 }
 
-/* ===== RECENTLY ACTIVE SECTION ===== */
 .recently-active-section {
   margin-bottom: 40px;
 }
@@ -1884,7 +1881,6 @@
   transform: scale(0.95);
 }
 
-/* ===== ACTIVITY FEED SECTION ===== */
 .activity-feed-section {
   margin-bottom: 40px;
   padding: 0 20px;
@@ -1992,7 +1988,6 @@
   }
 }
 
-/* Welcome Onboarding Styles */
 .welcome-onboarding {
   display: flex;
   flex-direction: column;

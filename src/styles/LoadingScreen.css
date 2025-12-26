@@ -1,6 +1,3 @@
-/* Loading Screen - MacBook Style */
-
-/* Global Spinner Styles - Use these everywhere for consistency */
 .spinner-wrapper {
   position: relative;
   display: inline-block;
@@ -45,7 +42,6 @@
   }
 }
 
-/* Legacy support - keep for backward compatibility */
 .loading-screen {
   display: flex;
   align-items: center;
@@ -112,12 +108,10 @@
   }
 }
 
-/* Dark Mode */
 [data-theme="dark"] .loading-text {
   color: #999;
 }
 
-/* Responsive */
 @media (max-width: 480px) {
   .loading-screen {
     padding: 30px 15px;
@@ -134,7 +128,6 @@
   }
 }
 
-/* Multiple Spinners for Different States - Updated to use global styles */
 .loading-spinner-small,
 .loading-spinner-medium,
 .loading-spinner-large,
@@ -193,14 +186,12 @@
   height: 60px;
 }
 
-/* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
   .spinner-circle {
     animation: none;
   }
 }
 
-/* Skeleton Loading (for list items) */
 .skeleton-loader {
   background: linear-gradient(
     90deg,
@@ -233,7 +224,6 @@
   }
 }
 
-/* Inline Loading States */
 .loading-inline {
   display: inline-flex;
   align-items: center;
