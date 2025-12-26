@@ -26,6 +26,37 @@ function Auth() {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
+// Add these SVG components inside the Auth function
+  const EmailIcon = () => (
+    <svg 
+      className="auth-input-icon"
+      viewBox="0 0 24 24" 
+      fill="currentColor"
+    >
+      <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+    </svg>
+  );
+
+  const PasswordIcon = () => (
+    <svg 
+      className="auth-input-icon"
+      viewBox="0 0 24 24" 
+      fill="currentColor"
+    >
+      <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" />
+    </svg>
+  );
+
+  const NameIcon = () => (
+    <svg 
+      className="auth-input-icon"
+      viewBox="0 0 24 24" 
+      fill="currentColor"
+    >
+      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+    </svg>
+  );
+
   const deriveUsernameFromEmail = (emailStr) => {
     if (!emailStr) return "";
     const local = emailStr.split("@")[0] || "";
@@ -208,30 +239,36 @@ function Auth() {
           <>
             <form onSubmit={handleEmailAuth} className="auth-form">
               <div className="auth-input-group">
-                <label className="auth-label">Email</label>
+                <div className="auth-input-icon-container">
+                  <EmailIcon />
+                </div>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
+                  placeholder=" "
                   className="auth-input"
                   required
                   disabled={loading}
                 />
+                <label className="auth-label">Email</label>
               </div>
 
               <div className="auth-input-group">
-                <label className="auth-label">Password</label>
+                <div className="auth-input-icon-container">
+                  <PasswordIcon />
+                </div>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder=" "
                   className="auth-input"
                   required
                   minLength={6}
                   disabled={loading}
                 />
+                <label className="auth-label">Password</label>
               </div>
 
               <button
@@ -280,43 +317,52 @@ function Auth() {
           <>
             <form onSubmit={handleEmailAuth} className="auth-form">
               <div className="auth-input-group">
-                <label className="auth-label">Full Name</label>
+                <div className="auth-input-icon-container">
+                  <NameIcon />
+                </div>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
+                  placeholder=" "
                   className="auth-input"
                   required={!isLogin}
                   disabled={loading}
                 />
+                <label className="auth-label">Full Name</label>
               </div>
 
               <div className="auth-input-group">
-                <label className="auth-label">Email</label>
+                <div className="auth-input-icon-container">
+                  <EmailIcon />
+                </div>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
+                  placeholder=" "
                   className="auth-input"
                   required
                   disabled={loading}
                 />
+                <label className="auth-label">Email</label>
               </div>
 
               <div className="auth-input-group">
-                <label className="auth-label">Password</label>
+                <div className="auth-input-icon-container">
+                  <PasswordIcon />
+                </div>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder=" "
                   className="auth-input"
                   required
                   minLength={6}
                   disabled={loading}
                 />
+                <label className="auth-label">Password</label>
               </div>
 
               <button
@@ -414,17 +460,20 @@ function Auth() {
                 
                 <form onSubmit={handleForgotPassword} className="auth-modal-form">
                   <div className="auth-input-group">
-                    <label className="auth-label">Email Address</label>
+                    <div className="auth-input-icon-container">
+                      <EmailIcon />
+                    </div>
                     <input
                       type="email"
                       value={forgotPasswordEmail}
                       onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                      placeholder="Enter your email"
+                      placeholder=" "
                       className="auth-input"
                       required
                       disabled={loading}
                       autoFocus
                     />
+                    <label className="auth-label">Email Address</label>
                   </div>
 
                   <div className="auth-modal-buttons">

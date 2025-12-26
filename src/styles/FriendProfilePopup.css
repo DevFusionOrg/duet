@@ -1,4 +1,3 @@
-/* Friend Profile Popup */
 .friend-popup-overlay {
   position: fixed;
   top: 0;
@@ -165,7 +164,6 @@
   transform: translateY(0);
 }
 
-/* Dark mode adjustments */
 @media (prefers-color-scheme: dark) {
   .friend-popup-close {
     background: rgba(255, 255, 255, 0.1);
@@ -176,7 +174,6 @@
   }
 }
 
-/* Mobile responsive */
 @media (max-width: 480px) {
   .friend-popup-content {
     width: 95%;
