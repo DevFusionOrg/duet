@@ -68,7 +68,6 @@
   }
 }
 
-/* Mobile responsiveness */
 @media (max-width: 768px) {
   .image-modal-close {
     top: 10px;

@@ -261,10 +261,9 @@
   }
 }
 
-/* Add this at the beginning of your CSS file */
 .musicPlayerWrapper {
   position: fixed;
-  top: 56px; /* Height of your header */
+  top: 56px;
   left: 0;
   right: 0;
   z-index: 999;
