@@ -6,6 +6,10 @@
     "server": {
     "androidScheme": "https"
     },
+    "android": {
+        "webContentsDebuggingEnabled": true,
+        "allowMixedContent": true
+    },
     "plugins": {
         "FirebaseAuthentication": {
             "skipNativeAuth": false,

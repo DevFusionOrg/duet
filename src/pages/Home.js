@@ -169,14 +169,12 @@ function Home({ user, isDarkMode, toggleTheme }) {
             onClick={() => setActiveView('friends')}
           >
             <svg aria-label="Home" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><title>Home</title><path d="m21.762 8.786-7-6.68a3.994 3.994 0 0 0-5.524 0l-7 6.681A4.017 4.017 0 0 0 1 11.68V19c0 2.206 1.794 4 4 4h3.005a1 1 0 0 0 1-1v-7.003a2.997 2.997 0 0 1 5.994 0V22a1 1 0 0 0 1 1H19c2.206 0 4-1.794 4-4v-7.32a4.02 4.02 0 0 0-1.238-2.894Z"></path></svg>
-            <span className="nav-text">HOME</span>
           </button>
           <button 
             className={`nav-item ${activeView === 'chats' ? 'active' : ''}`}
             onClick={() => setActiveView('chats')}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-            <span className="nav-text">CHAT</span>
             {unreadFriendsCount > 0 && <span className="nav-badge">{unreadFriendsCount}</span>}
           </button>
         </nav>

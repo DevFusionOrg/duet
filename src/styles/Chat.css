@@ -51,7 +51,7 @@
   background: var(--chat-header-bg);
   top: 0;
   z-index: 1000;
-  min-height: 56px;
+  min-height: 28px;
   box-sizing: border-box;
 }
 

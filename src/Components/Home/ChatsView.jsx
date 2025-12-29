@@ -107,8 +107,8 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, onO
 
   return (
     <div className="chats-container">
-      <div className="chats-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 className="SearchHeading">Conversations</h1>
+      <div className="chats-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
+        <h1 className="SearchHeading">Messages</h1>
         <button
           className="alerts-button"
           onClick={onOpenAlerts}
@@ -118,9 +118,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, onO
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            position: 'relative',
-            padding: '6px',
-            marginRight: '8px'
+            position: 'relative'
           }}
         >
           <svg aria-label="Notifications" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24">
