@@ -17,9 +17,9 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
     <div className="friends-container">
       {!hideHeaders && (
         <>
-          <div className='home-title' style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className='home-title' style={{ gap: 12 }}>
             <img className="home-img" src="./logo512.png" alt="Duet Logo" />
-            <h1 className="SearchHeading appname">Duet</h1>
+            <h1 className="SearchHeading appname">Welcome to Duet 🇮🇳</h1>
             <button
               className="profile-trigger-btn friends-header-profile"
               title="View Profile"

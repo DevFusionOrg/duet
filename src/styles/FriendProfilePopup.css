@@ -67,8 +67,7 @@
 }
 
 .friend-popup-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 60px 20px 30px;
+  padding: 6px 0px 0px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -100,7 +99,7 @@
 }
 
 .friend-popup-info {
-  padding: 30px 25px;
+  padding: 0px 10px 10px;
   text-align: center;
 }
 
@@ -124,7 +123,6 @@
 
 .friend-popup-bio {
   background: var(--home-hover-bg);
-  padding: 15px;
   border-radius: 12px;
   margin: 20px 0;
   text-align: left;
@@ -135,13 +133,12 @@
   font-size: 0.95rem;
   color: var(--home-text);
   line-height: 1.5;
+  text-align: center;
 }
 
 .friend-popup-chat-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  padding: 6px;
   border: none;
-  padding: 14px 30px;
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
@@ -171,29 +168,5 @@
   
   .friend-popup-close:hover {
     background: rgba(255, 255, 255, 0.2);
-  }
-}
-
-@media (max-width: 480px) {
-  .friend-popup-content {
-    width: 95%;
-    max-height: 90vh;
-  }
-
-  .friend-popup-header {
-    padding: 50px 15px 25px;
-  }
-
-  .friend-popup-avatar {
-    width: 100px;
-    height: 100px;
-  }
-
-  .friend-popup-info {
-    padding: 25px 20px;
-  }
-
-  .friend-popup-name {
-    font-size: 1.3rem;
   }
 }
