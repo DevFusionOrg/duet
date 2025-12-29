@@ -13,6 +13,25 @@ textarea,
   user-select: text;
 }
 
+/* Remove tap highlight on all elements */
+* {
+  -webkit-tap-highlight-color: transparent;
+  tap-highlight-color: transparent;
+  outline: none;
+}
+
+/* For specific elements */
+button, a, [role="button"], [tabindex] {
+  -webkit-tap-highlight-color: transparent;
+  tap-highlight-color: transparent;
+  outline: none;
+}
+
+/* For Capacitor specific */
+html, body {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
   margin: 0;
