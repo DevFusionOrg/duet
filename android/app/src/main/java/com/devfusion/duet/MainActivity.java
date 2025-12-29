@@ -27,6 +27,12 @@ public class MainActivity extends BridgeActivity {
                 AudioManager.AUDIOFOCUS_GAIN
             );
         }
+
+        WebView webView = getBridge().getWebView();
+        webView.setVerticalScrollBarEnabled(false);
+        webView.setHorizontalScrollBarEnabled(false);
+
+        webView.setBackgroundColor(Color.TRANSPARENT);
     }
     
     @Override

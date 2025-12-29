@@ -30,11 +30,6 @@ function FriendProfilePopup({ friend, onClose, onStartChat }) {
                 e.currentTarget.src = "/default-avatar.png";
               }}
             />
-            {displayBadge && (
-              <div className="friend-popup-badge-overlay">
-                <UserBadge badge={displayBadge} size="medium" />
-              </div>
-            )}
           </div>
         </div>
 

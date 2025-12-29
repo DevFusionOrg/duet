@@ -203,12 +203,12 @@ function SearchView({ user }) {
 
   return (
     <div className="search-container">
-      <div className="search-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div className="search-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
         <h1 className="SearchHeading" style={{ margin: 0 }}>Lookup Friends</h1>
         <button
           className="devfusion-trigger-btn"
           title="About DevFusion"
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 6 }}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
           onClick={() => setShowDevFusion(true)}
         >
           <img src="/DevFusion.png" alt="DevFusion Logo" style={{ width: 50, height: 50, borderRadius: '50%' }} />
