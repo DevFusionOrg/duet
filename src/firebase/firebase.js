@@ -5,14 +5,14 @@ import { getDatabase } from "firebase/database";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_API_KEY,
-  authDomain: "vibechat-f87fe.firebaseapp.com",
-  projectId: "vibechat-f87fe",
-  storageBucket: "vibechat-f87fe.firebasestorage.app",
-  messagingSenderId: "802645032363",
-  appId: "1:802645032363:web:d15288ea6900cb1a5d66ee",
-  measurementId: "G-XCLFMX66ZM",
-  databaseURL: "https://vibechat-f87fe-default-rtdb.asia-southeast1.firebasedatabase.app/"
+  apiKey: "AIzaSyAdW-9Tt4XZpmubm0YGtbcrRRxFt7A9S0w",
+  authDomain: "duet-2025.firebaseapp.com",
+  databaseURL: "https://duet-2025-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "duet-2025",
+  storageBucket: "duet-2025.firebasestorage.app",
+  messagingSenderId: "59902469466",
+  appId: "1:59902469466:web:8efef080265aa491e9ff63",
+  measurementId: "G-LK70XFJBW2"
 };
 
 if (!firebaseConfig.apiKey) {
