@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "59902469466",
+    "firebase_url": "https://duet-2025-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "duet-2025",
     "storage_bucket": "duet-2025.firebasestorage.app"
   },
@@ -12,7 +13,36 @@
           "package_name": "com.devfusion.duet"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "59902469466-6e50lbn8ppq196e0cjk15gqer7v8dqqd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.devfusion.duet",
+            "certificate_hash": "9392b751de4f4d86e0a8e5943557daade07eb7a8"
+          }
+        },
+        {
+          "client_id": "59902469466-7f9gu2k052l91c4j2qdilbp7jkg7q40f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.devfusion.duet",
+            "certificate_hash": "3ae21460ae50d4ba43ddc63233c924097bc32690"
+          }
+        },
+        {
+          "client_id": "59902469466-dttaknoc76cbtlkv989lm83740nfonui.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.devfusion.duet",
+            "certificate_hash": "a10413bec1a946c1f6f6906d9d704e52a29c5a72"
+          }
+        },
+        {
+          "client_id": "59902469466-n0uplj5oilhn91p7vqp61jncasoiki9u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDF65-5WezcoF6-xLHTIa28scWdge7JfgE"
@@ -20,7 +50,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "59902469466-fn29athh9jlbctmckj5g4utqb5qup4u3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

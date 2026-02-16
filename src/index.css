@@ -1,5 +1,5 @@
 * {
-  touch-action: manipulation;
+  touch-action: pan-y;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   user-select: none;
@@ -30,6 +30,7 @@ button, a, [role="button"], [tabindex] {
 /* For Capacitor specific */
 html, body {
   -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y;
 }
 
 body {
