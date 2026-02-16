@@ -15,6 +15,7 @@ function SearchView({ user }) {
   const [message, setMessage] = useState("");
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loadingPending, setLoadingPending] = useState(true);
+  const [pendingError, setPendingError] = useState("");
   const hasFetchedPending = useRef(false);
   const searchTimeoutRef = useRef(null);
 
@@ -69,37 +70,57 @@ function SearchView({ user }) {
   const fetchPendingRequests = async () => {
     try {
       setLoadingPending(true);
+      setPendingError("");
       const { db } = await import("../../firebase/firebase");
-      const { collection, getDocs } = await import("firebase/firestore");
-      
-      const usersRef = collection(db, 'users');
-      const usersSnap = await getDocs(usersRef);
-      
-      const pending = [];
-      
-      usersSnap.docs.forEach(doc => {
-        const userData = doc.data();
-        if (userData.friendRequests && Array.isArray(userData.friendRequests)) {
-          const hasPendingFromMe = userData.friendRequests.some(
-            req => req.from === user.uid && (req.status === 'pending' || !req.status)
-          );
-          
-          if (hasPendingFromMe && doc.id !== user.uid) {
-            pending.push({
-              uid: doc.id,
-              displayName: userData.displayName,
-              username: userData.username,
-              photoURL: userData.photoURL,
-              bio: userData.bio,
-              badge: userData.badge
-            });
-          }
-        }
+      const { collection, getDocs, query, orderBy, doc, getDoc } = await import("firebase/firestore");
+      const { getUserFriendsWithProfiles } = await import("../../firebase/firestore");
+
+      let sentRequests = [];
+      try {
+        const sentRef = collection(db, "users", user.uid, "sentFriendRequests");
+        const sentSnap = await getDocs(query(sentRef, orderBy("timestamp", "desc")));
+        sentRequests = sentSnap.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+      } catch (err) {
+        console.warn("Sent requests subcollection read failed, falling back to user doc:", err);
+      }
+
+      if (sentRequests.length === 0) {
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        const sentArray = userSnap.exists() ? (userSnap.data().sentFriendRequests || []) : [];
+        sentRequests = sentArray.map((req) => ({
+          id: req.to,
+          ...req,
+        }));
+      }
+
+      const pendingOnly = sentRequests.filter(
+        (req) => (req.status || "pending") === "pending" && req.to
+      );
+      const targetIds = pendingOnly.map((req) => req.to);
+      const profiles = await getUserFriendsWithProfiles(targetIds);
+      const profileMap = new Map(profiles.map((profile) => [profile.uid || profile.id, profile]));
+
+      const pending = pendingOnly.map((req) => {
+        const profile = profileMap.get(req.to) || {};
+        return {
+          uid: req.to,
+          displayName: profile.displayName || "User",
+          username: profile.username || "user",
+          photoURL: profile.photoURL,
+          bio: profile.bio,
+          badge: profile.badge,
+          status: req.status || "pending",
+          timestamp: req.timestamp || null,
+        };
       });
-      
+
       setPendingRequests(pending);
     } catch (error) {
       console.error('Error fetching pending requests:', error);
+      setPendingError(error?.message || "Failed to load pending requests.");
     } finally {
       setLoadingPending(false);
     }
@@ -110,25 +131,16 @@ function SearchView({ user }) {
     
     try {
       const { db } = await import("../../firebase/firebase");
-      const { doc, updateDoc, getDoc } = await import("firebase/firestore");
+      const { doc, updateDoc, getDoc, deleteDoc } = await import("firebase/firestore");
 
-      const recipientRef = doc(db, 'users', toUserId);
-      const recipientSnap = await getDoc(recipientRef);
-      
-      if (recipientSnap.exists()) {
-        const recipientData = recipientSnap.data();
-        const updatedRequests = (recipientData.friendRequests || []).filter(
-          req => req.from !== user.uid
-        );
-
-        await updateDoc(recipientRef, {
-          friendRequests: updatedRequests
-        });
-      }
+      await Promise.all([
+        deleteDoc(doc(db, 'users', toUserId, 'friendRequests', user.uid)).catch(() => {}),
+        deleteDoc(doc(db, 'users', user.uid, 'sentFriendRequests', toUserId)).catch(() => {}),
+      ]);
 
       const senderRef = doc(db, 'users', user.uid);
       const senderSnap = await getDoc(senderRef);
-      
+
       if (senderSnap.exists()) {
         const senderData = senderSnap.data();
         const updatedSentRequests = (senderData.sentFriendRequests || []).filter(
@@ -165,6 +177,7 @@ function SearchView({ user }) {
       const { sendFriendRequest } = await import("../../firebase/firestore");
       await sendFriendRequest(user.uid, toUserId);
       setMessage(`Friend request sent to ${toUserName}!`);
+      fetchPendingRequests();
 
       setSearchResults((prev) =>
         prev.map((user) =>
@@ -188,12 +201,11 @@ function SearchView({ user }) {
   };
 
   const hasSentRequest = (userProfile, currentUserId) => {
-    return (
-      userProfile.friendRequests &&
-      userProfile.friendRequests.some(
-        (req) => req.from === currentUserId && (req.status === "pending" || !req.status)
-      )
+    const sent = (userProfile?.sentFriendRequests || []).some(
+      (req) => req.to === currentUserId && (req.status === "pending" || !req.status)
     );
+    if (sent) return true;
+    return pendingRequests.some((req) => req.uid === currentUserId);
   };
 
   const isAlreadyFriend = (userProfile, currentUserId) => {
@@ -228,6 +240,9 @@ function SearchView({ user }) {
       {!loadingPending && pendingRequests.length > 0 && (
         <div className="pending-requests-section">
           <h2 className="pending-requests-title">Friend Requests Sent ({pendingRequests.length})</h2>
+          {pendingError && (
+            <div className="search-message search-message-error">{pendingError}</div>
+          )}
           <div className="pending-requests-list">
             {pendingRequests.map(request => (
               <div key={request.uid} className="pending-request-item">
@@ -308,7 +323,7 @@ function SearchView({ user }) {
 
         {!loading && searchResults.map((result) => {
           const alreadyFriends = isAlreadyFriend(result, user.uid);
-          const requestSent = hasSentRequest(result, user.uid);
+          const requestSent = hasSentRequest(userProfile, result.uid);
 
           return (
             <div
