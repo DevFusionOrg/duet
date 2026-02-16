@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import UserBadge from '../UserBadge';
-import { useProfiles } from '../../hooks/useProfiles';
 import FriendProfilePopup from '../FriendProfilePopup';
 import LoadingScreen from '../LoadingScreen';
 import { deleteFriend } from '../../firebase/firestore';
 
-function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friendsOnlineStatus, currentUserId, hideHeaders = false, hideHeading = false, hideGrid = false, allowRemove = false }) {
-  const { profile: userProfile } = useProfiles({ uid: currentUserId });
+function FriendsView({ friends, loading, onStartChat, friendsOnlineStatus, currentUserId, hideHeaders = false, hideHeading = false, hideGrid = false, allowRemove = false }) {
   const [selectedFriend, setSelectedFriend] = useState(null);
 
   if (loading) {
@@ -18,22 +16,8 @@ function FriendsView({ friends, loading, onStartChat, onFriendCardClick, friends
       {!hideHeaders && (
         <>
           <div className='home-title' style={{ gap: 12 }}>
-            <img className="home-img" src="./logo512.png" alt="Duet Logo" />
-            <h1 className="SearchHeading appname">Welcome to Duet 🇮🇳</h1>
-            <button
-              className="profile-trigger-btn friends-header-profile"
-              title="View Profile"
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, marginLeft: 'auto' }}
-              onClick={() => onFriendCardClick && onFriendCardClick('profile')}
-            >
-              <img
-                src={userProfile?.photoURL || '/default-avatar.png'}
-                alt="Profile"
-                className="user-avatar"
-                style={{ width: 50, height: 50, borderRadius: '50%' }}
-                onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = '/default-avatar.png'; }}
-              />
-            </button>
+            {/* <img className="home-img" src="./logo512.png" alt="Duet Logo" /> */}
+            <h1 className="SearchHeading appname">Duet </h1>
           </div>
           {!hideHeading && <h1 className="SearchHeading">Connections</h1>}
         </>

@@ -4,6 +4,8 @@ import android.os.Bundle;
 import android.view.WindowManager;
 import android.media.AudioManager;
 import android.content.Context;
+import android.graphics.Color;
+import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {

@@ -95,16 +95,6 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, onO
     return <LoadingScreen message="Loading chats..." size="medium" />;
   }
 
-  if (chats.length === 0) {
-    return (
-      <div className="empty-state">
-        <div className="empty-icon">💬</div>
-        <h3>No Active Chats</h3>
-        <p>Start a conversation with one of your friends!</p>
-      </div>
-    );
-  }
-
   return (
     <div className="chats-container">
       <div className="chats-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
@@ -145,18 +135,26 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, onO
         </button>
       </div>
 
-      <div className="chats-list">
-        <MemoizedVirtualizedChats
-          chats={sortedChats}
-          pinnedChatId={pinnedChatId}
-          mutedChats={mutedChats}
-          friendsOnlineStatus={friendsOnlineStatus}
-          onStartChat={onStartChat}
-          handlePinChat={handlePinChat}
-          handleToggleMute={handleToggleMute}
-          formatChatTimestamp={formatChatTimestamp}
-        />
-      </div>
+      {chats.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">💬</div>
+          <h3>No Active Chats</h3>
+          <p>Start a conversation with one of your friends!</p>
+        </div>
+      ) : (
+        <div className="chats-list">
+          <MemoizedVirtualizedChats
+            chats={sortedChats}
+            pinnedChatId={pinnedChatId}
+            mutedChats={mutedChats}
+            friendsOnlineStatus={friendsOnlineStatus}
+            onStartChat={onStartChat}
+            handlePinChat={handlePinChat}
+            handleToggleMute={handleToggleMute}
+            formatChatTimestamp={formatChatTimestamp}
+          />
+        </div>
+      )}
     </div>
   );
 }

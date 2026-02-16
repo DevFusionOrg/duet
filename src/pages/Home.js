@@ -3,11 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Chat from "./Chat";
 import '../styles/Home.css';
 import ChatsView from '../Components/Home/ChatsView';
-import FriendsView from '../Components/Home/FriendsView';
 import SearchView from '../Components/Home/SearchView';
 import NotificationsModal from '../Components/Home/NotificationsModal';
-import RecentlyActiveFriends from '../Components/Home/RecentlyActiveFriends';
-import WelcomeOnboarding from '../Components/Home/WelcomeOnboarding';
 import LoadingScreen from '../Components/LoadingScreen';
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
@@ -21,18 +18,16 @@ const ProfileView = React.lazy(() => import('../Components/Home/ProfileView'));
 function Home({ user, isDarkMode, toggleTheme }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { friends, loading: friendsLoading } = useFriends(user);
+  const { friends } = useFriends(user);
   const { chats, loading: chatsLoading } = useChats(user, friends);
   const { profile: userProfile} = useProfiles(user);
   const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
   const { unreadFriendsCount } = useUnreadCount(user);
   const [selectedFriend, setSelectedFriend] = useState(null);
-  const [activeView, setActiveView] = useState('friends');
+  const [activeView, setActiveView] = useState('chats');
   const [showAlertsModal, setShowAlertsModal] = useState(false);
 
   const [pendingFriendId, setPendingFriendId] = useState(null);
-  const loading = friendsLoading;
-
   const pendingFriendRequestCount = (userProfile?.friendRequests || []).filter(
     (req) => (req.status || 'pending') === 'pending'
   ).length;
@@ -70,9 +65,6 @@ function Home({ user, isDarkMode, toggleTheme }) {
     setSelectedFriend(null);
   };
 
-  const handleFriendCardClick = (type) => {
-    if (type === 'profile') setActiveView('profile');
-  };
 
   const openChatForFriendId = useCallback((friendId) => {
     if (!friendId) return false;
@@ -146,10 +138,6 @@ function Home({ user, isDarkMode, toggleTheme }) {
     return () => window.removeEventListener('notification-click', handleNotificationClick);
   }, [openChatForFriendId, user?.uid]);
 
-  const filteredFriends = friends.filter(
-    f => !userProfile?.blockedUsers?.includes(f.uid)
-  );
-
   if (selectedFriend) {
     return (
       <Chat 
@@ -165,52 +153,45 @@ function Home({ user, isDarkMode, toggleTheme }) {
       <div className="side-pane">
         <nav className="pane-nav">
           <button 
-            className={`nav-item ${activeView === 'friends' ? 'active' : ''}`}
-            onClick={() => setActiveView('friends')}
-          >
-            <svg aria-label="Home" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24"><title>Home</title><path d="m21.762 8.786-7-6.68a3.994 3.994 0 0 0-5.524 0l-7 6.681A4.017 4.017 0 0 0 1 11.68V19c0 2.206 1.794 4 4 4h3.005a1 1 0 0 0 1-1v-7.003a2.997 2.997 0 0 1 5.994 0V22a1 1 0 0 0 1 1H19c2.206 0 4-1.794 4-4v-7.32a4.02 4.02 0 0 0-1.238-2.894Z"></path></svg>
-          </button>
-          <button 
             className={`nav-item ${activeView === 'chats' ? 'active' : ''}`}
             onClick={() => setActiveView('chats')}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            <span className="nav-label">Chat</span>
             {unreadFriendsCount > 0 && <span className="nav-badge">{unreadFriendsCount}</span>}
+          </button>
+          <button
+            className={`nav-item ${activeView === 'search' ? 'active' : ''}`}
+            onClick={() => setActiveView('search')}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
+            </svg>
+            <span className="nav-label">Add</span>
+          </button>
+          <button 
+            className={`nav-item ${activeView === 'profile' ? 'active' : ''}`}
+            onClick={() => setActiveView('profile')}
+          >
+            <span className="nav-avatar">
+              <img
+                src={userProfile?.photoURL || '/default-avatar.png'}
+                alt="Profile"
+                className="nav-avatar-img"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/default-avatar.png';
+                }}
+              />
+            </span>
+            <span className="nav-label">Profile</span>
           </button>
         </nav>
       </div>
 
       <div className="main-content">
         <div className="content-area">
-          {activeView === 'friends' ? (
-            <>
-              <FriendsView 
-                friends={filteredFriends}
-                loading={loading} 
-                onStartChat={handleStartChat}
-                onFriendCardClick={handleFriendCardClick}
-                friendsOnlineStatus={friendsOnlineStatus}
-                currentUserId={user.uid}
-                hideGrid={true}
-                hideHeading={true}
-              />
-              <div style={{ paddingLeft: '20px', paddingRight: '20px' }}>
-                {filteredFriends.length > 0 ? (
-                  <RecentlyActiveFriends
-                    key="recently-active"
-                    friends={filteredFriends}
-                    friendsOnlineStatus={friendsOnlineStatus}
-                    onStartChat={handleStartChat}
-                  />
-                ) : (
-                  <WelcomeOnboarding
-                    user={user}
-                    onSwitchToSearch={() => setActiveView('search')}
-                  />
-                )}
-              </div>
-            </>
-          ) : activeView === 'chats' ? (
+          {activeView === 'chats' ? (
             <ChatsView 
               chats={chats} 
               loading={chatsLoading} 
@@ -229,15 +210,6 @@ function Home({ user, isDarkMode, toggleTheme }) {
           ) : null}
         </div>
       </div>
-
-      <button 
-        className="floating-search-btn"
-        onClick={() => setActiveView('search')}
-        title="Search"
-        aria-label="Search"
-      >
-        <svg fill="currentColor" viewBox="0 0 24 24" width="32" height="32"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
-      </button>
 
       <NotificationsModal 
         isOpen={showAlertsModal}
