@@ -18,7 +18,6 @@ dependencies {
     implementation project(':capacitor-filesystem')
     implementation project(':capacitor-push-notifications')
     implementation project(':capacitor-splash-screen')
-    implementation project(':capacitor-voice-recorder')
 
 }
 
