@@ -104,10 +104,10 @@ function NotificationsModal({ isOpen, onClose, user, onFriendRequestUpdate, asPa
     <div className={`notifications-modal-content ${asPage ? 'notifications-page-content' : ''}`} onClick={(e) => !asPage && e.stopPropagation()}>
       {!asPage && <button className="notifications-modal-close" onClick={onClose} aria-label="Close">×</button>}
         <div className="notifications-modal-header">
-          <h2>Alerts</h2>
+          <h1 class="SearchHeading">Alerts</h1>
           {activeFriendRequests.length > 0 }
         </div>
-
+        
         {actionMessage && (
           <div className={`action-message ${actionMessage.includes("✅") ? "action-message-success" : "action-message-error"}`}>
             {actionMessage}

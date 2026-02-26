@@ -238,13 +238,18 @@ function Home({ user, isDarkMode, toggleTheme }) {
             </Suspense>
           ) : activeView === 'settings' ? (
             <Suspense fallback={<LoadingScreen message="Loading settings..." size="medium" fullScreen={true} />}>
-              <ProfileView
-                user={user}
-                isDarkMode={isDarkMode}
-                toggleTheme={toggleTheme}
-                openSettingsAsView={true}
-                onCloseSettingsTab={() => setActiveView('profile')}
-              />
+              <div>
+                <div className="chats-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
+                  <h1 className="SearchHeading">Settings</h1>
+                </div>
+                <ProfileView
+                  user={user}
+                  isDarkMode={isDarkMode}
+                  toggleTheme={toggleTheme}
+                  openSettingsAsView={true}
+                  onCloseSettingsTab={() => setActiveView('profile')}
+                />
+              </div>
             </Suspense>
           ) : null}
         </div>
