@@ -1,6 +1,6 @@
 {
   "name": "duet",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "private": true,
   "dependencies": {
     "@capacitor-community/keep-awake": "^7.1.0",
@@ -22,7 +22,8 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
-    "capacitor-voice-recorder": "^7.0.6",
+    "ajv": "^8.18.0",
+    "ajv-keywords": "^5.1.0",
     "cloudinary": "^2.8.0",
     "dotenv": "^17.2.3",
     "firebase": "^11.2.0",
@@ -33,7 +34,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.5",
-    "react-scripts": "5.0.1",
+    "react-scripts": "^5.0.1",
     "react-window": "^2.2.3",
     "simple-peer": "^9.11.1",
     "web-vitals": "^2.1.4",

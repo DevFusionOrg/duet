@@ -285,6 +285,56 @@
   font-size: 1rem;
 }
 
+.home-chat-suggestions {
+  margin: 8px 12px 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--home-border);
+}
+
+.home-chat-suggestions-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--home-text);
+}
+
+.home-chat-suggestions-list {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.home-chat-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--home-border);
+  background: var(--home-card-bg);
+  color: var(--home-text);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  min-width: fit-content;
+}
+
+.home-chat-suggestion-item:hover {
+  background: var(--home-hover-bg);
+}
+
+.home-chat-suggestion-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.home-chat-suggestion-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .friends-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -1037,7 +1087,11 @@
 }
 
 .search-container {
-  padding: 20px 12px 0;
+  padding: 10px;
+}
+
+.chats-container{
+  padding: 10px;
 }
 
 .search-header-bar {
@@ -1066,7 +1120,6 @@
 
 .search-form {
   display: flex;
-  margin-bottom: 30px;
   justify-content: center;
   align-items: center;
   padding: 0px 10px;
@@ -1464,6 +1517,10 @@
 
   .friends-grid { grid-template-columns: 1fr; }
 
+  .home-chat-suggestions {
+    margin: 6px 10px 12px;
+  }
+
   .friend-card { padding: 20px; }
 
   .profile-popup { width: 95%; }
@@ -1552,7 +1609,7 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  border-bottom:1px solid var(--home-border);
+  margin:0px;
 }
 
 .remove-friend-button{
@@ -1616,8 +1673,6 @@
   font-size: 18px;
   font-weight: 600;
   color: var(--home-text);
-  margin-bottom: 16px;
-  margin-top: 24px;
   padding-bottom: 8px;
   border-bottom: 2px solid var(--home-border);
 }

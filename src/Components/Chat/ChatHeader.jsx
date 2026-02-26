@@ -1,6 +1,5 @@
 import React from "react";
 import VideoCallButton from '../Call/VideoCallButton'; 
-import UserBadge from '../UserBadge';
 
 function ChatHeader({ 
   user, 
@@ -71,10 +70,7 @@ function ChatHeader({
         </div>
         <div>
           <h3 className="chat-user-name">
-            <span className="badge-with-name">
-              {friend.displayName}
-              {(() => { const displayBadge = friend.badge || (friend.username === 'ashwinirai492' ? 'tester' : null); return displayBadge ? <UserBadge badge={displayBadge} size="small" /> : null; })()}
-            </span>
+            {friend.displayName}
             {isBlocked && <span className="blocked-badge"> (Blocked)</span>}
           </h3>
           <p className={`user-status ${isFriendTyping ? 'typing' : (isFriendOnline ? 'online' : 'offline')} ${isBlocked ? 'blocked' : ''}`}>
