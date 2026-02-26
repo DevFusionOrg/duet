@@ -148,6 +148,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, onO
             pinnedChatId={pinnedChatId}
             mutedChats={mutedChats}
             friendsOnlineStatus={friendsOnlineStatus}
+            currentUserId={user?.uid}
             onStartChat={onStartChat}
             handlePinChat={handlePinChat}
             handleToggleMute={handleToggleMute}
@@ -161,7 +162,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, onO
 
 export default ChatsView;
 
-function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus, onStartChat, handlePinChat, handleToggleMute, formatChatTimestamp }) {
+function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus, currentUserId, onStartChat, handlePinChat, handleToggleMute, formatChatTimestamp }) {
   const containerRef = React.useRef(null);
   const [viewportHeight, setViewportHeight] = React.useState(480);
   const itemHeight = 80;
@@ -199,13 +200,24 @@ function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus
         const isPinned = pinnedChatId === chat.id;
         const isMuted = mutedChats.includes(chat.id);
         const other = chat.otherParticipant || {};
+        const otherParticipantId = other.uid || other.id || chat.participants?.find((id) => id !== currentUserId);
+        const chatTarget = otherParticipantId
+          ? {
+              ...other,
+              uid: otherParticipantId,
+              id: otherParticipantId,
+              displayName: other.displayName || 'User',
+            }
+          : null;
         const displayBadge = other.badge || (other.username === 'ashwinirai492' ? 'tester' : null);
         return (
           <div
             key={chat.id}
             className={`chat-item ${isPinned ? 'pinned' : ''}`}
             style={{ height: itemHeight }}
-            onClick={() => onStartChat(chat.otherParticipant)}
+            onClick={() => {
+              if (chatTarget) onStartChat(chatTarget);
+            }}
           >
             {isPinned && (
               <div className="pin-indicator" title="Pinned chat">
@@ -298,6 +310,7 @@ const MemoizedVirtualizedChats = React.memo(VirtualizedChats, (prev, next) => {
     prev.chats === next.chats &&
     prev.pinnedChatId === next.pinnedChatId &&
     prev.mutedChats === next.mutedChats &&
-    prev.friendsOnlineStatus === next.friendsOnlineStatus
+    prev.friendsOnlineStatus === next.friendsOnlineStatus &&
+    prev.currentUserId === next.currentUserId
   );
 });

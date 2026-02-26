@@ -175,17 +175,50 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       if (videoData) {
         playSong(videoData);
       } else {
-        throw new Error("No results found");
+        throw new Error("No results found from available providers");
       }
     } catch (error) {
+      console.error("Error searching song:", error);
       alert("Error searching for song. Please try again.");
     }
     setLoading(false);
   };
 
+  const normalizeVideo = (video) => {
+    if (!video) return null;
+    const videoId =
+      video?.id?.videoId ||
+      video?.videoId ||
+      video?.id ||
+      null;
+    const title = video?.snippet?.title || video?.title || null;
+    if (!videoId || !title) return null;
+    return { videoId, title };
+  };
+
+  const searchYouTubeNoKey = async (query) => {
+    try {
+      const response = await fetch(
+        `https://yt.lemnoslife.com/noKey/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query + " official audio")}`
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (!data?.items?.length) return null;
+      return normalizeVideo(data.items[0]);
+    } catch (error) {
+      return null;
+    }
+  };
+
   const searchYouTube = async (query) => {
     try {
       const API_KEY = process.env.REACT_APP_YOUTUBE_API_KEY; 
+      if (!API_KEY) {
+        const noKeyResult = await searchYouTubeNoKey(query);
+        if (noKeyResult) return noKeyResult;
+        return await searchYouTubeAlternative(query);
+      }
+
       const response = await fetch(
         `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query + " official audio")}&key=${API_KEY}`
       );
@@ -194,28 +227,30 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       
       const data = await response.json();
       if (data.items && data.items.length > 0) {
-        const video = data.items[0];
-        return {
-          videoId: video.id.videoId,
-          title: video.snippet.title,
-          thumbnail: video.snippet.thumbnails.default.url
-        };
+        return normalizeVideo(data.items[0]);
       }
+      const noKeyResult = await searchYouTubeNoKey(query);
+      if (noKeyResult) return noKeyResult;
       return null;
     } catch (error) {
+      const noKeyResult = await searchYouTubeNoKey(query);
+      if (noKeyResult) return noKeyResult;
       return await searchYouTubeAlternative(query);
     }
   };
 
   const searchYouTubeAlternative = async (query) => {
     try {
+      const rapidApiKey = process.env.REACT_APP_RAPIDAPI_KEY;
+      if (!rapidApiKey) return null;
+
       const response = await fetch(
         `https://youtube-search-results.p.rapidapi.com/youtube-search/?q=${encodeURIComponent(query + " song official audio")}`,
         {
           method: 'GET',
           headers: {
             'x-rapidapi-host': 'youtube-search-results.p.rapidapi.com',
-            'x-rapidapi-key': '2cd3c5e367msh2f32234adae1671p1c6c99jsn7cfa8b7b28ba'
+            'x-rapidapi-key': rapidApiKey
           }
         }
       );
@@ -223,8 +258,7 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       if (response.ok) {
         const data = await response.json();
         if (data.items && data.items.length > 0) {
-          const video = data.items[0];
-          return { videoId: video.id, title: video.title };
+          return normalizeVideo(data.items[0]);
         }
       }
       return null;

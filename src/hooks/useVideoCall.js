@@ -5,6 +5,7 @@ import { ref, onValue } from 'firebase/database';
 import { database } from '../firebase/firebase';
 
 export function useVideoCall(user, friend, chatId) {
+  const friendId = friend?.uid || friend?.id;
   
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
   const [localStream, setLocalStream] = useState(null);
@@ -55,6 +56,11 @@ export function useVideoCall(user, friend, chatId) {
   const startVideoCall = useCallback(async () => {
     console.log('🎬 Starting video call to:', friend?.displayName);
 
+    if (!user?.uid || !friendId || !chatId) {
+      alert('Call failed. Please try again.');
+      return;
+    }
+
     if (callStateRef.current !== 'idle') {
       console.log('Cleaning up previous call state...');
       cleanupCallState();
@@ -94,7 +100,7 @@ export function useVideoCall(user, friend, chatId) {
       const callData = await callService.createVideoCall(
         user.uid,
         user.displayName || user.email,
-        friend.uid,
+        friendId,
         friend.displayName || friend.email
       );
 
@@ -157,7 +163,7 @@ export function useVideoCall(user, friend, chatId) {
             callId,
             true,
             user.uid,
-            friend.uid,
+            friendId,
             { facingMode: 'user' }
           );
           
@@ -302,7 +308,7 @@ export function useVideoCall(user, friend, chatId) {
       setConnectionQuality('poor');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, friend, chatId]);
+  }, [user, friend, friendId, chatId]);
 
   const playRingtone = useCallback((type = 'incoming') => {
     stopRingtone();

@@ -12,7 +12,12 @@ export function useChatSetup(user, friend) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user?.uid || !friend?.uid) return;
+    const friendId = friend?.uid || friend?.id;
+    if (!user?.uid || !friendId) {
+      setChatId(null);
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
 
@@ -20,18 +25,18 @@ export function useChatSetup(user, friend) {
       try {
         const [userProfile, friendProfile] = await Promise.all([
           getUserProfile(user.uid),
-          getUserProfile(friend.uid),
+          getUserProfile(friendId),
         ]);
 
         if (
-          userProfile?.blockedUsers?.includes(friend.uid) ||
+          userProfile?.blockedUsers?.includes(friendId) ||
           friendProfile?.blockedUsers?.includes(user.uid)
         ) {
           setChatId(null);
           return;
         }
 
-        const id = await getOrCreateChat(user.uid, friend.uid);
+        const id = await getOrCreateChat(user.uid, friendId);
         if (cancelled) return;
 
         setChatId(id);
@@ -51,7 +56,7 @@ export function useChatSetup(user, friend) {
     return () => {
       cancelled = true;
     };
-  }, [user?.uid, friend?.uid]);
+  }, [user?.uid, friend?.uid, friend?.id]);
 
   return { chatId, friends, loading };
 }

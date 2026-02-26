@@ -11,7 +11,7 @@ import { useChats } from "../hooks/useChats";
 import { useProfiles } from "../hooks/useProfiles";
 import { useFriendsOnlineStatus } from "../hooks/useFriendsOnlineStatus";
 import { useUnreadCount } from "../hooks/useUnreadCount";
-import { migrateOldUnreadCounts } from "../firebase/firestore";
+import { migrateOldUnreadCounts, listenToIncomingFriendRequestCount } from "../firebase/firestore";
 
 const ProfileView = React.lazy(() => import('../Components/Home/ProfileView'));
 
@@ -28,9 +28,13 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const [showAlertsModal, setShowAlertsModal] = useState(false);
 
   const [pendingFriendId, setPendingFriendId] = useState(null);
-  const pendingFriendRequestCount = (userProfile?.friendRequests || []).filter(
-    (req) => (req.status || 'pending') === 'pending'
-  ).length;
+  const [pendingFriendRequestCount, setPendingFriendRequestCount] = useState(0);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const unsubscribe = listenToIncomingFriendRequestCount(user.uid, setPendingFriendRequestCount);
+    return unsubscribe;
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user?.uid) return;

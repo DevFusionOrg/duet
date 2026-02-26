@@ -152,6 +152,21 @@ export const listenToUserFriends = (userId, callback) => {
   });
 };
 
+export const listenToIncomingFriendRequestCount = (userId, callback) => {
+  const requestsRef = collection(db, "users", userId, "friendRequests");
+
+  return onSnapshot(
+    requestsRef,
+    (snap) => {
+      callback(snap?.size || 0);
+    },
+    (error) => {
+      console.error("Error listening to incoming friend requests:", error);
+      callback(0);
+    }
+  );
+};
+
 export const getUserFriendsWithProfiles = async (friendIds) => {
   if (!friendIds || friendIds.length === 0) return [];
 
@@ -581,7 +596,7 @@ export const validateUsername = (username) => {
 export const sendFriendRequest = async (fromUserId, toUserId) => {
   try {
     if (fromUserId === toUserId) {
-      throw new Error("You cannot send a request to yourself");
+      throw new Error("You cannot send a friend request to yourself");
     }
 
     console.log("Sending friend request from:", fromUserId, "to:", toUserId);
@@ -602,31 +617,27 @@ export const sendFriendRequest = async (fromUserId, toUserId) => {
       throw new Error("Cannot send request to blocked user");
     }
 
-    if (toUserProfile.friends?.includes(fromUserId)) {
+    const existingFriendSnap = await getDoc(doc(db, "users", toUserId, "friends", fromUserId));
+    if (existingFriendSnap.exists()) {
       throw new Error("You are already friends with this user");
     }
 
-    const existingRequest = toUserProfile.friendRequests?.find(
-      (req) => req.from === fromUserId && req.status === "pending"
-    );
+    const incomingRequestRef = doc(db, "users", toUserId, "friendRequests", fromUserId);
+    const outgoingRequestRef = doc(db, "users", fromUserId, "sentFriendRequests", toUserId);
 
-    if (existingRequest) {
+    // Sender can always read own sent subcollection; reading recipient incoming is blocked by rules.
+    const existingRequest = await getDoc(outgoingRequestRef);
+    if (existingRequest.exists() && existingRequest.data()?.status === "pending") {
       throw new Error("Friend request already sent");
     }
 
-    const toUserRef = doc(db, "users", toUserId);
-    const fromUserRef = doc(db, "users", fromUserId);
-
-    // Write to arrays (legacy) and subcollections (new) for compatibility
     const payloadIncoming = { from: fromUserId, timestamp: new Date(), status: "pending" };
     const payloadOutgoing = { to: toUserId, timestamp: new Date(), status: "pending" };
 
-    await Promise.all([
-      updateDoc(toUserRef, { friendRequests: arrayUnion(payloadIncoming) }),
-      updateDoc(fromUserRef, { sentFriendRequests: arrayUnion(payloadOutgoing) }).catch(() => {}),
-      setDoc(doc(db, "users", toUserId, "friendRequests", fromUserId), payloadIncoming).catch(() => {}),
-      setDoc(doc(db, "users", fromUserId, "sentFriendRequests", toUserId), payloadOutgoing).catch(() => {})
-    ]);
+    const batch = writeBatch(db);
+    batch.set(incomingRequestRef, payloadIncoming);
+    batch.set(outgoingRequestRef, payloadOutgoing);
+    await batch.commit();
 
     return { success: true };
   } catch (error) {
@@ -659,11 +670,12 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
     }
 
     const userRef = doc(db, "users", userId);
-    const fromUserRef = doc(db, "users", requestFromId);
+    const incomingRequestRef = doc(db, "users", userId, "friendRequests", requestFromId);
 
-    const [userSnap, fromUserSnap] = await Promise.all([
+    const [userSnap, fromUserSnap, incomingRequestSnap] = await Promise.all([
       getDoc(userRef),
-      getDoc(fromUserRef),
+      getDoc(doc(db, "users", requestFromId)),
+      getDoc(incomingRequestRef),
     ]);
 
     if (!userSnap.exists() || !fromUserSnap.exists()) {
@@ -680,29 +692,15 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
       throw new Error("Cannot accept request from blocked user");
     }
 
-    const requestToRemove = userData.friendRequests?.find(
-      (req) => req.from === requestFromId && req.status === "pending"
-    );
+    const incomingRequestData = incomingRequestSnap.exists()
+      ? incomingRequestSnap.data()
+      : null;
 
-    if (!requestToRemove) {
+    if (!incomingRequestData || incomingRequestData.status !== "pending") {
       throw new Error("Friend request not found");
     }
 
     const batch = writeBatch(db);
-
-    batch.update(userRef, {
-      friends: arrayUnion(requestFromId),
-      friendRequests: arrayRemove(requestToRemove),
-    });
-
-    const sentRequestToRemove = fromUserData.sentFriendRequests?.find(
-      (req) => req.to === userId && req.status === "pending"
-    );
-
-    batch.update(fromUserRef, {
-      friends: arrayUnion(userId),
-      ...(sentRequestToRemove && { sentFriendRequests: arrayRemove(sentRequestToRemove) })
-    });
 
     batch.set(
       doc(db, "users", userId, "friends", requestFromId),
@@ -728,11 +726,11 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
 
     await batch.commit();
 
-    // Remove subcollection entries
     await Promise.all([
-      deleteDoc(doc(db, "users", userId, "friendRequests", requestFromId)).catch(() => {}),
+      deleteDoc(incomingRequestRef).catch(() => {}),
       deleteDoc(doc(db, "users", requestFromId, "sentFriendRequests", userId)).catch(() => {}),
     ]);
+
     return { success: true };
 
   } catch (error) {
@@ -743,7 +741,6 @@ export const acceptFriendRequest = async (userId, requestFromId) => {
 
 export const loadFriendRequests = async (userId, pageSize = 20, lastDocTimestamp = null) => {
   try {
-    // Prefer subcollection to avoid transferring large arrays on each user doc read
     const requestsRef = collection(db, "users", userId, "friendRequests");
 
     let q;
@@ -801,50 +798,27 @@ export const loadFriendRequests = async (userId, pageSize = 20, lastDocTimestamp
 
 export const rejectFriendRequest = async (userId, requestFromId) => {
   try {
-    const userRef = doc(db, "users", userId);
-    const fromUserRef = doc(db, "users", requestFromId);
+    const incomingRequestRef = doc(db, "users", userId, "friendRequests", requestFromId);
 
-    const [userSnap, fromUserSnap] = await Promise.all([
-      getDoc(userRef),
-      getDoc(fromUserRef),
+    const [userSnap, incomingRequestSnap] = await Promise.all([
+      getDoc(doc(db, "users", userId)),
+      getDoc(incomingRequestRef),
     ]);
 
     if (!userSnap.exists()) {
       throw new Error("User not found");
     }
 
-    const userData = userSnap.data();
-    const fromUserData = fromUserSnap.data();
+    const incomingRequestData = incomingRequestSnap.exists()
+      ? incomingRequestSnap.data()
+      : null;
 
-    const requestToRemove = userData.friendRequests?.find(
-      (req) => req.from === requestFromId && req.status === "pending",
-    );
-
-    if (!requestToRemove) {
+    if (!incomingRequestData || incomingRequestData.status !== "pending") {
       throw new Error("Friend request not found");
     }
 
-    const sentRequestToRemove = fromUserData?.sentFriendRequests?.find(
-      (req) => req.to === userId && req.status === "pending"
-    );
-
-    const batch = writeBatch(db);
-
-    batch.update(userRef, {
-      friendRequests: arrayRemove(requestToRemove),
-    });
-
-    if (sentRequestToRemove) {
-      batch.update(fromUserRef, {
-        sentFriendRequests: arrayRemove(sentRequestToRemove),
-      });
-    }
-
-    await batch.commit();
-
-    // Remove subcollection entries
     await Promise.all([
-      deleteDoc(doc(db, "users", userId, "friendRequests", requestFromId)).catch(() => {}),
+      deleteDoc(incomingRequestRef).catch(() => {}),
       deleteDoc(doc(db, "users", requestFromId, "sentFriendRequests", userId)).catch(() => {}),
     ]);
   } catch (error) {
@@ -890,26 +864,19 @@ export const getOrCreateChat = async (user1Id, user2Id) => {
     const chatId = [user1Id, user2Id].sort().join("_");
     const chatRef = doc(db, "chats", chatId);
 
-    const chatSnap = await getDoc(chatRef);
+    const user1Username = user1?.username || `user_${String(user1Id).slice(0, 6)}`;
+    const user2Username = user2?.username || `user_${String(user2Id).slice(0, 6)}`;
 
-    if (!chatSnap.exists()) {
-      const chatData = {
-        id: chatId,
-        participants: [user1Id, user2Id],
-        participantUsernames: {
-          [user1.username]: user1Id,
-          [user2.username]: user2Id,
-        },
-        createdAt: new Date(),
-        lastMessage: null,
-        lastMessageAt: new Date(),
-      };
-      // Initialize user-specific unread counts
-      chatData[`unreadCount_${user1Id}`] = 0;
-      chatData[`unreadCount_${user2Id}`] = 0;
-      
-      await setDoc(chatRef, chatData);
-    }
+    // Use merge write so chat can be created without requiring a pre-read.
+    await setDoc(chatRef, {
+      id: chatId,
+      participants: [user1Id, user2Id],
+      participantUsernames: {
+        [user1Username]: user1Id,
+        [user2Username]: user2Id,
+      },
+      createdAt: serverTimestamp(),
+    }, { merge: true });
 
     return chatId;
   } catch (error) {
@@ -930,9 +897,29 @@ export const saveUserNotificationToken = async (userId, token) => {
   }
 };
 
+const deriveReceiverIdFromChatId = (chatId, senderId) => {
+  if (!chatId || !senderId || typeof chatId !== "string") return null;
+
+  const participantIds = chatId.split("_").filter(Boolean);
+  if (participantIds.length === 2) {
+    if (participantIds[0] === senderId) return participantIds[1];
+    if (participantIds[1] === senderId) return participantIds[0];
+  }
+
+  const fallback = chatId.replace(senderId, '').replace('_', '');
+  return fallback || null;
+};
+
 export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
-    const receiverId = chatId.replace(senderId, '').replace('_', '');
+    if (!chatId) {
+      throw new Error("Chat is not ready yet. Please wait a moment and try again.");
+    }
+
+    const receiverId = deriveReceiverIdFromChatId(chatId, senderId);
+    if (!receiverId) {
+      throw new Error("Unable to determine chat recipient.");
+    }
 
     const [receiverSnap, senderSnap] = await Promise.all([
       getDoc(doc(db, "users", receiverId)),
@@ -1022,7 +1009,14 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
 
 export const sendVoiceNote = async (chatId, senderId, voiceData) => {
   try {
-    const receiverId = chatId.replace(senderId, '').replace('_', '');
+    if (!chatId) {
+      throw new Error("Chat is not ready yet. Please wait a moment and try again.");
+    }
+
+    const receiverId = deriveReceiverIdFromChatId(chatId, senderId);
+    if (!receiverId) {
+      throw new Error("Unable to determine chat recipient.");
+    }
     
     const receiverRef = doc(db, "users", receiverId);
     const receiverSnap = await getDoc(receiverRef);
@@ -1994,6 +1988,10 @@ export const getBlockedUsers = async (userId) => {
 
 export const replyToMessage = async (chatId, originalMessageId, replyText, senderId, imageData = null) => {
   try {
+    if (!chatId) {
+      throw new Error("Chat is not ready yet. Please wait a moment and try again.");
+    }
+
     const messagesRef = collection(db, "chats", chatId, "messages");
     
     const originalMessageRef = doc(db, "chats", chatId, "messages", originalMessageId);
@@ -2051,7 +2049,10 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       };
     }
     
-    const receiverId = chatId.replace(senderId, '').replace('_', '');
+    const receiverId = deriveReceiverIdFromChatId(chatId, senderId);
+    if (!receiverId) {
+      throw new Error("Unable to determine chat recipient.");
+    }
     
     await sendPushNotification(senderId, receiverId, { ...replyData, text: replyText || "" }, chatId);
     

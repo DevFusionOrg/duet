@@ -366,6 +366,11 @@ function Chat({ user, friend, onBack }) {
   }, [chatId]);
 
   const handleImageUploadClick = async () => {
+    if (!chatId) {
+      alert("Chat is still loading. Please wait a moment.");
+      return;
+    }
+
     // Create a temporary file input to bypass Cloudinary widget
     const input = document.createElement('input');
     input.type = 'file';
@@ -414,6 +419,11 @@ function Chat({ user, friend, onBack }) {
   };
 
   const handleVoiceSend = async (audioBlob, duration) => {
+    if (!chatId) {
+      alert("Chat is still loading. Please wait a moment.");
+      return;
+    }
+
     setSendingVoice(true);
     try {
       const voiceData = await uploadVoiceNote(audioBlob);
@@ -515,6 +525,11 @@ function Chat({ user, friend, onBack }) {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
+    if (!chatId) {
+      alert("Chat is still loading. Please wait a moment.");
+      return;
+    }
+
     if (isBlocked) {
       alert("User is Blocked.");
       return;
