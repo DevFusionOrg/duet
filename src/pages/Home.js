@@ -5,6 +5,7 @@ import '../styles/Home.css';
 import ChatsView from '../Components/Home/ChatsView';
 import SearchView from '../Components/Home/SearchView';
 import NotificationsModal from '../Components/Home/NotificationsModal';
+import UserProfilePane from '../Components/Home/UserProfilePane';
 import LoadingScreen from '../Components/LoadingScreen';
 import { useFriends } from "../hooks/useFriends";
 import { useChats } from "../hooks/useChats";
@@ -24,10 +25,26 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const { friendsOnlineStatus } = useFriendsOnlineStatus(user, friends);
   const { unreadFriendsCount } = useUnreadCount(user);
   const [selectedFriend, setSelectedFriend] = useState(null);
+  const [selectedProfile, setSelectedProfile] = useState(null);
   const [activeView, setActiveView] = useState('chats');
+  const [desktopBaseView, setDesktopBaseView] = useState('chats');
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
 
   const [pendingFriendId, setPendingFriendId] = useState(null);
   const [pendingFriendRequestCount, setPendingFriendRequestCount] = useState(0);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    if (activeView === 'profile' || activeView === 'settings') {
+      setDesktopBaseView(activeView);
+    }
+  }, [activeView, isDesktop]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -61,8 +78,24 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const handleFriendRequestUpdate = () => {};
 
   const handleStartChat = (friend) => {
+    setSelectedProfile(null);
     setSelectedFriend(friend);
+    if (isDesktop) setDesktopBaseView('chats');
   };
+
+  const handleOpenProfilePane = (profileUser) => {
+    if (!profileUser) return;
+    setSelectedFriend(null);
+    setSelectedProfile(profileUser);
+  };
+
+  const isProfileSection = activeView === 'profile' || activeView === 'settings';
+
+  useEffect(() => {
+    if (!isDesktop || !isProfileSection) return;
+    setSelectedFriend(null);
+    setSelectedProfile(null);
+  }, [isDesktop, isProfileSection]);
 
   const handleBackToFriends = (nextFriend = null) => {
     if (nextFriend && typeof nextFriend === 'object' && (nextFriend.uid || nextFriend.id)) {
@@ -78,12 +111,14 @@ function Home({ user, isDarkMode, toggleTheme }) {
     if (!friendId) return false;
     const friendMatch = friends.find((f) => f.uid === friendId || f.id === friendId);
     if (friendMatch) {
+      setSelectedProfile(null);
       setSelectedFriend(friendMatch);
       setActiveView('chats');
+      if (isDesktop) setDesktopBaseView('chats');
       return true;
     }
     return false;
-  }, [friends]);
+  }, [friends, isDesktop]);
 
   useEffect(() => {
     if (!pendingFriendId || !friends.length) return;
@@ -144,13 +179,25 @@ function Home({ user, isDarkMode, toggleTheme }) {
     return () => window.removeEventListener('notification-click', handleNotificationClick);
   }, [openChatForFriendId, user?.uid]);
 
-  if (selectedFriend) {
+  if ((selectedFriend || selectedProfile) && !isDesktop) {
     return (
-      <Chat 
-        user={user} 
-        friend={selectedFriend} 
-        onBack={() => handleBackToFriends()}
-      />
+      selectedFriend ? (
+        <Chat 
+          user={user} 
+          friend={selectedFriend} 
+          onBack={() => handleBackToFriends()}
+          onOpenProfile={handleOpenProfilePane}
+        />
+      ) : (
+        <div className="home-container" style={{ padding: 16 }}>
+          <UserProfilePane
+            userId={selectedProfile?.uid || selectedProfile?.id}
+            currentUserId={user?.uid}
+            onClose={() => setSelectedProfile(null)}
+            onStartChat={handleStartChat}
+          />
+        </div>
+      )
     );
   }
 
@@ -160,7 +207,12 @@ function Home({ user, isDarkMode, toggleTheme }) {
         <nav className="pane-nav">
           <button 
             className={`nav-item ${activeView === 'chats' ? 'active' : ''}`}
-            onClick={() => setActiveView('chats')}
+            onClick={() => {
+              setSelectedProfile(null);
+              setSelectedFriend(null);
+              setActiveView('chats');
+              if (isDesktop) setDesktopBaseView('chats');
+            }}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
             <span className="nav-label">Chat</span>
@@ -189,7 +241,12 @@ function Home({ user, isDarkMode, toggleTheme }) {
           </button>
           <button 
             className={`nav-item ${(activeView === 'profile' || activeView === 'settings') ? 'active' : ''}`}
-            onClick={() => setActiveView('profile')}
+            onClick={() => {
+              setSelectedFriend(null);
+              setSelectedProfile(null);
+              setActiveView('profile');
+              if (isDesktop) setDesktopBaseView('profile');
+            }}
           >
             <span className="nav-avatar">
               <img
@@ -208,18 +265,134 @@ function Home({ user, isDarkMode, toggleTheme }) {
       </div>
 
       <div className="main-content">
-        <div className="content-area">
-          {activeView === 'chats' ? (
+        <div className={`content-area ${isDesktop ? 'desktop-shell-content' : ''}`}>
+          {isDesktop ? (
+            <div className={`desktop-shell-layout ${isProfileSection ? 'profile-focus' : ''}`}>
+              {!isProfileSection && (
+                <div className="desktop-shell-left">
+                  {activeView === 'chats' && (
+                    <ChatsView
+                      chats={chats}
+                      loading={chatsLoading}
+                      onStartChat={handleStartChat}
+                      onOpenProfile={handleOpenProfilePane}
+                      friendsOnlineStatus={friendsOnlineStatus}
+                      user={user}
+                      friends={friends}
+                    />
+                  )}
+                  {activeView === 'search' && (
+                    <SearchView user={user} onOpenProfile={handleOpenProfilePane} />
+                  )}
+                  {activeView === 'alerts' && (
+                    <NotificationsModal
+                      isOpen={true}
+                      user={user}
+                      onFriendRequestUpdate={handleFriendRequestUpdate}
+                      asPage={true}
+                    />
+                  )}
+                </div>
+              )}
+
+              <div className="desktop-shell-right">
+                {isProfileSection ? (
+                  desktopBaseView === 'settings' ? (
+                    <Suspense fallback={<LoadingScreen message="Loading settings..." size="medium" fullScreen={true} />}>
+                      <div className="desktop-profile-pane-wrap">
+                        <ProfileView
+                          user={user}
+                          isDarkMode={isDarkMode}
+                          toggleTheme={toggleTheme}
+                          openSettingsAsView={true}
+                          onCloseSettingsTab={() => {
+                            setDesktopBaseView('profile');
+                            setActiveView('profile');
+                          }}
+                        />
+                      </div>
+                    </Suspense>
+                  ) : (
+                    <Suspense fallback={<LoadingScreen message="Loading profile..." size="medium" fullScreen={true} />}>
+                      <div className="desktop-profile-pane-wrap">
+                        <ProfileView
+                          user={user}
+                          isDarkMode={isDarkMode}
+                          toggleTheme={toggleTheme}
+                          onOpenUserProfile={handleOpenProfilePane}
+                          onOpenSettingsTab={() => {
+                            setDesktopBaseView('settings');
+                            setActiveView('settings');
+                          }}
+                        />
+                      </div>
+                    </Suspense>
+                  )
+                ) : selectedProfile ? (
+                  <UserProfilePane
+                    userId={selectedProfile?.uid || selectedProfile?.id}
+                    currentUserId={user?.uid}
+                    onClose={() => setSelectedProfile(null)}
+                    onStartChat={handleStartChat}
+                  />
+                ) : selectedFriend ? (
+                  <Chat
+                    user={user}
+                    friend={selectedFriend}
+                    onBack={() => handleBackToFriends()}
+                    isEmbedded={true}
+                    onOpenProfile={handleOpenProfilePane}
+                  />
+                ) : desktopBaseView === 'settings' ? (
+                  <Suspense fallback={<LoadingScreen message="Loading settings..." size="medium" fullScreen={true} />}>
+                    <div className="desktop-profile-pane-wrap">
+                      <ProfileView
+                        user={user}
+                        isDarkMode={isDarkMode}
+                        toggleTheme={toggleTheme}
+                        openSettingsAsView={true}
+                        onCloseSettingsTab={() => {
+                          setDesktopBaseView('profile');
+                          setActiveView('profile');
+                        }}
+                      />
+                    </div>
+                  </Suspense>
+                ) : desktopBaseView === 'profile' ? (
+                  <Suspense fallback={<LoadingScreen message="Loading profile..." size="medium" fullScreen={true} />}>
+                    <div className="desktop-profile-pane-wrap">
+                      <ProfileView
+                        user={user}
+                        isDarkMode={isDarkMode}
+                        toggleTheme={toggleTheme}
+                        onOpenUserProfile={handleOpenProfilePane}
+                        onOpenSettingsTab={() => {
+                          setDesktopBaseView('settings');
+                          setActiveView('settings');
+                        }}
+                      />
+                    </div>
+                  </Suspense>
+                ) : (
+                  <div className="desktop-chat-placeholder">
+                    <h2>Select a chat</h2>
+                    <p>Choose a conversation to start messaging.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : activeView === 'chats' ? (
             <ChatsView 
               chats={chats} 
               loading={chatsLoading} 
               onStartChat={handleStartChat}
+              onOpenProfile={handleOpenProfilePane}
               friendsOnlineStatus={friendsOnlineStatus}
               user={user}
               friends={friends}
             />
           ) : activeView === 'search' ? (
-            <SearchView user={user} />
+            <SearchView user={user} onOpenProfile={handleOpenProfilePane} />
           ) : activeView === 'alerts' ? (
             <NotificationsModal
               isOpen={true}
@@ -233,23 +406,19 @@ function Home({ user, isDarkMode, toggleTheme }) {
                 user={user}
                 isDarkMode={isDarkMode}
                 toggleTheme={toggleTheme}
+                onOpenUserProfile={handleOpenProfilePane}
                 onOpenSettingsTab={() => setActiveView('settings')}
               />
             </Suspense>
           ) : activeView === 'settings' ? (
             <Suspense fallback={<LoadingScreen message="Loading settings..." size="medium" fullScreen={true} />}>
-              <div>
-                <div className="chats-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
-                  <h1 className="SearchHeading">Settings</h1>
-                </div>
-                <ProfileView
-                  user={user}
-                  isDarkMode={isDarkMode}
-                  toggleTheme={toggleTheme}
-                  openSettingsAsView={true}
-                  onCloseSettingsTab={() => setActiveView('profile')}
-                />
-              </div>
+              <ProfileView
+                user={user}
+                isDarkMode={isDarkMode}
+                toggleTheme={toggleTheme}
+                openSettingsAsView={true}
+                onCloseSettingsTab={() => setActiveView('profile')}
+              />
             </Suspense>
           ) : null}
         </div>

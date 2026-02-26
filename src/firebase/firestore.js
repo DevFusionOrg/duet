@@ -910,6 +910,17 @@ const deriveReceiverIdFromChatId = (chatId, senderId) => {
   return fallback || null;
 };
 
+const assertUsersAreFriends = async (senderId, receiverId) => {
+  const [senderFriendSnap, receiverFriendSnap] = await Promise.all([
+    getDoc(doc(db, "users", senderId, "friends", receiverId)),
+    getDoc(doc(db, "users", receiverId, "friends", senderId)),
+  ]);
+
+  if (!senderFriendSnap.exists() || !receiverFriendSnap.exists()) {
+    throw new Error("You can only message users who are already your friends.");
+  }
+};
+
 export const sendMessage = async (chatId, senderId, text, imageData = null) => {
   try {
     if (!chatId) {
@@ -925,6 +936,8 @@ export const sendMessage = async (chatId, senderId, text, imageData = null) => {
       getDoc(doc(db, "users", receiverId)),
       getDoc(doc(db, "users", senderId))
     ]);
+
+    await assertUsersAreFriends(senderId, receiverId);
     
     if (!receiverSnap.exists()) {
       throw new Error("Receiver not found");
@@ -1042,10 +1055,9 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
       throw new Error("Receiver not found");
     }
 
-    const messagesRef = collection(db, "chats", chatId, "messages");
+    await assertUsersAreFriends(senderId, receiverId);
 
-    const deletionTime = new Date();
-    deletionTime.setHours(deletionTime.getHours() + 12);
+    const messagesRef = collection(db, "chats", chatId, "messages");
 
     const senderName = senderData?.displayName || senderData?.username || "Someone";
     const senderPhoto = senderData?.photoURL || "";
@@ -1070,7 +1082,7 @@ export const sendVoiceNote = async (chatId, senderId, voiceData) => {
       readBy: null,
       readAt: null,
       seenBy: [],
-      deletionTime: deletionTime,
+      deletionTime: null,
       isSaved: false,
       isEdited: false,
       isReply: false,
@@ -1206,7 +1218,7 @@ export const getChatMessages = async (chatId, currentUserId, messagesLimit = 25)
   }
 };
 
-export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 25) => {
+export const listenToChatMessages = (chatId, currentUserId, callback, messagesLimit = 20) => {
   let blockedUsers = [];
   let unsubscribeMessages;
   let bufferedMessages = [];
@@ -1453,12 +1465,7 @@ export const listenToUserChats = (userId, callback) => {
 export const markMessagesAsRead = async (chatId, userId) => {
   try {
     const messagesRef = collection(db, "chats", chatId, "messages");
-    const q = query(
-      messagesRef,
-      where("senderId", "!=", userId),
-      where("read", "==", false),
-      limit(50) 
-    );
+    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(100));
 
     const querySnapshot = await getDocs(q);
 
@@ -1469,15 +1476,24 @@ export const markMessagesAsRead = async (chatId, userId) => {
     const batch = writeBatch(db);
     const readAt = new Date();
     const deletionTime = new Date(readAt.getTime() + 24 * 60 * 60 * 1000);
-    const messageCount = querySnapshot.size;
+    let messageCount = 0;
 
     querySnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.senderId === userId || data.read === true) {
+        return;
+      }
+      messageCount += 1;
       batch.update(doc.ref, { 
         read: true,
         readAt,
         deletionTime
       });
     });
+
+    if (messageCount === 0) {
+      return 0;
+    }
 
     // Update user-specific unreadCount on chat document (cache it)
     const chatRef = doc(db, "chats", chatId);
@@ -1682,10 +1698,11 @@ export const loadOlderMusicQueue = async (chatId, pageSize = 20, lastIndex = nul
 
 export const saveMessage = async (chatId, messageId, userId) => {
   try {
-    const messageRef = doc(db, "chats", chatId, "messages", messageId);
-    await updateDoc(messageRef, {
-      isSaved: true,
-      savedBy: userId,
+    const saveRef = doc(db, "users", userId, "savedMessages", `${chatId}_${messageId}`);
+    await setDoc(saveRef, {
+      chatId,
+      messageId,
+      userId,
       savedAt: new Date(),
     });
     console.log("Message saved from deletion");
@@ -1695,19 +1712,37 @@ export const saveMessage = async (chatId, messageId, userId) => {
   }
 };
 
-export const unsaveMessage = async (chatId, messageId) => {
+export const unsaveMessage = async (chatId, messageId, userId) => {
   try {
-    const messageRef = doc(db, "chats", chatId, "messages", messageId);
-    await updateDoc(messageRef, {
-      isSaved: false,
-      savedBy: null,
-      savedAt: null,
-    });
+    const saveRef = doc(db, "users", userId, "savedMessages", `${chatId}_${messageId}`);
+    await deleteDoc(saveRef);
     console.log("Message unsaved");
   } catch (error) {
     console.error("Error unsaving message:", error);
     throw error;
   }
+};
+
+export const listenToSavedMessages = (userId, chatId, callback) => {
+  if (!userId || !chatId) {
+    callback(new Set());
+    return () => {};
+  }
+
+  const savedRef = collection(db, "users", userId, "savedMessages");
+  const q = query(savedRef, where("chatId", "==", chatId));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const ids = new Set(snapshot.docs.map((docSnap) => docSnap.data()?.messageId).filter(Boolean));
+      callback(ids);
+    },
+    (error) => {
+      console.error("Error listening to saved messages:", error);
+      callback(new Set());
+    }
+  );
 };
 
 export const editMessage = async (chatId, messageId, newText, userId) => {
@@ -2003,9 +2038,6 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     
     const originalMessage = originalMessageSnap.data();
 
-    const deletionTime = new Date();
-    deletionTime.setHours(deletionTime.getHours() + 12);
-    
     const replyData = {
       senderId,
       text: replyText || "",
@@ -2015,7 +2047,7 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
       readBy: null,
       readAt: null,
       seenBy: [],
-      deletionTime: deletionTime,
+      deletionTime: null,
       isSaved: false,
       isEdited: false,
       editHistory: [],
@@ -2053,6 +2085,8 @@ export const replyToMessage = async (chatId, originalMessageId, replyText, sende
     if (!receiverId) {
       throw new Error("Unable to determine chat recipient.");
     }
+
+    await assertUsersAreFriends(senderId, receiverId);
     
     await sendPushNotification(senderId, receiverId, { ...replyData, text: replyText || "" }, chatId);
     

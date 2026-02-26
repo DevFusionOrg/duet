@@ -1,7 +1,7 @@
 import React from "react";
 import Profile from "../../pages/Profile";
 
-function ProfileView({ user, isDarkMode, toggleTheme, openSettingsAsView = false, onOpenSettingsTab, onCloseSettingsTab }) {
+function ProfileView({ user, isDarkMode, toggleTheme, openSettingsAsView = false, onOpenSettingsTab, onCloseSettingsTab, onOpenUserProfile }) {
   return (
     <div className="profile-tab-container">
       <Profile
@@ -11,6 +11,7 @@ function ProfileView({ user, isDarkMode, toggleTheme, openSettingsAsView = false
         openSettingsAsView={openSettingsAsView}
         onOpenSettingsTab={onOpenSettingsTab}
         onCloseSettingsTab={onCloseSettingsTab}
+        onOpenUserProfile={onOpenUserProfile}
       />
     </div>
   );
