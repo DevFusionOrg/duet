@@ -4,7 +4,7 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { getOptimizedProfilePictureUrl } from '../../services/cloudinary';
 
-function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, friends = [] }) {
+function ChatsView({ chats, loading, onStartChat, onOpenProfile, friendsOnlineStatus, user, friends = [] }) {
   const [pinnedChatId, setPinnedChatId] = useState(localStorage.getItem('pinnedChatId') || null);
   const [mutedChats, setMutedChats] = useState([]);
 
@@ -129,6 +129,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, fri
             friendsOnlineStatus={friendsOnlineStatus}
             currentUserId={user?.uid}
             onStartChat={onStartChat}
+            onOpenProfile={onOpenProfile}
             handlePinChat={handlePinChat}
             handleToggleMute={handleToggleMute}
             formatChatTimestamp={formatChatTimestamp}
@@ -177,7 +178,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, fri
 
 export default ChatsView;
 
-function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus, currentUserId, onStartChat, handlePinChat, handleToggleMute, formatChatTimestamp }) {
+function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus, currentUserId, onStartChat, onOpenProfile, handlePinChat, handleToggleMute, formatChatTimestamp }) {
   const containerRef = React.useRef(null);
   const [viewportHeight, setViewportHeight] = React.useState(480);
   const itemHeight = 80;
@@ -208,7 +209,7 @@ function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus
   const bottomSpacer = (chats.length - endIndex) * itemHeight;
 
   return (
-    <div ref={containerRef} >
+    <div ref={containerRef} style={{ height: '100%', overflowY: 'auto' }}>
       <div style={{ height: topSpacer }} />
       {visibleChats.map((chat) => {
         const lastMessagePreview = chat.lastMessage || 'Start a conversation...';
@@ -255,7 +256,7 @@ function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus
                   e.currentTarget.src = "/default-avatar.png";
                 }}
               />
-              <div className={`online-indicator ${friendsOnlineStatus[other.uid] ? 'online' : 'offline'}`}></div>
+              <div className={`online-indicator ${friendsOnlineStatus[otherParticipantId] ? 'online' : 'offline'}`}></div>
             </div>
             <div className="chat-info">
               <div className="chat-header">

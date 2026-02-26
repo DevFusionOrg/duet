@@ -24,6 +24,7 @@ import {
   markMessagesAsRead,
   saveMessage,
   unsaveMessage,
+  listenToSavedMessages,
   editMessage,
   blockUser,
   unblockUser,
@@ -39,7 +40,7 @@ import { getOptimizedImageUrl, uploadVoiceNote } from "../services/cloudinary";
 import { notificationService } from "../services/notifications";
 import "../styles/Chat.css";
 
-function Chat({ user, friend, onBack }) {
+function Chat({ user, friend, onBack, isEmbedded = false, onOpenProfile }) {
   
   const isActiveChatRef = useRef(true);
   
@@ -104,6 +105,7 @@ function Chat({ user, friend, onBack }) {
   const [pendingMessages, setPendingMessages] = useState([]);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [sendingVoice, setSendingVoice] = useState(false);
+  const [savedMessageIds, setSavedMessageIds] = useState(new Set());
   const [isFriendTyping, setIsFriendTyping] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
@@ -210,14 +212,35 @@ function Chat({ user, friend, onBack }) {
   useEffect(() => {
     if (!chatId || !user?.uid) return;
 
-    if (!componentMountedRef.current || !isActiveChatRef.current) return;
+    const unsubscribeSaved = listenToSavedMessages(user.uid, chatId, (savedIds) => {
+      setSavedMessageIds(savedIds);
+    });
 
-    // Mark as read immediately when chat opens
-    if (componentMountedRef.current && isActiveChatRef.current) {
-      markMessagesAsRead(chatId, user.uid);
-      notificationService.clearAllNotifications(chatId);
-    }
+    return () => {
+      if (unsubscribeSaved) unsubscribeSaved();
+    };
   }, [chatId, user?.uid]);
+
+  useEffect(() => {
+    if (!chatId || !user?.uid) return;
+
+    if (!componentMountedRef.current || !isActiveChatRef.current) return;
+  }, [chatId, user?.uid]);
+
+  useEffect(() => {
+    if (!chatId || !user?.uid) return;
+    if (loading) return;
+    if (document.visibilityState !== 'visible') return;
+
+    const hasUnreadIncoming = messages.some(
+      (message) => message.senderId !== user.uid && message.read !== true
+    );
+
+    if (!hasUnreadIncoming) return;
+
+    markMessagesAsRead(chatId, user.uid);
+    notificationService.clearAllNotifications(chatId);
+  }, [messages, chatId, user?.uid, loading]);
 
   useEffect(() => {
     return () => {
@@ -330,17 +353,22 @@ function Chat({ user, friend, onBack }) {
   useEffect(() => {
     if (messages.length > 0 && !loading) {
       if (isInitialLoadRef.current) {
-        
-        const firstUnread = messages.find(msg => !msg.read && msg.senderId !== user?.uid);
+        const lastUnread = [...messages].reverse().find(msg => !msg.read && msg.senderId !== user?.uid);
 
         requestAnimationFrame(() => {
-          if (firstUnread && firstUnreadMessageRef.current) {
-            
-            firstUnreadMessageRef.current.scrollIntoView({ behavior: "instant", block: "start" });
+          if (lastUnread && firstUnreadMessageRef.current) {
+            firstUnreadMessageRef.current.scrollIntoView({ behavior: "instant", block: "center" });
           } else {
-            
             messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
           }
+
+          if (document.visibilityState === 'visible' && chatId && user?.uid && isActiveChatRef.current) {
+            setTimeout(() => {
+              markMessagesAsRead(chatId, user.uid);
+              notificationService.clearAllNotifications(chatId);
+            }, 120);
+          }
+
           isInitialLoadRef.current = false;
         });
       } else {
@@ -356,7 +384,7 @@ function Chat({ user, friend, onBack }) {
       }
       previousMessagesLengthRef.current = messages.length;
     }
-  }, [messages, loading, user?.uid]);
+  }, [messages, loading, user?.uid, chatId]);
 
   useEffect(() => {
     isInitialLoadRef.current = true;
@@ -611,7 +639,7 @@ function Chat({ user, friend, onBack }) {
 
   const handleUnsaveMessage = async (messageId) => {
     try {
-      await unsaveMessage(chatId, messageId);
+      await unsaveMessage(chatId, messageId, user.uid);
       setShowMessageMenu(false);
     } catch (error) {
       console.error("Error unsaving message:", error);
@@ -739,7 +767,7 @@ function Chat({ user, friend, onBack }) {
   };
 
   const isMessageSaved = (message) => {
-    return message.isSaved === true;
+    return savedMessageIds.has(message.id);
   };
 
   const isMessageEdited = (message) => {
@@ -816,11 +844,17 @@ function Chat({ user, friend, onBack }) {
     user,
     friend,
     onBack,
+    showBackButton: !isEmbedded,
+    showCloseButton: isEmbedded,
+    onCloseChat: onBack,
     isBlocked,
     isFriendOnline,
     isFriendTyping,
     lastSeen,
     onToggleUserMenu: () => setShowUserMenu(!showUserMenu),
+    onOpenProfile: () => {
+      if (onOpenProfile) onOpenProfile(friend);
+    },
     showUserMenu,
     onBlockUser: handleBlockUser,
     onDeleteChat: handleDeleteChat,
@@ -834,7 +868,7 @@ function Chat({ user, friend, onBack }) {
   };
 
   return (
-    <div className={`chat-container ${isBlocked ? 'blocked' : ''}`}>
+    <div className={`chat-container ${isBlocked ? 'blocked' : ''} ${isEmbedded ? 'embedded' : ''}`}>
       <ChatHeader {...chatHeaderProps} />
 
       <div className="chat-messages-container">
@@ -854,9 +888,16 @@ function Chat({ user, friend, onBack }) {
         ) : (
           [...messages, ...pendingMessages].map((message, index, arr) => {
             const prev = index > 0 ? arr[index - 1] : null;
+            const next = index < arr.length - 1 ? arr[index + 1] : null;
             const showDateSeparator = !prev || !isSameDay(prev?.timestamp, message.timestamp);
-            const isFirstUnread = !message.read && message.senderId !== user?.uid && 
-              arr.slice(0, index).every(m => m.read || m.senderId === user?.uid);
+            const lastUnreadIndex = (() => {
+              for (let i = arr.length - 1; i >= 0; i -= 1) {
+                if (!arr[i].read && arr[i].senderId !== user?.uid) return i;
+              }
+              return -1;
+            })();
+            const isFirstUnread = index === lastUnreadIndex;
+            const showSeriesAvatar = !next || next.senderId !== message.senderId;
             
             return (
               <div
@@ -884,6 +925,7 @@ function Chat({ user, friend, onBack }) {
                   onSaveEdit={handleSaveEdit}
                   onCancelEdit={handleCancelEdit}
                   onStartReply={handleStartReply}
+                  showSeriesAvatar={showSeriesAvatar}
                   renderMenuOptions={() => (
                     <MessageMenu
                       message={message}
@@ -954,7 +996,7 @@ function Chat({ user, friend, onBack }) {
         chatId={chatId}
         user={user}
         isVisible={showMusicPlayer}
-        pinned={true}
+        pinned={!isEmbedded}
         onClose={() => setShowMusicPlayer(false)}
       />
       

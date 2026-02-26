@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { db } from '../../firebase/firebase';
 import { collection, getDocs, query, limit, orderBy } from 'firebase/firestore';
-import { sendFriendRequest } from '../../firebase/firestore';
 import LoadingScreen from '../LoadingScreen';
 import '../../styles/Home.css';
 
-function SuggestedFriends({ user, currentFriends, friendRequests }) {
+function SuggestedFriends({ user, currentFriends, friendRequests, onOpenProfile }) {
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [requesting, setRequesting] = useState({});
-  const [sentRequests, setSentRequests] = useState(new Set());
-  const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [selectedProfile, setSelectedProfile] = useState(null);
   const hasFetched = useRef(false);
 
   const fetchSuggestedFriends = useCallback(async () => {
@@ -39,8 +34,6 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
         console.warn('Unable to fetch sent friend requests subcollection:', error);
       }
 
-      setSentRequests(sentFriendRequestIds);
-      
       console.log('Total users found:', allUsers.length);
       console.log('Sample user data:', allUsers.slice(0, 3).map(u => ({ 
         uid: u.uid, 
@@ -96,31 +89,8 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
     }
   }, [fetchSuggestedFriends, currentFriends]);
 
-  const handleAddFriend = async (suggestedUserId, suggestedUserName) => {
-    try {
-      setRequesting(prev => ({ ...prev, [suggestedUserId]: true }));
-      await sendFriendRequest(user.uid, suggestedUserId, user.displayName || user.email, suggestedUserName);
-
-      setSentRequests(prev => new Set([...prev, suggestedUserId]));
-      setSuggestions(prev => prev.filter(s => s.uid !== suggestedUserId));
-
-      setTimeout(() => {
-        hasFetched.current = false;
-        fetchSuggestedFriends();
-      }, 1500);
-    } catch (error) {
-      console.error('Error sending friend request:', error);
-      setRequesting(prev => ({ ...prev, [suggestedUserId]: false }));
-    }
-  };
-
   const handleProfileClick = (suggestion) => {
-    setSelectedProfile(suggestion);
-    setShowProfilePopup(true);
-  };
-
-  const checkHasPendingRequest = (userId) => {
-    return sentRequests.has(userId);
+    if (onOpenProfile) onOpenProfile(suggestion);
   };
 
   if (loading) {
@@ -174,85 +144,13 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
 
             <button
               className="add-friend-btn"
-              onClick={() => handleAddFriend(suggestion.uid, suggestion.displayName)}
-              disabled={requesting[suggestion.uid] || sentRequests.has(suggestion.uid) || checkHasPendingRequest(suggestion.uid)}
+              onClick={() => handleProfileClick(suggestion)}
             >
-              {checkHasPendingRequest(suggestion.uid) ? (
-                <>
-                  <span style={{ marginRight: '4px' }}>⏳</span>
-                  Pending Request
-                </>
-              ) : sentRequests.has(suggestion.uid) ? (
-                <>
-                  <span style={{ marginRight: '4px' }}>✓</span>
-                  Request Sent
-                </>
-              ) : requesting[suggestion.uid] ? (
-                'Adding...'
-              ) : (
-                'Add'
-              )}
+              View Profile
             </button>
           </div>
         ))}
       </div>
-
-      {showProfilePopup && selectedProfile && (
-        <div className="profile-popup-overlay" onClick={() => setShowProfilePopup(false)}>
-          <div className="profile-popup-content" onClick={(e) => e.stopPropagation()}>
-            <button className="profile-popup-close" onClick={() => setShowProfilePopup(false)}>✕</button>
-            
-            <img 
-              src={selectedProfile.photoURL || '/default-avatar.png'}
-              alt={selectedProfile.displayName}
-              className="profile-popup-avatar"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = '/default-avatar.png';
-              }}
-            />
-            
-            <h2 className="profile-popup-name">{selectedProfile.displayName}</h2>
-            
-            <p className="profile-popup-username">@{selectedProfile.username}</p>
-            
-            {selectedProfile.bio && (
-              <p className="profile-popup-bio">{selectedProfile.bio}</p>
-            )}
-            
-            {selectedProfile.mutualCount > 0 && (
-              <div className="profile-popup-mutual">
-                <p className="profile-popup-mutual-title">Mutual Friends ({selectedProfile.mutualCount})</p>
-                <p className="profile-popup-mutual-names">
-                  {selectedProfile.mutualFriendNames.join(', ')}
-                  {selectedProfile.mutualCount > 3 && ` +${selectedProfile.mutualCount - 3} more`}
-                </p>
-              </div>
-            )}
-            
-            <button
-              className="profile-popup-add-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddFriend(selectedProfile.uid, selectedProfile.displayName);
-                setShowProfilePopup(false);
-              }}
-              disabled={requesting[selectedProfile.uid] || sentRequests.has(selectedProfile.uid) || checkHasPendingRequest(selectedProfile.uid)}
-            >
-              {sentRequests.has(selectedProfile.uid) ? (
-                <>
-                  <span style={{ marginRight: '4px' }}>✓</span>
-                  Request Sent
-                </>
-              ) : requesting[selectedProfile.uid] ? (
-                'Adding...'
-              ) : (
-                'Add Friend'
-              )}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

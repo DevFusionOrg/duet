@@ -23,6 +23,7 @@ function ChatMessage({
   onSaveEdit,
   onCancelEdit,
   onStartReply,
+  showSeriesAvatar,
   renderMenuOptions,
   getOptimizedImageUrl
 }) {
@@ -73,6 +74,36 @@ function ChatMessage({
   const renderMessageContent = (message) => {
     const isCallMessage = message.type === 'call' || message.type === 'video-call';
     const isSeenByRecipient = message.senderId === user.uid && message.read === true;
+
+    const renderInlineTextMeta = () => (
+      <span className="chat-text-inline-meta">
+        <span className="chat-message-time">{formatTime(message.timestamp)}</span>
+        {isMessageEdited(message) && <span className="chat-edited-indicator">Edited</span>}
+        {isMessageSaved(message) && <span className="chat-saved-indicator">⭐</span>}
+        {message.senderId === user.uid && (
+          message.pending ? (
+            <span className="chat-pending-indicator" title="Sending..."></span>
+          ) : (
+            <span
+              className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : 'sent'}`}
+              title={isSeenByRecipient ? 'Seen' : 'Sent'}
+              aria-label={isSeenByRecipient ? 'Seen' : 'Sent'}
+            >
+              {isSeenByRecipient ? (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1.5 8L4 10.5L8 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M6.5 8L9 10.5L13 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 7L5.2 9.2L10.5 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </span>
+          )
+        )}
+      </span>
+    );
 
     if (isCallMessage) {
       return (
@@ -147,7 +178,12 @@ function ChatMessage({
     return (
       <>
         {renderReplyIndicator()}
-        {message.text && <p className="chat-message-text">{message.text}</p>}
+        {message.text && (
+          <p className="chat-message-text chat-message-text-inline">
+            <span className="chat-text-inline-body">{message.text}</span>
+            {renderInlineTextMeta()}
+          </p>
+        )}
         {message.image && (
           <img 
             src={message.image.thumbnailUrl || message.image.url} 
@@ -157,7 +193,7 @@ function ChatMessage({
             style={{ cursor: 'pointer' }}
           />
         )}
-        {renderMessageStatus(message, isSeenByRecipient)}
+        {!message.text && renderMessageStatus(message, isSeenByRecipient)}
       </>
     );
   };
@@ -183,6 +219,21 @@ function ChatMessage({
         onMouseEnter={() => onMessageHover(message)}
         onMouseLeave={onMessageLeave}
       >
+        {!shouldShowOnRight && (
+          <div className="chat-message-avatar-slot chat-message-avatar-slot-left">
+            {showSeriesAvatar && (
+              <img
+                src={friend?.photoURL || '/default-avatar.png'}
+                alt={friend?.displayName || 'Friend'}
+                className="chat-message-avatar chat-message-avatar-left"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/default-avatar.png';
+                }}
+              />
+            )}
+          </div>
+        )}
         {hoveredMessage?.id === message.id && (
           <div className="chat-menu-arrow-container">
             <button
@@ -255,6 +306,22 @@ function ChatMessage({
             </button>
           )}
         </div>
+
+        {shouldShowOnRight && (
+          <div className="chat-message-avatar-slot chat-message-avatar-slot-right">
+            {showSeriesAvatar && (
+              <img
+                src={user?.photoURL || '/default-avatar.png'}
+                alt={user?.displayName || 'You'}
+                className="chat-message-avatar chat-message-avatar-right"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/default-avatar.png';
+                }}
+              />
+            )}
+          </div>
+        )}
         
         {showMessageMenu && selectedMessage?.id === message.id && !isCallMessage && (
           <div className="chat-dropdown-menu">
@@ -277,6 +344,7 @@ export default React.memo(ChatMessage, (prevProps, nextProps) => {
     prevProps.hoveredMessage === nextProps.hoveredMessage &&
     prevProps.editingMessageId === nextProps.editingMessageId &&
     prevProps.editText === nextProps.editText &&
+    prevProps.showSeriesAvatar === nextProps.showSeriesAvatar &&
     prevProps.selectedMessage?.id === nextProps.selectedMessage?.id &&
     prevProps.showMessageMenu === nextProps.showMessageMenu
   );

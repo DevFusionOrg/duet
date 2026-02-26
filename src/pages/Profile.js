@@ -32,6 +32,7 @@ export default function Profile({
   openSettingsAsView = false,
   onOpenSettingsTab,
   onCloseSettingsTab,
+  onOpenUserProfile,
 }) {
   const { uid } = useParams();
   const navigate = useNavigate();
@@ -142,14 +143,14 @@ export default function Profile({
   const fetchLatestRelease = async () => {
     setUpdateInfo((s) => ({ ...s, loading: true, error: null }));
     try {
-      const { doc, getDoc } = await import("firebase/firestore");
-      const { db } = await import("../firebase/firebase");
-      const ref = doc(db, "appConfig", "latestRelease");
-      const snap = await getDoc(ref);
-      if (!snap.exists()) throw new Error("Latest release not found");
-      const data = snap.data();
-      const latest = (data.version || "").toString();
-      const apkUrl = data.apkUrl || "";
+      const response = await fetch("https://asia-south1-duet-2025.cloudfunctions.net/getLatestRelease");
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || "Latest release not found");
+      }
+      const data = await response.json();
+      const latest = (data?.version || "").toString();
+      const apkUrl = data?.apkUrl || "";
       const hasUpdate = compareSemver(installedVersion || "0.0.0", latest) === -1;
       setUpdateInfo({ loading: false, latest, apkUrl, hasUpdate, error: null });
     } catch (e) {
@@ -507,7 +508,6 @@ export default function Profile({
         <ProfileDisplay
           profile={profile}
           isOwnProfile={isOwnProfile}
-          user={user}
           blockedUsers={blockedUsers}
           loadingBlockedUsers={loadingBlockedUsers}
           onShowBlockedUsers={() => setShowBlockedUsers(true)}
@@ -531,6 +531,12 @@ export default function Profile({
               friends={friends}
               loading={friendsLoading}
               onStartChat={handleStartChat}
+              onOpenProfile={(friend) => {
+                if (onOpenUserProfile) {
+                  onOpenUserProfile(friend);
+                  setShowFriendsModal(false);
+                }
+              }}
               onFriendCardClick={handleFriendCardClick}
               friendsOnlineStatus={friendsOnlineStatus}
               currentUserId={user?.uid}

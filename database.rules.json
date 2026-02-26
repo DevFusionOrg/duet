@@ -23,6 +23,17 @@
     "callEvents": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+    "status": {
+      "$userId": {
+        ".read": "auth != null",
+        "sessions": {
+          "$sessionId": {
+            ".write": "auth != null && auth.uid == $userId",
+            ".read": "auth != null"
+          }
+        }
+      }
     }
   }
 }
