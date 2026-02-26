@@ -26,7 +26,7 @@
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--music-player-border);
   z-index: 998;
-  padding: 12px 16px;
+  padding: 2px 8px;
   box-sizing: border-box;
   transition: all 200ms ease;
   display: flex;
@@ -262,10 +262,11 @@
 }
 
 .musicPlayerWrapper {
-  position: fixed;
-  top: 56px;
+  position: absolute;
+  top: var(--chat-header-height, 56px);
   left: 0;
   right: 0;
+  width: 100%;
   z-index: 999;
 }
 
@@ -277,7 +278,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-bottom: 1px solid var(--music-player-border);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

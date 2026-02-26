@@ -67,7 +67,10 @@ function ChatHeader({
           className="chat-close-button"
           title="Close chat"
         >
-          ✕
+          <svg aria-label="Back" fill="none" height="24" role="img" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+          <title>Back</title>
+          <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
         </button>
       )}
       

@@ -1,4 +1,5 @@
 :root {
+  --chat-header-height: 56px;
   --chat-bg: #f8f9fa;
   --chat-header-bg: #ffffff;
   --chat-text: #333;
@@ -36,6 +37,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  position: relative;
   background-color: var(--chat-bg);
   background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" opacity="0.12"><g fill="none" stroke="%23667eea" stroke-width="2.5"><circle cx="50" cy="50" r="25"/><path d="M30 50h40 M50 30v40" stroke-width="2"/><path d="M70 40l5 5-5 5" stroke-width="2"/><circle cx="220" cy="60" r="20"/><circle cx="220" cy="60" r="12"/><path d="M200 60h10 M230 60h10" stroke-width="2"/><rect x="130" y="80" width="50" height="35" rx="5" fill="%23764ba2" opacity="0.5"/><path d="M135 95h40 M135 105h35" stroke="white" stroke-width="2" opacity="0.7"/><circle cx="150" cy="102" r="3" fill="white" opacity="0.7"/><path d="M40 150c0 0-5-15 0-25 5-10 15-5 15 5s-10 15-15 20z" fill="%23667eea" opacity="0.5"/><ellipse cx="47" cy="145" rx="3" ry="5" fill="white" opacity="0.6"/><circle cx="180" cy="140" r="3"/><circle cx="195" cy="155" r="2.5"/><circle cx="165" cy="150" r="2"/><path d="M240 130v-25h8v25h-8z M248 115h6l-3 8z" fill="%23764ba2" opacity="0.5"/><circle cx="244" cy="128" r="2" fill="white"/><path d="M80 200l-10 20h20z M80 200v-15" stroke="%23667eea" stroke-width="2.5"/><circle cx="80" cy="182" r="4" fill="%23667eea" opacity="0.5"/><path d="M140 210c10-10 20-10 30 0 10 10 10 20 0 30-10 10-20 10-30 0-10-10-10-20 0-30z" stroke="%23764ba2" stroke-width="2.5"/><path d="M147 217l16 16 M163 217l-16 16" stroke="%23764ba2" stroke-width="2"/><rect x="220" y="200" width="40" height="30" rx="3" stroke="%23667eea" stroke-width="2.5"/><circle cx="230" cy="215" r="3" fill="%23667eea" opacity="0.5"/><circle cx="250" cy="215" r="3" fill="%23667eea" opacity="0.5"/><path d="M225 223h30" stroke="%23667eea" stroke-width="2"/><path d="M30 260c15 0 15-10 30-10s15 10 30 10" stroke="%23764ba2" stroke-width="2.5" fill="none"/><path d="M35 268c15 0 15-10 30-10s15 10 25 10" stroke="%23764ba2" stroke-width="2.5" fill="none"/><circle cx="45" cy="250" r="2.5" fill="%23667eea"/><circle cx="75" cy="250" r="2.5" fill="%23667eea"/><ellipse cx="160" cy="270" rx="15" ry="8" fill="%23667eea" opacity="0.4"/><path d="M148 270h24 M160 262v16" stroke="white" stroke-width="2" opacity="0.6"/><path d="M240 260l8 8-8 8-8-8z" fill="%23764ba2" opacity="0.5"/><path d="M232 268h16 M240 260v16" stroke="white" stroke-width="1.5" opacity="0.6"/><circle cx="280" cy="180" r="3"/><circle cx="270" cy="195" r="2.5"/><circle cx="290" cy="170" r="2"/><circle cx="20" cy="120" r="2.5"/><circle cx="35" cy="110" r="2"/><circle cx="10" cy="135" r="3"/><path d="M270 240l5-10 5 10h-10z M275 230l3-8 3 8h-6z" fill="%23667eea" opacity="0.5"/><rect x="110" y="30" width="30" height="25" rx="3" stroke="%23764ba2" stroke-width="2"/><path d="M120 38l8 8 M128 38l-8 8" stroke="%23764ba2" stroke-width="2"/><circle cx="125" cy="45" r="2" fill="%23764ba2"/></g></svg>');
   background-size: 300px 300px;
@@ -69,7 +71,8 @@
   background: var(--chat-header-bg);
   top: 0;
   z-index: 1000;
-  min-height: 28px;
+  height: var(--chat-header-height);
+  min-height: var(--chat-header-height);
   box-sizing: border-box;
 }
 
@@ -401,14 +404,21 @@
   margin-left: 0;
 }
 
-.chat-menu-arrow-container {
+.chat-menu-trigger-container {
   display: flex;
   align-items: center;
-  padding-right: 8px;
-  bottom: 25%;
+  position: relative;
 }
 
-.chat-menu-arrow {
+.chat-menu-trigger-left {
+  margin-right: 6px;
+}
+
+.chat-menu-trigger-right {
+  margin-left: 6px;
+}
+
+.chat-menu-trigger {
   background: var(--chat-message-bg);
   border: 1px solid var(--chat-border);
   border-radius: 50%;
@@ -424,7 +434,7 @@
   transition: all 0.2s ease;
 }
 
-.chat-menu-arrow:hover {
+.chat-menu-trigger:hover {
   background: var(--chat-message-bg);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
@@ -522,21 +532,35 @@
 
 .chat-dropdown-menu {
   position: absolute;
-  left: 40px;
-  bottom: -10px;
+  top: auto;
+  bottom: calc(100% + 8px);
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-  min-width: 140px;
-  padding: 4px 0;
+  min-width: auto;
+  padding: 6px;
   z-index: 100;
   border: 1px solid #e0e0e0;
+  transform: none;
 }
 
-.chat-sent-wrapper .chat-dropdown-menu {
+.chat-menu-trigger-left .chat-dropdown-menu {
+  right: calc(100% + 6px);
   left: auto;
-  right: 0;
-  bottom: -10px;
+}
+
+.chat-menu-trigger-right .chat-dropdown-menu {
+  left: calc(100% + 6px);
+  right: auto;
+}
+
+.chat-bottom-action-menu {
+  position: absolute;
+  left: 50%;
+  bottom: 68px;
+  transform: translateX(-50%);
+  top: auto;
+  z-index: 1200;
 }
 
 .chat-read-indicator {
@@ -579,14 +603,25 @@
   color: #8ea2ff !important;
 }
 
+.chat-menu-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .menu-item {
-  padding: 10px 16px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 17px;
   border: none;
   background: none;
-  width: 100%;
-  text-align: left;
+  border-radius: 8px;
+  line-height: 1;
   transition: background-color 0.2s;
   color: var(--chat-text);
 }
@@ -786,31 +821,41 @@
 
 .chat-edit-save,
 .chat-edit-cancel {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   transition: opacity 0.2s ease;
 }
 
 .chat-edit-save {
-  background-color: #25d366;
-  color: white;
+  background-color: rgba(37, 211, 102, 0.14);
+  border-color: rgba(37, 211, 102, 0.35);
+  color: #16a34a;
 }
 
 .chat-edit-save:hover {
-  opacity: 0.9;
+  opacity: 1;
+  background-color: rgba(37, 211, 102, 0.22);
 }
 
 .chat-edit-cancel {
-  background-color: #ff3b30;
-  color: white;
+  background-color: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #dc2626;
 }
 
 .chat-edit-cancel:hover {
-  opacity: 0.9;
+  opacity: 1;
+  background-color: rgba(239, 68, 68, 0.22);
 }
 
 .chat-input-container {
