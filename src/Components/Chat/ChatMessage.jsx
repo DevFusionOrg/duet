@@ -49,13 +49,21 @@ function ChatMessage({
         message.pending ? (
           <span className="chat-pending-indicator" title="Sending..."></span>
         ) : (
-          <span className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : ''}`}>
+          <span
+            className={`chat-read-indicator ${isSeenByRecipient ? 'seen' : 'sent'}`}
+            title={isSeenByRecipient ? 'Seen' : 'Sent'}
+            aria-label={isSeenByRecipient ? 'Seen' : 'Sent'}
+          >
             {isSeenByRecipient ? (
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="8" cy="8" r="7" fill="#000000ff" />
-                <path d="M5 8L7 10L11 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M1.5 8L4 10.5L8 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M6.5 8L9 10.5L13 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            ) : ''}
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 7L5.2 9.2L10.5 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
           </span>
         )
       )}
