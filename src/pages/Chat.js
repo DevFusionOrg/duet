@@ -273,7 +273,7 @@ function Chat({ user, friend, onBack, isEmbedded = false, onOpenProfile }) {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (showMessageMenu && !e.target.closest(".chat-dropdown-menu") && !e.target.closest(".chat-menu-arrow")) {
+      if (showMessageMenu && !e.target.closest(".chat-dropdown-menu") && !e.target.closest(".chat-menu-trigger")) {
         setShowMessageMenu(false);
       }
     };
@@ -888,7 +888,6 @@ function Chat({ user, friend, onBack, isEmbedded = false, onOpenProfile }) {
         ) : (
           [...messages, ...pendingMessages].map((message, index, arr) => {
             const prev = index > 0 ? arr[index - 1] : null;
-            const next = index < arr.length - 1 ? arr[index + 1] : null;
             const showDateSeparator = !prev || !isSameDay(prev?.timestamp, message.timestamp);
             const lastUnreadIndex = (() => {
               for (let i = arr.length - 1; i >= 0; i -= 1) {
@@ -897,7 +896,6 @@ function Chat({ user, friend, onBack, isEmbedded = false, onOpenProfile }) {
               return -1;
             })();
             const isFirstUnread = index === lastUnreadIndex;
-            const showSeriesAvatar = !next || next.senderId !== message.senderId;
             
             return (
               <div
@@ -916,28 +914,12 @@ function Chat({ user, friend, onBack, isEmbedded = false, onOpenProfile }) {
                   hoveredMessage={hoveredMessage}
                   editingMessageId={editingMessageId}
                   editText={editText}
-                  selectedMessage={selectedMessage}
-                  showMessageMenu={showMessageMenu}
                   onMessageHover={handleMessageHover}
                   onMessageLeave={handleMessageLeave}
                   onArrowClick={handleArrowClick}
                   onStartEdit={(value) => setEditText(value)}
                   onSaveEdit={handleSaveEdit}
                   onCancelEdit={handleCancelEdit}
-                  onStartReply={handleStartReply}
-                  showSeriesAvatar={showSeriesAvatar}
-                  renderMenuOptions={() => (
-                    <MessageMenu
-                      message={message}
-                      canEditMessage={canEditMessage}
-                      isMessageSaved={isMessageSaved}
-                      onCopyMessage={(text) => navigator.clipboard.writeText(text)}
-                      onForwardMessage={handleForwardClick}
-                      onSaveMessage={handleSaveMessage}
-                      onUnsaveMessage={handleUnsaveMessage}
-                      onStartEdit={handleStartEdit}
-                    />
-                  )}
                   getOptimizedImageUrl={getOptimizedImageUrl}
                 />
               </div>
@@ -946,6 +928,31 @@ function Chat({ user, friend, onBack, isEmbedded = false, onOpenProfile }) {
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {showMessageMenu && selectedMessage && selectedMessage.type !== 'call' && selectedMessage.type !== 'video-call' && (
+        <div className="chat-bottom-action-menu chat-dropdown-menu">
+          <MessageMenu
+            message={selectedMessage}
+            canEditMessage={canEditMessage}
+            isMessageSaved={isMessageSaved}
+            onReplyMessage={(targetMessage) => {
+              handleStartReply(targetMessage);
+              setShowMessageMenu(false);
+            }}
+            onCopyMessage={(text) => {
+              navigator.clipboard.writeText(String(text || ""));
+              setShowMessageMenu(false);
+            }}
+            onForwardMessage={handleForwardClick}
+            onSaveMessage={handleSaveMessage}
+            onUnsaveMessage={handleUnsaveMessage}
+            onStartEdit={(targetMessage) => {
+              handleStartEdit(targetMessage);
+              setShowMessageMenu(false);
+            }}
+          />
+        </div>
+      )}
 
       {showForwardPopup && (
         <ForwardPopup
