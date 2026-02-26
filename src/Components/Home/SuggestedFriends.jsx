@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { db } from '../../firebase/firebase';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { collection, getDocs, query, limit, orderBy } from 'firebase/firestore';
 import { sendFriendRequest } from '../../firebase/firestore';
 import UserBadge from '../UserBadge';
 import LoadingScreen from '../LoadingScreen';
@@ -26,6 +26,23 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
         query(collection(db, 'users'), limit(50)) // Limit to prevent loading all users
       );
       const allUsers = usersSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+
+      let sentFriendRequestIds = new Set();
+      try {
+        const sentSnap = await getDocs(
+          query(collection(db, 'users', user.uid, 'sentFriendRequests'), orderBy('timestamp', 'desc'))
+        );
+        sentFriendRequestIds = new Set(
+          sentSnap.docs
+            .map((docSnap) => docSnap.data())
+            .filter((req) => (req.status || 'pending') === 'pending' && req.to)
+            .map((req) => req.to)
+        );
+      } catch (error) {
+        console.warn('Unable to fetch sent friend requests subcollection:', error);
+      }
+
+      setSentRequests(sentFriendRequestIds);
       
       console.log('Total users found:', allUsers.length);
       console.log('Sample user data:', allUsers.slice(0, 3).map(u => ({ 
@@ -35,13 +52,6 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
         photoURLPreview: u.photoURL ? u.photoURL.substring(0, 50) + '...' : null
       })));
       
-      const currentUserData = allUsers.find(u => u.uid === user.uid);
-      const sentFriendRequestIds = new Set(
-        (currentUserData?.sentFriendRequests || [])
-          .filter(r => r.status === 'pending')
-          .map(r => r.to)
-      );
-
       const currentFriendIds = new Set(currentFriends.map(f => f.uid || f.id));
       const pendingRequestIds = new Set(
         (friendRequests || []).filter(r => r.status === 'pending').map(r => r.from)
@@ -113,8 +123,7 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
   };
 
   const checkHasPendingRequest = (userId) => {
-    
-    return (user?.sentFriendRequests || []).some(req => req.to === userId && req.status === 'pending');
+    return sentRequests.has(userId);
   };
 
   const handleBadgeClick = (e, badgeName) => {
@@ -304,7 +313,7 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
                 handleAddFriend(selectedProfile.uid, selectedProfile.displayName);
                 setShowProfilePopup(false);
               }}
-              disabled={requesting[selectedProfile.uid] || sentRequests.has(selectedProfile.uid)}
+              disabled={requesting[selectedProfile.uid] || sentRequests.has(selectedProfile.uid) || checkHasPendingRequest(selectedProfile.uid)}
             >
               {sentRequests.has(selectedProfile.uid) ? (
                 <>

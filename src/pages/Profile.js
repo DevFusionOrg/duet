@@ -344,7 +344,7 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
             onClick={() => setShowFriendsModal(true)}
             title="Click to view friends"
           >
-            <div className="summary-number">{profile.friends ? profile.friends.length : 0}</div>
+            <div className="summary-number">{friends?.length || 0}</div>
             <div className="summary-label">Friends</div>
           </button>
         </div>

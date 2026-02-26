@@ -3,7 +3,6 @@ import UserBadge from "../UserBadge";
 import Spinner from "../Spinner";
 import SuggestedFriends from "./SuggestedFriends";
 import { useFriends } from "../../hooks/useFriends";
-import { useProfiles } from "../../hooks/useProfiles";
 import DevFusionModal from "./DevFusionModal";
 
 function SearchView({ user }) {
@@ -20,7 +19,6 @@ function SearchView({ user }) {
   const searchTimeoutRef = useRef(null);
 
   const { friends } = useFriends(user);
-  const { profile: userProfile } = useProfiles(user);
 
   useEffect(() => {
     if (!hasFetchedPending.current && user?.uid) {
@@ -131,26 +129,12 @@ function SearchView({ user }) {
     
     try {
       const { db } = await import("../../firebase/firebase");
-      const { doc, updateDoc, getDoc, deleteDoc } = await import("firebase/firestore");
+      const { doc, deleteDoc } = await import("firebase/firestore");
 
       await Promise.all([
         deleteDoc(doc(db, 'users', toUserId, 'friendRequests', user.uid)).catch(() => {}),
         deleteDoc(doc(db, 'users', user.uid, 'sentFriendRequests', toUserId)).catch(() => {}),
       ]);
-
-      const senderRef = doc(db, 'users', user.uid);
-      const senderSnap = await getDoc(senderRef);
-
-      if (senderSnap.exists()) {
-        const senderData = senderSnap.data();
-        const updatedSentRequests = (senderData.sentFriendRequests || []).filter(
-          req => req.to !== toUserId
-        );
-
-        await updateDoc(senderRef, {
-          sentFriendRequests: updatedSentRequests
-        });
-      }
 
       setPendingRequests(prev => prev.filter(r => r.uid !== toUserId));
       setMessage(`Friend request to ${toUserName} cancelled!`);
@@ -200,17 +184,12 @@ function SearchView({ user }) {
     setRequestLoading((prev) => ({ ...prev, [toUserId]: false }));
   };
 
-  const hasSentRequest = (userProfile, currentUserId) => {
-    const sent = (userProfile?.sentFriendRequests || []).some(
-      (req) => req.to === currentUserId && (req.status === "pending" || !req.status)
-    );
-    if (sent) return true;
+  const hasSentRequest = (currentUserId) => {
     return pendingRequests.some((req) => req.uid === currentUserId);
   };
 
-  const isAlreadyFriend = (userProfile, currentUserId) => {
-    
-    return userProfile.friends && Array.isArray(userProfile.friends) && userProfile.friends.includes(currentUserId);
+  const isAlreadyFriend = (currentUserId) => {
+    return friends.some((friend) => (friend.uid || friend.id) === currentUserId);
   };
 
   return (
@@ -309,7 +288,7 @@ function SearchView({ user }) {
         <SuggestedFriends 
           user={user}
           currentFriends={friends}
-          friendRequests={userProfile?.friendRequests || []}
+          friendRequests={[]}
         />
       )}
 
@@ -322,8 +301,8 @@ function SearchView({ user }) {
         )}
 
         {!loading && searchResults.map((result) => {
-          const alreadyFriends = isAlreadyFriend(result, user.uid);
-          const requestSent = hasSentRequest(userProfile, result.uid);
+          const alreadyFriends = isAlreadyFriend(result.uid);
+          const requestSent = hasSentRequest(result.uid);
 
           return (
             <div

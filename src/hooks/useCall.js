@@ -9,6 +9,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
 export function useCall(user, friend, chatId) {
+    const friendId = friend?.uid || friend?.id;
     const [callState, setCallState] = useState('idle');
     const [isInCall, setIsInCall] = useState(false);
     const [incomingCall, setIncomingCall] = useState(null);
@@ -53,31 +54,31 @@ export function useCall(user, friend, chatId) {
     }, []);
 
     useEffect(() => {
-        if (!user?.uid || !friend?.uid) return;
+        if (!user?.uid || !friendId) return;
         const userRef = doc(db, "users", user.uid);
         const unsubscribe = onSnapshot(userRef, (doc) => {
         if (doc.exists()) {
             const userData = doc.data();
             const blockedList = userData.blockedUsers || [];
-            const isUserBlocked = blockedList.includes(friend?.uid);
+            const isUserBlocked = blockedList.includes(friendId);
             setIsBlocked(isUserBlocked);
         }
         }); 
         return () => {
         if (unsubscribe) unsubscribe();
         };
-    }, [user?.uid, friend?.uid]);
+    }, [user?.uid, friendId]);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
-        if (!user?.uid || !friend?.uid) return;
+        if (!user?.uid || !friendId) return;
         if (activeCallListenerRef.current) {
         activeCallListenerRef.current();
         activeCallListenerRef.current = null;
         }
         const unsubscribe = CallService.listenForIncomingCalls(user.uid, (calls) => {      
         const relevantCalls = calls.filter(call => {
-            const isFromCurrentFriend = call.callerId === friend.uid;
+            const isFromCurrentFriend = call.callerId === friendId;
             const isForCurrentUser = call.receiverId === user.uid;
             const isActive = call.status === 'ringing';
             return isFromCurrentFriend && isForCurrentUser && isActive;
@@ -110,7 +111,7 @@ export function useCall(user, friend, chatId) {
             stopRingtone();
         }
         
-        calls.filter(call => call.callerId !== friend.uid && call.receiverId === user.uid)
+        calls.filter(call => call.callerId !== friendId && call.receiverId === user.uid)
             .forEach(staleCall => {
             console.log('Cleaning up stale call not from current friend:', staleCall.callId);
             if (staleCall.status === 'ringing') {
@@ -127,7 +128,7 @@ export function useCall(user, friend, chatId) {
         }
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.uid, friend?.uid, incomingCall, isInCall, stopRingtone]);
+    }, [user?.uid, friendId, incomingCall, isInCall, stopRingtone]);
 
     useEffect(() => {
         let interval;
@@ -458,7 +459,7 @@ export function useCall(user, friend, chatId) {
         try {
         await CallService.endCall(callId, user.uid, 0, 'missed');
         if (chatId && friend) {
-            CallService.sendCallNotification(chatId, user.uid, friend.uid, 'missed');
+            CallService.sendCallNotification(chatId, user.uid, friendId, 'missed');
         }
         notificationService.showNotification('Call Ended', {
             body: 'Call timed out after 1 minute',
@@ -496,7 +497,7 @@ export function useCall(user, friend, chatId) {
         return;
         }
         try {
-        const otherUserProfile = await getUserProfile(friend.uid);
+        const otherUserProfile = await getUserProfile(friendId);
         if (otherUserProfile?.blockedUsers?.includes(user.uid)) {
             alert("You cannot call this user. You have been blocked.");
             return;
@@ -517,7 +518,7 @@ export function useCall(user, friend, chatId) {
         const callData = await CallService.createCall(
             user.uid,
             user.displayName,
-            friend.uid,
+            friendId,
             friend.displayName
         );
         callIdRef.current = callData.callId;
@@ -531,7 +532,7 @@ export function useCall(user, friend, chatId) {
             callData.callId,
             true,
             user.uid,
-            friend.uid
+            friendId
         );
         WebRTCService.setOnRemoteStream((remoteStream) => {
             console.log('Remote stream received');
@@ -550,7 +551,7 @@ export function useCall(user, friend, chatId) {
             clearTimeout(callTimeoutRef.current);
             callTimeoutRef.current = null;
             }
-            CallService.sendCallNotification(chatId, user.uid, friend.uid, 'started');
+            CallService.sendCallNotification(chatId, user.uid, friendId, 'started');
         });
         WebRTCService.setOnError((error) => {
             console.error('WebRTC error:', error);
@@ -677,10 +678,12 @@ export function useCall(user, friend, chatId) {
         callStateRef.current = 'ended';
         
         let errorMessage = 'Call failed. Please try again.';
-        if (error.message.includes('permission') || error.name === 'NotAllowedError') {
+        if (error.message.includes('permission') || error.message.includes('PERMISSION_DENIED') || error.name === 'NotAllowedError') {
         errorMessage = 'Microphone permission denied. Please allow microphone access.';
         } else if (error.message.includes('NotFoundError') || error.name === 'NotFoundError') {
         errorMessage = 'No microphone found. Please check your audio device.';
+        } else if (error.message.includes('auth') || error.message.includes('denied')) {
+        errorMessage = 'Call backend is denying access. Re-login and try again.';
         }
         
         alert(errorMessage);
@@ -732,7 +735,7 @@ export function useCall(user, friend, chatId) {
         CallService.sendCallNotification(
             chatId,
             user.uid,
-            friend.uid,
+            friendId,
             'ended',
             duration,
             { callerId: initiatorId }
