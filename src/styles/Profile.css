@@ -34,7 +34,6 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-bottom: 12px;
   position: relative;
 }
 
@@ -42,10 +41,11 @@
   position: absolute;
   left: 0;
   background: var(--profile-card-bg);
-  border: 1px solid var(--profile-border);
+  border: none;
   border-radius: 8px;
   padding: 6px 10px;
   cursor: pointer;
+  
   color: var(--profile-text-main);
   transition: all 0.2s ease;
   display: flex;
@@ -57,7 +57,7 @@
   position: absolute;
   right: 0;
   background: var(--profile-card-bg);
-  border: 1px solid var(--profile-border);
+  border: none;
   border-radius: 8px;
   padding: 6px 10px;
   cursor: pointer;
@@ -272,6 +272,7 @@
 .profile-title {
   text-align: center;
   color: var(--profile-text-main);
+  margin:0px;
 }
 
 .profile-edit-button {
@@ -1082,10 +1083,11 @@
   }
 }
 
+.profile-container {
+  padding: 10px;
+}
+
 @media (max-width: 768px) {
-  .profile-container {
-    padding: 0px 20px;
-  }
 
   .profile-header {
     flex-direction: column;

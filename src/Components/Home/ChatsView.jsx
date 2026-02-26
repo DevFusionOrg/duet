@@ -110,7 +110,7 @@ function ChatsView({ chats, loading, onStartChat, friendsOnlineStatus, user, fri
 
   return (
     <div className="chats-container">
-      <div className="chats-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
+      <div className="chats-header-bar">
         <h1 className="SearchHeading">Messages</h1>
       </div>
 

@@ -190,7 +190,7 @@ function SearchView({ user }) {
 
   return (
     <div className="search-container">
-      <div className="search-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
+      <div className="search-header-bar" style={{ alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
         <h1 className="SearchHeading" style={{ margin: 0 }}>Lookup Friends</h1>
       </div>
 

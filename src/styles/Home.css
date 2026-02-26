@@ -1087,7 +1087,11 @@
 }
 
 .search-container {
-  padding: 20px 12px 0;
+  padding: 10px;
+}
+
+.chats-container{
+  padding: 10px;
 }
 
 .search-header-bar {
@@ -1116,7 +1120,6 @@
 
 .search-form {
   display: flex;
-  margin-bottom: 30px;
   justify-content: center;
   align-items: center;
   padding: 0px 10px;
@@ -1606,7 +1609,7 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  border-bottom:1px solid var(--home-border);
+  margin:0px;
 }
 
 .remove-friend-button{
@@ -1670,8 +1673,6 @@
   font-size: 18px;
   font-weight: 600;
   color: var(--home-text);
-  margin-bottom: 16px;
-  margin-top: 24px;
   padding-bottom: 8px;
   border-bottom: 2px solid var(--home-border);
 }
