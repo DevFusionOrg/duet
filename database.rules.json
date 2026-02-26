@@ -1,0 +1,28 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "activeCalls": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "callSignals": {
+      "$callId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "callHistory": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "userCallHistory": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "callEvents": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
