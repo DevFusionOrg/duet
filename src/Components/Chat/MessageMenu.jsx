@@ -2,76 +2,30 @@ import React from "react";
 
 function MessageMenu({ 
   message, 
-  canEditMessage, 
+  canEditMessage,
   isMessageSaved,
+  onReplyMessage,
   onCopyMessage,
   onForwardMessage,
   onSaveMessage,
   onUnsaveMessage,
   onStartEdit
 }) {
-  
-  const renderMenuOptions = () => {
-    if (message.type === "image") {
-      return (
-        <>
-          {isMessageSaved(message) ? (
-            <div
-              className="menu-item"
-              onClick={() => onUnsaveMessage(message.id)}
-            >
-              Unstar
-            </div>
-          ) : (
-            <div
-              className="menu-item"
-              onClick={() => onSaveMessage(message.id)}
-            >
-              Star
-            </div>
-          )}
-        </>
-      );
-    }
-
-    return (
-      <>
-        <div
-          className="menu-item"
-          onClick={() => onCopyMessage(message.text)}
-        >
-          Copy
-        </div>
-        <div className="menu-item" onClick={() => onForwardMessage(message)}>
-          Forward
-        </div>
-        {isMessageSaved(message) ? (
-          <div
-            className="menu-item"
-            onClick={() => onUnsaveMessage(message.id)}
-          >
-            Unstar
-          </div>
-        ) : (
-          <div
-            className="menu-item"
-            onClick={() => onSaveMessage(message.id)}
-          >
-            Star
-          </div>
-        )}
-        {canEditMessage(message) && (
-          <div className="menu-item" onClick={() => onStartEdit(message)}>
-            Edit
-          </div>
-        )}
-      </>
-    );
-  };
+  const copyPayload = message.text || message.image?.url || "";
 
   return (
-    <div className="chat-dropdown-menu">
-      {renderMenuOptions()}
+    <div className="chat-menu-icons" role="menu" aria-label="Message actions">
+      <button className="menu-item" onClick={() => onReplyMessage(message)} title="Reply" aria-label="Reply">↩</button>
+      <button className="menu-item" onClick={() => onCopyMessage(copyPayload)} title="Copy" aria-label="Copy">⧉</button>
+      <button className="menu-item" onClick={() => onForwardMessage(message)} title="Forward" aria-label="Forward">↪</button>
+      {isMessageSaved(message) ? (
+        <button className="menu-item" onClick={() => onUnsaveMessage(message.id)} title="Unstar" aria-label="Unstar">☆</button>
+      ) : (
+        <button className="menu-item" onClick={() => onSaveMessage(message.id)} title="Star" aria-label="Star">★</button>
+      )}
+      {canEditMessage(message) && (
+        <button className="menu-item" onClick={() => onStartEdit(message)} title="Edit" aria-label="Edit">✎</button>
+      )}
     </div>
   );
 }

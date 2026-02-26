@@ -39,6 +39,9 @@ function FriendRequestItem({
   }
 
   const requesterName = requesterProfile?.displayName || "Unknown User";
+  const requestTime = request?.timestamp?.toDate
+    ? request.timestamp.toDate()
+    : (request?.timestamp ? new Date(request.timestamp) : null);
 
   return (
     <div className={`friend-request-item ${loading ? "friend-request-item-loading" : ""}`}>
@@ -57,6 +60,9 @@ function FriendRequestItem({
             <div className="request-details">
               <h4>{requesterProfile.displayName}</h4>
               <p className="request-username">@{requesterProfile.username}</p>
+              {requestTime && (
+                <p className="request-time">Requested {requestTime.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+              )}
             </div>
           </>
         ) : (

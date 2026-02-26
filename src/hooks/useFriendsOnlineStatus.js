@@ -9,9 +9,19 @@ export function useFriendsOnlineStatus(user, friends) {
   const DEBOUNCE_MS = 250;
 
   useEffect(() => {
-    if (!user || friends.length === 0) return;
+    if (!user || friends.length === 0) {
+      setFriendsOnlineStatus({});
+      return;
+    }
 
-    const friendIds = friends.map(friend => friend.uid);
+    const friendIds = friends
+      .map((friend) => friend?.uid || friend?.id)
+      .filter(Boolean);
+
+    if (friendIds.length === 0) {
+      setFriendsOnlineStatus({});
+      return;
+    }
     const timeoutId = updateTimeoutRef.current;
 
     const unsubscribe = listenToPresenceMap(friendIds, (status) => {
