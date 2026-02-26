@@ -1,11 +1,8 @@
 import React from 'react';
-import UserBadge from './UserBadge';
 import '../styles/FriendProfilePopup.css';
 
 function FriendProfilePopup({ friend, onClose, onStartChat }) {
   if (!friend) return null;
-
-  const displayBadge = friend.badge || (friend.username === 'ashwinirai492' ? 'tester' : null);
 
   const handleStartChat = () => {
     if (onStartChat) {
@@ -36,7 +33,6 @@ function FriendProfilePopup({ friend, onClose, onStartChat }) {
         <div className="friend-popup-info">
           <h2 className="friend-popup-name">
             {friend.displayName}
-            {displayBadge && <UserBadge badge={displayBadge} size="small" />}
           </h2>
           <p className="friend-popup-username">@{friend.username || 'user'}</p>
           

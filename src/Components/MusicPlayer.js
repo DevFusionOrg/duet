@@ -164,6 +164,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
   };
 
   const searchAndPlaySong = async () => {
+    if (!chatId) {
+      alert("Chat is still loading. Please wait a moment.");
+      return;
+    }
+
     if (!songName.trim()) {
       alert("Please enter a song name");
       return;
@@ -179,43 +184,129 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       }
     } catch (error) {
       console.error("Error searching song:", error);
-      alert("Error searching for song. Please try again.");
+      alert(`Error searching for song. ${error?.message || "Please try again."}`);
     }
     setLoading(false);
   };
 
   const normalizeVideo = (video) => {
     if (!video) return null;
+
     const videoId =
       video?.id?.videoId ||
-      video?.videoId ||
       video?.id ||
+      video?.videoId ||
+      video?.url?.split("v=")?.[1]?.split("&")?.[0] ||
       null;
+
     const title = video?.snippet?.title || video?.title || null;
+
     if (!videoId || !title) return null;
     return { videoId, title };
   };
 
-  const searchYouTubeNoKey = async (query) => {
+  const extractVideoIdFromInput = (input) => {
+    const raw = (input || "").trim();
+    if (!raw) return null;
+
+    const directIdMatch = raw.match(/^[a-zA-Z0-9_-]{11}$/);
+    if (directIdMatch) return directIdMatch[0];
+
+    const watchMatch = raw.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+    if (watchMatch) return watchMatch[1];
+
+    const shortMatch = raw.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+    if (shortMatch) return shortMatch[1];
+
+    const embedMatch = raw.match(/embed\/([a-zA-Z0-9_-]{11})/);
+    if (embedMatch) return embedMatch[1];
+
+    return null;
+  };
+
+  const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = 7000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(
-        `https://yt.lemnoslife.com/noKey/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query + " official audio")}`
-      );
+      const response = await fetch(url, { ...options, signal: controller.signal });
       if (!response.ok) return null;
-      const data = await response.json();
-      if (!data?.items?.length) return null;
-      return normalizeVideo(data.items[0]);
-    } catch (error) {
+      return await response.json();
+    } catch {
       return null;
+    } finally {
+      clearTimeout(timeoutId);
     }
+  };
+
+  const searchYouTubeNoKey = async (query) => {
+    const term = encodeURIComponent(query + " official audio");
+
+    const lemnosData = await fetchJsonWithTimeout(
+      `https://yt.lemnoslife.com/noKey/search?part=snippet&type=video&maxResults=1&q=${term}`
+    );
+    if (lemnosData?.items?.length) {
+      const normalized = normalizeVideo(lemnosData.items[0]);
+      if (normalized) return normalized;
+    }
+
+    const pipedData = await fetchJsonWithTimeout(
+      `https://piped.video/api/v1/search?q=${term}&filter=videos`
+    );
+    if (Array.isArray(pipedData) && pipedData.length > 0) {
+      const first = pipedData[0];
+      const normalized = normalizeVideo({
+        videoId: first?.url?.split("v=")?.[1] || first?.id,
+        title: first?.title,
+      });
+      if (normalized) return normalized;
+    }
+
+    const invidiousInstances = [
+      "https://invidious.nerdvpn.de",
+      "https://invidious.jing.rocks",
+      "https://iv.nboeck.de",
+    ];
+
+    for (const baseUrl of invidiousInstances) {
+      const invData = await fetchJsonWithTimeout(
+        `${baseUrl}/api/v1/search?q=${term}&type=video`
+      );
+      if (Array.isArray(invData) && invData.length > 0) {
+        const first = invData[0];
+        const normalized = normalizeVideo({ videoId: first?.videoId, title: first?.title });
+        if (normalized) return normalized;
+      }
+    }
+
+    return null;
   };
 
   const searchYouTube = async (query) => {
     try {
-      const API_KEY = process.env.REACT_APP_YOUTUBE_API_KEY; 
+      const directVideoId = extractVideoIdFromInput(query);
+      if (directVideoId) {
+        return { videoId: directVideoId, title: query };
+      }
+
+      try {
+        const fnResp = await fetch(
+          `https://asia-south1-duet-2025.cloudfunctions.net/searchSong?q=${encodeURIComponent(query)}`
+        );
+        if (fnResp.ok) {
+          const fnData = await fnResp.json();
+          const normalized = normalizeVideo(fnData);
+          if (normalized) return normalized;
+        }
+      } catch (error) {
+        // Fallback to client-side providers
+      }
+
+      const API_KEY = process.env.REACT_APP_YOUTUBE_API_KEY;
+
       if (!API_KEY) {
         const noKeyResult = await searchYouTubeNoKey(query);
         if (noKeyResult) return noKeyResult;
+
         return await searchYouTubeAlternative(query);
       }
 
@@ -227,14 +318,18 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       
       const data = await response.json();
       if (data.items && data.items.length > 0) {
-        return normalizeVideo(data.items[0]);
+        const normalized = normalizeVideo(data.items[0]);
+        if (normalized) return normalized;
       }
+
       const noKeyResult = await searchYouTubeNoKey(query);
       if (noKeyResult) return noKeyResult;
+
       return null;
     } catch (error) {
       const noKeyResult = await searchYouTubeNoKey(query);
       if (noKeyResult) return noKeyResult;
+
       return await searchYouTubeAlternative(query);
     }
   };

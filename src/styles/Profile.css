@@ -34,7 +34,6 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-bottom: 12px;
   position: relative;
 }
 
@@ -42,10 +41,11 @@
   position: absolute;
   left: 0;
   background: var(--profile-card-bg);
-  border: 1px solid var(--profile-border);
+  border: none;
   border-radius: 8px;
   padding: 6px 10px;
   cursor: pointer;
+  
   color: var(--profile-text-main);
   transition: all 0.2s ease;
   display: flex;
@@ -57,7 +57,7 @@
   position: absolute;
   right: 0;
   background: var(--profile-card-bg);
-  border: 1px solid var(--profile-border);
+  border: none;
   border-radius: 8px;
   padding: 6px 10px;
   cursor: pointer;
@@ -272,6 +272,7 @@
 .profile-title {
   text-align: center;
   color: var(--profile-text-main);
+  margin:0px;
 }
 
 .profile-edit-button {
@@ -1082,10 +1083,11 @@
   }
 }
 
+.profile-container {
+  padding: 10px;
+}
+
 @media (max-width: 768px) {
-  .profile-container {
-    padding: 0px 20px;
-  }
 
   .profile-header {
     flex-direction: column;
@@ -1391,4 +1393,85 @@
   padding: 24px;
   border-top: 1px solid var(--profile-border);
   margin-top: 24px;
+}
+
+.profile-settings-tab {
+  background: var(--profile-card-bg);
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 15px;
+}
+
+.profile-settings-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--profile-border);
+}
+
+.profile-settings-tab-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--profile-text-main);
+}
+
+.profile-settings-back-button {
+  border: 1px solid var(--profile-border);
+  background: var(--profile-bg);
+  color: var(--profile-text-main);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.profile-settings-back-button:hover {
+  background: var(--home-hover-bg);
+}
+
+.profile-settings-sections {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.profile-settings-card {
+  border: 1px solid var(--profile-border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--profile-bg);
+}
+
+.profile-settings-card h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--profile-text-main);
+}
+
+.settings-app-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 768px) {
+  .profile-settings-tab {
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  .profile-settings-tab-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-app-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import UserBadge from "../UserBadge";
 import Spinner from "../Spinner";
 import SuggestedFriends from "./SuggestedFriends";
 import { useFriends } from "../../hooks/useFriends";
-import DevFusionModal from "./DevFusionModal";
 
 function SearchView({ user }) {
-  const [showDevFusion, setShowDevFusion] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -109,7 +106,6 @@ function SearchView({ user }) {
           username: profile.username || "user",
           photoURL: profile.photoURL,
           bio: profile.bio,
-          badge: profile.badge,
           status: req.status || "pending",
           timestamp: req.timestamp || null,
         };
@@ -194,20 +190,9 @@ function SearchView({ user }) {
 
   return (
     <div className="search-container">
-      <div className="search-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
+      <div className="search-header-bar" style={{ alignItems: 'center', justifyContent: 'space-between' , margin: '0px 10px' }}>
         <h1 className="SearchHeading" style={{ margin: 0 }}>Lookup Friends</h1>
-        <button
-          className="devfusion-trigger-btn"
-          title="About DevFusion"
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-          onClick={() => setShowDevFusion(true)}
-        >
-          <img src="/DevFusion.png" alt="DevFusion Logo" style={{ width: 50, height: 50, borderRadius: '50%' }} />
-        </button>
       </div>
-      {showDevFusion && (
-        <DevFusionModal isOpen={showDevFusion} onClose={() => setShowDevFusion(false)} currentUserId={user?.uid} />
-      )}
 
       {message && (
         <div className={`search-message ${message.includes("Error") ? "search-message-error" : "search-message-success"}`}>
@@ -235,10 +220,7 @@ function SearchView({ user }) {
                   }}
                 />
                 <div className="pending-request-info">
-                  <h4 className="badge-with-name">
-                    {request.displayName}
-                    {(() => { const displayBadge = request.badge || (request.username === 'ashwinirai492' ? 'tester' : null); return displayBadge ? <UserBadge badge={displayBadge} size="small" /> : null; })()}
-                  </h4>
+                  <h4>{request.displayName}</h4>
                   <p className="pending-request-username">@{request.username}</p>
                   {request.bio && (
                     <p className="pending-request-bio">{request.bio}</p>
@@ -319,10 +301,7 @@ function SearchView({ user }) {
               }}
               />
               <div className="search-result-info">
-                <h4 className="badge-with-name">
-                  {result.displayName}
-                  {(() => { const displayBadge = result.badge || (result.username === 'ashwinirai492' ? 'tester' : null); return displayBadge ? <UserBadge badge={displayBadge} size="small" /> : null; })()}
-                </h4>
+                <h4>{result.displayName}</h4>
                 <p className="search-result-username">@{result.username}</p>
                 {result.bio && (
                   <p className="search-result-bio">{result.bio}</p>

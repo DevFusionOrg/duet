@@ -25,7 +25,14 @@ import { useFriendsOnlineStatus } from "../hooks/useFriendsOnlineStatus";
 
 import "../styles/Profile.css";
 
-export default function Profile({ user, isDarkMode, toggleTheme }) {
+export default function Profile({
+  user,
+  isDarkMode,
+  toggleTheme,
+  openSettingsAsView = false,
+  onOpenSettingsTab,
+  onCloseSettingsTab,
+}) {
   const { uid } = useParams();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -98,6 +105,12 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
       console.log("Cloudinary script loading for profile...");
     }
   }, []);
+
+  useEffect(() => {
+    if (isOwnProfile) {
+      setShowSettings(!!openSettingsAsView);
+    }
+  }, [openSettingsAsView, isOwnProfile]);
 
   useEffect(() => {
     (async () => {
@@ -263,6 +276,26 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
     }
   };
 
+  const handleOpenSettings = () => {
+    if (onOpenSettingsTab) {
+      onOpenSettingsTab();
+      return;
+    }
+    setShowSettings(true);
+    setEditing(false);
+    setShowPhotoControls(false);
+  };
+
+  const handleCloseSettings = () => {
+    if (onCloseSettingsTab) {
+      onCloseSettingsTab();
+      return;
+    }
+    setShowSettings(false);
+    setChangingPassword(false);
+    setMessage("");
+  };
+
   if (!profile) {
     return (
       <div className="profile-container">
@@ -288,16 +321,16 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
 
   return (
     <div className="profile-container">
-      {isOwnProfile && (
+      {isOwnProfile && !showSettings && (
         <ProfileHeader
           username={profile?.username}
-          onOpenSettings={() => setShowSettings((s) => !s)}
+          onOpenSettings={handleOpenSettings}
           onToggleTheme={toggleTheme}
           isDarkMode={isDarkMode}
         />
       )}
 
-      <div className="profile-summary">
+      {!showSettings && <div className="profile-summary">
         <div className="profile-summary-left">
           <div className="profile-picture-wrapper">
             <img
@@ -348,9 +381,9 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
             <div className="summary-label">Friends</div>
           </button>
         </div>
-      </div>
+      </div>}
 
-      {message && (
+      {!showSettings && message && (
         <div
           className={`profile-message ${
             message.includes("Error")
@@ -362,7 +395,107 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
         </div>
       )}
 
-      {editing ? (
+      {showSettings && isOwnProfile ? (
+        <div className="profile-settings-tab">
+          <div className="profile-settings-tab-header">
+            <button className="profile-settings-back-button" onClick={handleCloseSettings}>
+              ← Back to Profile
+            </button>
+            <h3>Settings</h3>
+          </div>
+
+          <div className="profile-settings-sections">
+            <section className="profile-settings-card">
+              <h4>Account & Security</h4>
+              <button
+                className="profile-password-button"
+                onClick={() => setChangingPassword(prev => !prev)}
+              >
+                {changingPassword ? 'Close Change Password' : 'Change Password'}
+              </button>
+              {changingPassword && (
+                <PasswordChange
+                  passwordData={passwordData}
+                  loading={passwordLoading}
+                  onPasswordChange={handlePasswordDataChange}
+                  onCancel={handlePasswordCancel}
+                  onSubmit={handlePasswordChange}
+                />
+              )}
+            </section>
+
+            <section className="profile-settings-card">
+              <h4>Privacy</h4>
+              <BlockedUsersSection
+                blockedUsers={blockedUsers}
+                loadingBlockedUsers={loadingBlockedUsers}
+                onShowBlockedUsers={() => setShowBlockedUsers(true)}
+                isOwnProfile={isOwnProfile}
+              />
+            </section>
+
+            <section className="profile-settings-card">
+              <h4>App Preferences</h4>
+              <div className="settings-app-row">
+                <span>Theme</span>
+                <button className="update-check-button" onClick={toggleTheme}>
+                  {isDarkMode ? 'Use Light Mode' : 'Use Dark Mode'}
+                </button>
+              </div>
+              <div className="updates-inline">
+                <div className="updates-row">
+                  <span>Installed: {installedVersion || '—'}</span>
+                  <button className="update-check-button" onClick={fetchLatestRelease} disabled={updateInfo.loading}>
+                    {updateInfo.loading ? 'Checking…' : 'Check for updates'}
+                  </button>
+                </div>
+                {updateInfo.error && <div className="error">{updateInfo.error}</div>}
+                {updateInfo.latest && (
+                  <div className="updates-latest">
+                    Latest: <strong>{updateInfo.latest}</strong>
+                    {updateInfo.hasUpdate ? (
+                      updateInfo.apkUrl ? (
+                        <a className="btn btn-primary" href={updateInfo.apkUrl} target="_blank" rel="noopener noreferrer">Download APK</a>
+                      ) : (
+                        <span style={{ marginLeft: 8 }}>New version available.</span>
+                      )
+                    ) : (
+                      <span style={{ marginLeft: 8 }}>No new release</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="profile-settings-card">
+              <h4>Account Actions</h4>
+              <div className="profile-settings-actions">
+                <button
+                  onClick={async () => {
+                    try {
+                      await signOut(auth);
+                      window.location.href = "/";
+                    } catch (error) {
+                      console.error("Error logging out:", error);
+                    }
+                  }}
+                  disabled={deletingAccount}
+                  className="profile-action-button profile-logout-button"
+                >
+                  Logout
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deletingAccount}
+                  className="profile-action-button profile-delete-button"
+                >
+                  {deletingAccount ? "Deleting…" : "Delete Account"}
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      ) : editing ? (
         <ProfileForm
           formData={formData}
           loading={loading}
@@ -381,99 +514,6 @@ export default function Profile({ user, isDarkMode, toggleTheme }) {
           editing={editing}
           onToggleEdit={handleToggleEdit}
         />
-      )}
-
-      {}
-
-      {showSettings && (
-        <div className="profile-settings-overlay" onClick={() => setShowSettings(false)}>
-          <div className="profile-settings-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="settings-header">
-              <h4>Settings</h4>
-              <button className="settings-close-button" onClick={() => setShowSettings(false)}>✕</button>
-            </div>
-          <div className="settings-section">
-            <button
-              className="profile-password-button"
-              onClick={() => setChangingPassword(prev => !prev)}
-            >
-              {changingPassword ? 'Close Change Password' : 'Change Password'}
-            </button>
-            {changingPassword && (
-              <PasswordChange
-                passwordData={passwordData}
-                loading={passwordLoading}
-                onPasswordChange={handlePasswordDataChange}
-                onCancel={handlePasswordCancel}
-                onSubmit={handlePasswordChange}
-              />
-            )}
-          </div>
-
-          <div className="settings-section">
-            <h5>Blocklist</h5>
-            <BlockedUsersSection
-              blockedUsers={blockedUsers}
-              loadingBlockedUsers={loadingBlockedUsers}
-              onShowBlockedUsers={() => setShowBlockedUsers(true)}
-              isOwnProfile={isOwnProfile}
-            />
-          </div>
-
-          <div className="settings-section">
-            <h5>Updates</h5>
-            <div className="updates-inline">
-              <div className="updates-row">
-                <span>Installed: {installedVersion || '—'}</span>
-                <button className="update-check-button" onClick={fetchLatestRelease} disabled={updateInfo.loading}>
-                  {updateInfo.loading ? 'Checking…' : 'Check for updates'}
-                </button>
-              </div>
-              {updateInfo.error && <div className="error">{updateInfo.error}</div>}
-              {updateInfo.latest && (
-                <div className="updates-latest">
-                  Latest: <strong>{updateInfo.latest}</strong>
-                  {updateInfo.hasUpdate ? (
-                    updateInfo.apkUrl ? (
-                      <a className="btn btn-primary" href={updateInfo.apkUrl} target="_blank" rel="noopener noreferrer">Download APK</a>
-                    ) : (
-                      <span style={{ marginLeft: 8 }}>New version available.</span>
-                    )
-                  ) : (
-                    <span style={{ marginLeft: 8 }}>No new release</span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="settings-section">
-            <div className="profile-settings-actions">
-              <button
-                onClick={async () => {
-                  try {
-                    await signOut(auth);
-                    window.location.href = "/";
-                  } catch (error) {
-                    console.error("Error logging out:", error);
-                  }
-                }}
-                disabled={deletingAccount}
-                className="profile-action-button profile-logout-button"
-              >
-                Logout
-              </button>
-              <button
-                onClick={handleDeleteAccount}
-                disabled={deletingAccount}
-                className="profile-action-button profile-delete-button"
-              >
-                {deletingAccount ? "Deleting…" : "Delete Account"}
-              </button>
-            </div>
-          </div>
-          </div>
-        </div>
       )}
 
       {}
