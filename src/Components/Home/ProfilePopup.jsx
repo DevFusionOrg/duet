@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { deleteFriend, getUserProfile } from "../../firebase/firestore";
+import { collection, getCountFromServer } from "firebase/firestore";
+import { db } from "../../firebase/firebase";
 import UserBadge from "../UserBadge";
 
 function ProfilePopup({
@@ -10,6 +12,7 @@ function ProfilePopup({
 }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [friendCount, setFriendCount] = useState(0);
 
   useEffect(() => {
     if (!friend?.uid) return;
@@ -19,6 +22,14 @@ function ProfilePopup({
     getUserProfile(friend.uid).then((data) => {
       if (active) setProfile(data);
     });
+
+    getCountFromServer(collection(db, "users", friend.uid, "friends"))
+      .then((snapshot) => {
+        if (active) setFriendCount(snapshot.data().count || 0);
+      })
+      .catch(() => {
+        if (active) setFriendCount(0);
+      });
 
     return () => {
       active = false;
@@ -90,7 +101,7 @@ function ProfilePopup({
             <div className="profile-stats">
               <div className="stat-item">
                 <span className="stat-number">
-                  {profile.friends?.length || 0}
+                  {friendCount}
                 </span>
                 <span className="stat-label">Friends</span>
               </div>
