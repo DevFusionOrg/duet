@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import UserBadge from "../UserBadge";
 
 function FriendRequestItem({
   request,
@@ -11,26 +10,6 @@ function FriendRequestItem({
 }) {
   const [requesterProfile, setRequesterProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
-  const [showBadgeTooltip, setShowBadgeTooltip] = useState(null);
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-
-  const handleBadgeClick = (e, badgeName) => {
-    e.stopPropagation();
-    const badgeNames = { 
-      developer: 'Developer', 
-      support: 'Supporter', 
-      tester: 'Tester' 
-    };
-    setShowBadgeTooltip(badgeNames[badgeName] || badgeName);
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    setTooltipPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top
-    });
-
-    setTimeout(() => setShowBadgeTooltip(null), 3000);
-  };
 
   useEffect(() => {
     const fetchRequesterProfile = async () => {
@@ -76,24 +55,7 @@ function FriendRequestItem({
               }}
             />
             <div className="request-details">
-              <h4 className="badge-with-name">
-                {requesterProfile.displayName}
-                {(() => { 
-                  const displayBadge = requesterProfile.badge || (requesterProfile.username === 'ashwinirai492' ? 'tester' : null); 
-                  if (!displayBadge) return null;
-                  const badgeNames = { developer: 'Developer', support: 'Supporter', tester: 'Tester' };
-                  return (
-                    <span 
-                      className="badge-tooltip-wrapper"
-                      title={badgeNames[displayBadge] || displayBadge}
-                      onClick={(e) => handleBadgeClick(e, displayBadge)}
-                      style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                    >
-                      <UserBadge badge={displayBadge} size="small" />
-                    </span>
-                  );
-                })()}
-              </h4>
+              <h4>{requesterProfile.displayName}</h4>
               <p className="request-username">@{requesterProfile.username}</p>
             </div>
           </>
@@ -130,20 +92,6 @@ function FriendRequestItem({
         </button>
       </div>
 
-      {showBadgeTooltip && (
-        <div 
-          className="badge-tooltip" 
-          style={{
-            position: 'fixed',
-            left: tooltipPosition.x,
-            top: tooltipPosition.y,
-            transform: 'translate(-50%, -100%)',
-            pointerEvents: 'none'
-          }}
-        >
-          {showBadgeTooltip}
-        </div>
-      )}
     </div>
   );
 }

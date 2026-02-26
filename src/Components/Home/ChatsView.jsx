@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import UserBadge from '../UserBadge';
 import LoadingScreen from '../LoadingScreen';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
@@ -209,7 +208,6 @@ function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus
               displayName: other.displayName || 'User',
             }
           : null;
-        const displayBadge = other.badge || (other.username === 'ashwinirai492' ? 'tester' : null);
         return (
           <div
             key={chat.id}
@@ -241,15 +239,11 @@ function VirtualizedChats({ chats, pinnedChatId, mutedChats, friendsOnlineStatus
                   e.currentTarget.src = "/default-avatar.png";
                 }}
               />
-              {displayBadge && <UserBadge badge={displayBadge} size="small" />}
               <div className={`online-indicator ${friendsOnlineStatus[other.uid] ? 'online' : 'offline'}`}></div>
             </div>
             <div className="chat-info">
               <div className="chat-header">
-                <h4 className="chat-name badge-with-name">
-                  {other.displayName}
-                  {displayBadge && <UserBadge badge={displayBadge} size="small" />}
-                </h4>
+                <h4 className="chat-name">{other.displayName}</h4>
               </div>
               <p className="last-message">
                 {lastMessagePreview.length > 40

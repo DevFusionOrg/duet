@@ -1,5 +1,4 @@
 import React from "react";
-import UserBadge from "../UserBadge";
 
 function ProfileDisplay({ 
   profile, 
@@ -16,32 +15,14 @@ function ProfileDisplay({
     <div className="profile-display">
       <div className="profile-field">
         <div className="profile-field-label">Name:</div>
-        <div className="profile-field-value badge-with-name">
+        <div className="profile-field-value">
           {profile.displayName}
-          {isOwnProfile && (() => {
-            const role = (profile.badge || (profile.username === 'ashwinirai492' ? 'tester' : null));
-            if (!role) return null;
-            const titleMap = { developer: 'Developer', support: 'Support', tester: 'Tester' };
-            return (
-              <span className={`role-chip role-chip-${role}`} style={{ marginLeft: 8 }}>
-                <span className="role-chip-text">{titleMap[role]}</span>
-                <UserBadge badge={role} size="small" />
-              </span>
-            );
-          })()}
         </div>
       </div>
 
       <div className="profile-field">
         <div className="profile-field-label">Username:</div>
-        <div className="profile-field-value">
-          @{profile.username}
-          {profile.username === 'ashwinirai492' && (
-            <span style={{ marginLeft: 6 }}>
-              <UserBadge badge="tester" size="small" />
-            </span>
-          )}
-        </div>
+        <div className="profile-field-value">@{profile.username}</div>
       </div>
 
       {isOwnProfile && (

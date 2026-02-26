@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { db } from '../../firebase/firebase';
 import { collection, getDocs, query, limit, orderBy } from 'firebase/firestore';
 import { sendFriendRequest } from '../../firebase/firestore';
-import UserBadge from '../UserBadge';
 import LoadingScreen from '../LoadingScreen';
 import '../../styles/Home.css';
 
@@ -13,8 +12,6 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
   const [sentRequests, setSentRequests] = useState(new Set());
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(null);
-  const [showBadgeTooltip, setShowBadgeTooltip] = useState(null);
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const hasFetched = useRef(false);
 
   const fetchSuggestedFriends = useCallback(async () => {
@@ -126,24 +123,6 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
     return sentRequests.has(userId);
   };
 
-  const handleBadgeClick = (e, badgeName) => {
-    e.stopPropagation();
-    const badgeNames = { 
-      developer: 'Developer', 
-      support: 'Supporter', 
-      tester: 'Tester' 
-    };
-    setShowBadgeTooltip(badgeNames[badgeName] || badgeName);
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    setTooltipPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top
-    });
-
-    setTimeout(() => setShowBadgeTooltip(null), 3000);
-  };
-
   if (loading) {
     return <LoadingScreen message="Finding suggestions..." size="small" />;
   }
@@ -183,30 +162,7 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
             </div>
             
             <div className="suggested-friend-info" onClick={() => handleProfileClick(suggestion)} style={{ cursor: 'pointer' }}>
-              <h3 className="suggested-friend-name badge-with-name">
-                {suggestion.displayName}
-                {(() => {
-                  const displayBadge = suggestion.badge || (suggestion.username === 'ashwinirai492' ? 'tester' : null);
-                  if (!displayBadge) return null;
-                  
-                  const badgeNames = { 
-                    developer: 'Developer', 
-                    support: 'Supporter', 
-                    tester: 'Tester' 
-                  };
-                  
-                  return (
-                    <span 
-                      className="badge-tooltip-wrapper"
-                      title={badgeNames[displayBadge] || displayBadge}
-                      onClick={(e) => handleBadgeClick(e, displayBadge)}
-                      style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                    >
-                      <UserBadge badge={displayBadge} size="small" />
-                    </span>
-                  );
-                })()}
-              </h3>
+              <h3 className="suggested-friend-name">{suggestion.displayName}</h3>
               {suggestion.mutualCount > 0 && (
                 <p className="mutual-friends">
                   <span className="mutual-icon">👥</span>
@@ -241,21 +197,6 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
         ))}
       </div>
 
-      {showBadgeTooltip && (
-        <div 
-          className="badge-tooltip" 
-          style={{
-            position: 'fixed',
-            left: tooltipPosition.x,
-            top: tooltipPosition.y,
-            transform: 'translate(-50%, -100%)',
-            pointerEvents: 'none'
-          }}
-        >
-          {showBadgeTooltip}
-        </div>
-      )}
-
       {showProfilePopup && selectedProfile && (
         <div className="profile-popup-overlay" onClick={() => setShowProfilePopup(false)}>
           <div className="profile-popup-content" onClick={(e) => e.stopPropagation()}>
@@ -271,24 +212,7 @@ function SuggestedFriends({ user, currentFriends, friendRequests }) {
               }}
             />
             
-            <h2 className="profile-popup-name badge-with-name">
-              {selectedProfile.displayName}
-              {(() => {
-                const displayBadge = selectedProfile.badge || (selectedProfile.username === 'ashwinirai492' ? 'tester' : null);
-                if (!displayBadge) return null;
-                const badgeNames = { developer: 'Developer', support: 'Supporter', tester: 'Tester' };
-                return (
-                  <span 
-                    className="badge-tooltip-wrapper" 
-                    title={badgeNames[displayBadge] || displayBadge} 
-                    onClick={(e) => handleBadgeClick(e, displayBadge)}
-                    style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                  >
-                    <UserBadge badge={displayBadge} size="small" />
-                  </span>
-                );
-              })()}
-            </h2>
+            <h2 className="profile-popup-name">{selectedProfile.displayName}</h2>
             
             <p className="profile-popup-username">@{selectedProfile.username}</p>
             
