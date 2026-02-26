@@ -138,6 +138,56 @@
   padding-top: 116px;
 }
 
+.chat-friends-strip {
+  border-top: 1px solid var(--chat-border);
+  background: var(--chat-input-container-bg);
+  padding: 8px 10px;
+}
+
+.chat-friends-strip-title {
+  font-size: 12px;
+  color: var(--chat-text-muted);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.chat-friends-strip-list {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.chat-friends-strip-item {
+  background: transparent;
+  border: 1px solid var(--chat-border);
+  border-radius: 12px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--chat-text);
+  cursor: pointer;
+  min-width: fit-content;
+}
+
+.chat-friends-strip-item:hover {
+  background: var(--chat-hover-bg);
+}
+
+.chat-friends-strip-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.chat-friends-strip-name {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .chat-call-button {
   background: none;
   border: none;
@@ -935,6 +985,14 @@
   .chat-input-container {
     padding: 0px 10px;
     font-size: 16px;
+  }
+
+  .chat-friends-strip {
+    padding: 8px;
+  }
+
+  .chat-friends-strip-item {
+    padding: 6px 8px;
   }
 
   .chat-message-input {

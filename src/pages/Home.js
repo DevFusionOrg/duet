@@ -25,7 +25,6 @@ function Home({ user, isDarkMode, toggleTheme }) {
   const { unreadFriendsCount } = useUnreadCount(user);
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [activeView, setActiveView] = useState('chats');
-  const [showAlertsModal, setShowAlertsModal] = useState(false);
 
   const [pendingFriendId, setPendingFriendId] = useState(null);
   const [pendingFriendRequestCount, setPendingFriendRequestCount] = useState(0);
@@ -65,7 +64,12 @@ function Home({ user, isDarkMode, toggleTheme }) {
     setSelectedFriend(friend);
   };
 
-  const handleBackToFriends = () => {
+  const handleBackToFriends = (nextFriend = null) => {
+    if (nextFriend && typeof nextFriend === 'object' && (nextFriend.uid || nextFriend.id)) {
+      setSelectedFriend(nextFriend);
+      setActiveView('chats');
+      return;
+    }
     setSelectedFriend(null);
   };
 
@@ -96,8 +100,7 @@ function Home({ user, isDarkMode, toggleTheme }) {
     const viewParam = params.get("view");
 
     if (viewParam === "notifications") {
-      setActiveView("chats");
-      setShowAlertsModal(true);
+      setActiveView("alerts");
     }
 
     const friendIdFromChat = chatIdParam
@@ -120,8 +123,7 @@ function Home({ user, isDarkMode, toggleTheme }) {
       const detail = event.detail || {};
 
       if (detail.type === 'friend_request') {
-        setActiveView('chats');
-        setShowAlertsModal(true);
+        setActiveView('alerts');
         return;
       }
 
@@ -147,7 +149,7 @@ function Home({ user, isDarkMode, toggleTheme }) {
       <Chat 
         user={user} 
         friend={selectedFriend} 
-        onBack={handleBackToFriends}
+        onBack={() => handleBackToFriends()}
       />
     );
   }
@@ -169,12 +171,24 @@ function Home({ user, isDarkMode, toggleTheme }) {
             onClick={() => setActiveView('search')}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
+              <circle cx="11" cy="11" r="7"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <span className="nav-label">Add</span>
+            <span className="nav-label">Search</span>
+          </button>
+          <button
+            className={`nav-item ${activeView === 'alerts' ? 'active' : ''}`}
+            onClick={() => setActiveView('alerts')}
+          >
+            <svg aria-label="Notifications" fill="currentColor" height="24" role="img" viewBox="0 0 24 24" width="24">
+              <title>Notifications</title>
+              <path d="M16.792 3.904A4.989 4.989 0 0 1 21.5 9.122c0 3.072-2.652 4.959-5.197 7.222-2.512 2.243-3.865 3.469-4.303 3.752-.477-.309-2.143-1.823-4.303-3.752C5.141 14.072 2.5 12.167 2.5 9.122a4.989 4.989 0 0 1 4.708-5.218 4.21 4.21 0 0 1 3.675 1.941c.84 1.175.98 1.763 1.12 1.763s.278-.588 1.11-1.766a4.17 4.17 0 0 1 3.679-1.938m0-2a6.04 6.04 0 0 0-4.797 2.127 6.052 6.052 0 0 0-4.787-2.127A6.985 6.985 0 0 0 .5 9.122c0 3.61 2.55 5.827 5.015 7.97.283.246.569.494.853.747l1.027.918a44.998 44.998 0 0 0 3.518 3.018 2 2 0 0 0 2.174 0 45.263 45.263 0 0 0 3.626-3.115l.922-.824c.293-.26.59-.519.885-.774 2.334-2.025 4.98-4.32 4.98-7.94a6.985 6.985 0 0 0-6.708-7.218Z"></path>
+            </svg>
+            <span className="nav-label">Alerts</span>
+            {pendingFriendRequestCount > 0 && <span className="nav-badge">{pendingFriendRequestCount}</span>}
           </button>
           <button 
-            className={`nav-item ${activeView === 'profile' ? 'active' : ''}`}
+            className={`nav-item ${(activeView === 'profile' || activeView === 'settings') ? 'active' : ''}`}
             onClick={() => setActiveView('profile')}
           >
             <span className="nav-avatar">
@@ -202,25 +216,39 @@ function Home({ user, isDarkMode, toggleTheme }) {
               onStartChat={handleStartChat}
               friendsOnlineStatus={friendsOnlineStatus}
               user={user}
-              onOpenAlerts={() => setShowAlertsModal(true)}
-              alertsCount={pendingFriendRequestCount}
+              friends={friends}
             />
           ) : activeView === 'search' ? (
             <SearchView user={user} />
+          ) : activeView === 'alerts' ? (
+            <NotificationsModal
+              isOpen={true}
+              user={user}
+              onFriendRequestUpdate={handleFriendRequestUpdate}
+              asPage={true}
+            />
           ) : activeView === 'profile' ? (
             <Suspense fallback={<LoadingScreen message="Loading profile..." size="medium" fullScreen={true} />}>
-              <ProfileView user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+              <ProfileView
+                user={user}
+                isDarkMode={isDarkMode}
+                toggleTheme={toggleTheme}
+                onOpenSettingsTab={() => setActiveView('settings')}
+              />
+            </Suspense>
+          ) : activeView === 'settings' ? (
+            <Suspense fallback={<LoadingScreen message="Loading settings..." size="medium" fullScreen={true} />}>
+              <ProfileView
+                user={user}
+                isDarkMode={isDarkMode}
+                toggleTheme={toggleTheme}
+                openSettingsAsView={true}
+                onCloseSettingsTab={() => setActiveView('profile')}
+              />
             </Suspense>
           ) : null}
         </div>
       </div>
-
-      <NotificationsModal 
-        isOpen={showAlertsModal}
-        onClose={() => setShowAlertsModal(false)}
-        user={user}
-        onFriendRequestUpdate={handleFriendRequestUpdate}
-      />
     </div>
   );
 }
