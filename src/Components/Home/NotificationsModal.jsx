@@ -3,7 +3,7 @@ import { loadFriendRequests } from "../../firebase/firestore";
 import FriendRequestItem from "./FriendRequestItem";
 import "../../styles/NotificationsModal.css";
 
-function NotificationsModal({ isOpen, onClose, user, onFriendRequestUpdate }) {
+function NotificationsModal({ isOpen, onClose, user, onFriendRequestUpdate, asPage = false }) {
   const [requests, setRequests] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
@@ -100,10 +100,9 @@ function NotificationsModal({ isOpen, onClose, user, onFriendRequestUpdate }) {
     return !processedRequests.has(requestKey);
   });
 
-  return (
-    <div className="notifications-modal-overlay" onClick={onClose}>
-      <div className="notifications-modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="notifications-modal-close" onClick={onClose} aria-label="Close">×</button>
+  const content = (
+    <div className={`notifications-modal-content ${asPage ? 'notifications-page-content' : ''}`} onClick={(e) => !asPage && e.stopPropagation()}>
+      {!asPage && <button className="notifications-modal-close" onClick={onClose} aria-label="Close">×</button>}
         <div className="notifications-modal-header">
           <h2>Alerts</h2>
           {activeFriendRequests.length > 0 }
@@ -160,6 +159,15 @@ function NotificationsModal({ isOpen, onClose, user, onFriendRequestUpdate }) {
           </div>
         )}
       </div>
+  );
+
+  if (asPage) {
+    return <div className="notifications-page-wrapper">{content}</div>;
+  }
+
+  return (
+    <div className="notifications-modal-overlay" onClick={onClose}>
+      {content}
     </div>
   );
 }

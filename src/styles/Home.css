@@ -285,6 +285,56 @@
   font-size: 1rem;
 }
 
+.home-chat-suggestions {
+  margin: 8px 12px 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--home-border);
+}
+
+.home-chat-suggestions-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--home-text);
+}
+
+.home-chat-suggestions-list {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.home-chat-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--home-border);
+  background: var(--home-card-bg);
+  color: var(--home-text);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  min-width: fit-content;
+}
+
+.home-chat-suggestion-item:hover {
+  background: var(--home-hover-bg);
+}
+
+.home-chat-suggestion-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.home-chat-suggestion-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .friends-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -1463,6 +1513,10 @@
   }
 
   .friends-grid { grid-template-columns: 1fr; }
+
+  .home-chat-suggestions {
+    margin: 6px 10px 12px;
+  }
 
   .friend-card { padding: 20px; }
 
