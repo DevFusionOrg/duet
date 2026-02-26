@@ -365,57 +365,49 @@ function Chat({ user, friend, onBack }) {
     previousMessagesLengthRef.current = 0;
   }, [chatId]);
 
-  const handleImageUploadClick = async () => {
+  const handleImageUploadClick = async (file) => {
     if (!chatId) {
       alert("Chat is still loading. Please wait a moment.");
       return;
     }
+    if (!file) return;
+    if (!file.type?.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
 
-    // Create a temporary file input to bypass Cloudinary widget
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.click();
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', 'duet_chat');
+      formData.append('folder', 'duet-chat');
 
-    input.onchange = async () => {
-      const file = input.files && input.files[0];
-      if (!file) return;
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: 'POST', body: formData }
+      );
 
-      setUploadingImage(true);
-      try {
-        // Upload to Cloudinary silently without showing widget
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', 'duet_chat');
-        formData.append('folder', 'duet-chat');
+      if (!response.ok) throw new Error('Upload failed');
+      const data = await response.json();
 
-        const response = await fetch(
-          `https://api.cloudinary.com/v1_1/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload`,
-          { method: 'POST', body: formData }
-        );
+      const imageResult = {
+        public_id: data.public_id,
+        secure_url: data.secure_url,
+        width: data.width,
+        height: data.height,
+        format: data.format,
+      };
 
-        if (!response.ok) throw new Error('Upload failed');
-        const data = await response.json();
-
-        // Send message immediately without showing upload progress
-        const imageResult = {
-          public_id: data.public_id,
-          secure_url: data.secure_url,
-          width: data.width,
-          height: data.height,
-          format: data.format,
-        };
-
-        await sendMessage(chatId, user.uid, "", imageResult);
-      } catch (error) {
-        console.error("Error uploading image:", error);
-        if (error.message !== "Upload cancelled") {
-          alert("Error uploading image: " + error.message);
-        }
-      } finally {
-        setUploadingImage(false);
+      await sendMessage(chatId, user.uid, "", imageResult);
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      if (error.message !== "Upload cancelled") {
+        alert("Error uploading image: " + error.message);
       }
-    };
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleVoiceSend = async (audioBlob, duration) => {
