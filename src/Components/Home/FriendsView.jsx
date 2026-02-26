@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import UserBadge from '../UserBadge';
 import FriendProfilePopup from '../FriendProfilePopup';
 import LoadingScreen from '../LoadingScreen';
 import { deleteFriend } from '../../firebase/firestore';
@@ -26,7 +25,6 @@ function FriendsView({ friends, loading, onStartChat, friendsOnlineStatus, curre
       {!hideGrid && (
       <div className="friends-grid">
         {friends.map(friend => {
-          const displayBadge = friend.badge || (friend.username === 'ashwinirai492' ? 'tester' : null);
           return (
           <div 
             key={friend.uid} 
@@ -47,15 +45,11 @@ function FriendsView({ friends, loading, onStartChat, friendsOnlineStatus, curre
                   e.currentTarget.src = "/default-avatar.png";
                 }}
               />
-              {displayBadge && <UserBadge badge={displayBadge} size="small" />}
               <div className={`online-indicator ${friendsOnlineStatus[friend.uid] ? 'online' : 'offline'}`}></div>
             </div>
             
             <div className="friend-info">
-              <h3 className="friend-name badge-with-name">
-                {friend.displayName}
-                {displayBadge && <UserBadge badge={displayBadge} size="small" />}
-              </h3>
+              <h3 className="friend-name">{friend.displayName}</h3>
             </div>
 
             <button 
