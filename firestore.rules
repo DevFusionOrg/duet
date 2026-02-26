@@ -36,6 +36,11 @@ service cloud.firestore {
           request.auth.uid == friendId
         );
       }
+
+      // Saved messages per user
+      match /savedMessages/{savedId} {
+        allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     /* ---------------- USERNAMES ---------------- */
@@ -67,8 +72,18 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
 
-        allow update: if request.auth != null
-          && request.auth.uid == resource.data.senderId;
+        allow update: if request.auth != null && (
+          // Sender can update own message (edit/delete-related metadata)
+          request.auth.uid == resource.data.senderId
+          ||
+          // Recipient can only mark as read and set read timestamps/deletion time
+          (
+            request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+            && request.auth.uid != resource.data.senderId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt', 'deletionTime'])
+            && request.resource.data.read == true
+          )
+        );
 
         allow delete: if request.auth != null
           && request.auth.uid == resource.data.senderId;

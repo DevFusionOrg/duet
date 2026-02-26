@@ -3,7 +3,7 @@ import FriendProfilePopup from '../FriendProfilePopup';
 import LoadingScreen from '../LoadingScreen';
 import { deleteFriend } from '../../firebase/firestore';
 
-function FriendsView({ friends, loading, onStartChat, friendsOnlineStatus, currentUserId, hideHeaders = false, hideHeading = false, hideGrid = false, allowRemove = false }) {
+function FriendsView({ friends, loading, onStartChat, onOpenProfile, friendsOnlineStatus, currentUserId, hideHeaders = false, hideHeading = false, hideGrid = false, allowRemove = false }) {
   const [selectedFriend, setSelectedFriend] = useState(null);
 
   if (loading) {
@@ -31,7 +31,11 @@ function FriendsView({ friends, loading, onStartChat, friendsOnlineStatus, curre
             className="friend-card"
             onClick={(e) => {
               e.stopPropagation();
-              setSelectedFriend(friend);
+              if (onOpenProfile) {
+                onOpenProfile(friend);
+              } else {
+                setSelectedFriend(friend);
+              }
             }}
             style={{ cursor: 'pointer' }}
           >
@@ -95,7 +99,7 @@ function FriendsView({ friends, loading, onStartChat, friendsOnlineStatus, curre
       )}
 
 
-      {selectedFriend && (
+      {selectedFriend && !onOpenProfile && (
         <FriendProfilePopup
           friend={selectedFriend}
           onClose={() => setSelectedFriend(null)}

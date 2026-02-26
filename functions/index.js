@@ -401,6 +401,42 @@ exports.notifyAppUpdate = functions
     return null;
   });
 
+exports.getLatestRelease = functions
+  .region("asia-south1")
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
+    if (req.method !== "GET") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    try {
+      const snap = await db.collection("appConfig").doc("latestRelease").get();
+      if (!snap.exists) {
+        res.status(404).json({ error: "Latest release not found" });
+        return;
+      }
+
+      const data = snap.data() || {};
+      res.status(200).json({
+        version: (data.version || "").toString(),
+        apkUrl: data.apkUrl || "",
+        notes: data.notes || "",
+      });
+    } catch (error) {
+      console.error("getLatestRelease error:", error);
+      res.status(500).json({ error: "Failed to fetch latest release" });
+    }
+  });
+
 // Scheduled cleanup of expired, unsaved messages to remove client-side deletion writes
 exports.cleanupExpiredMessages = functions
   .region("asia-south1")

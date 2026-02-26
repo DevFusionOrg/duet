@@ -5,10 +5,14 @@ function ChatHeader({
   user, 
   friend, 
   onBack, 
+  showBackButton = true,
+  showCloseButton = false,
+  onCloseChat,
   isBlocked, 
   isFriendOnline,
   isFriendTyping, 
   lastSeen,
+  onOpenProfile,
   onToggleUserMenu,
   showUserMenu,
   onBlockUser,
@@ -48,14 +52,30 @@ function ChatHeader({
 
   return (
     <div className="chat-header">
-      <button onClick={onBack} className="chat-back-button">
-        <svg aria-label="Back" fill="none" height="24" role="img" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
-          <title>Back</title>
-          <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
+      {showBackButton && (
+        <button onClick={onBack} className="chat-back-button">
+          <svg aria-label="Back" fill="none" height="24" role="img" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <title>Back</title>
+            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
+
+      {showCloseButton && (
+        <button
+          onClick={onCloseChat}
+          className="chat-close-button"
+          title="Close chat"
+        >
+          ✕
+        </button>
+      )}
       
-      <div className="chat-user-info">
+      <button
+        type="button"
+        className={`chat-user-info ${onOpenProfile ? 'clickable' : ''}`}
+        onClick={onOpenProfile}
+      >
         <div className="chat-avatar-with-status">
           <img
             src={friend.photoURL || '/default-avatar.png'}
@@ -77,7 +97,7 @@ function ChatHeader({
             {getStatusText()}
           </p>
         </div>
-      </div>
+      </button>
       
       <div className="chat-header-actions">
         <button

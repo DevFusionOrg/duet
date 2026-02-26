@@ -3,7 +3,6 @@ import React from "react";
 function ProfileDisplay({ 
   profile, 
   isOwnProfile, 
-  user,
   blockedUsers,
   loadingBlockedUsers,
   onShowBlockedUsers,
@@ -24,13 +23,6 @@ function ProfileDisplay({
         <div className="profile-field-label">Username:</div>
         <div className="profile-field-value">@{profile.username}</div>
       </div>
-
-      {isOwnProfile && (
-        <div className="profile-field">
-          <div className="profile-field-label">Email:</div>
-          <div className="profile-field-value">{user.email}</div>
-        </div>
-      )}
 
       {profile.bio && (
         <div className="profile-field">
