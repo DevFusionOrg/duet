@@ -1,7 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
-import { db, auth } from "./firebase/firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { supabase } from "./supabase/supabase";
 
 function dispatchNotificationClick(detail) {
   try {
@@ -20,37 +19,16 @@ async function clearDeliveredNotifications() {
 }
 
 async function saveTokenToFirestore(token) {
-  const user = auth.currentUser;
-  if (!user) {
-    console.log("[push-init] No user logged in yet, skipping token save");
-    return;
-  }
-
-  const uid = user.uid;
-
   try {
-    const userRef = doc(db, "users", uid);
-    await setDoc(
-      userRef,
-      {
-        fcmToken: token,
-      },
-      { merge: true }
-    );
-    const tokenRef = doc(db, "users", uid, "tokens", token);
-    await setDoc(
-      tokenRef,
-      {
-        token,
-        platform: Capacitor.getPlatform(),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.log("[push-init] No user logged in yet, skipping token save");
+      return;
+    }
 
-    console.log("[push-init] Token saved to Firestore for user:", uid);
+    console.log("[push-init] Token registered for user:", user.id);
   } catch (err) {
-    console.error("[push-init] Error saving token to Firestore:", err);
+    console.error("[push-init] Error saving token:", err);
   }
 }
 

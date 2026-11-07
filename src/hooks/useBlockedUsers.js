@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { doc, onSnapshot, updateDoc, arrayRemove } from "firebase/firestore";
-import { db } from "../firebase/firebase";
-import { getBlockedUsers } from "../firebase/firestore";
+import { getBlockedUsers, unblockUser } from "../firebase/firestore";
+import { supabase } from "../supabase/supabase";
 
 export function useBlockedUsers(userId) {
   const [blockedUsers, setBlockedUsers] = useState([]);
@@ -11,26 +10,36 @@ export function useBlockedUsers(userId) {
   useEffect(() => {
     if (!userId) return;
 
-    const userRef = doc(db, "users", userId);
-
-    const unsubscribe = onSnapshot(userRef, async (snap) => {
-      if (!snap.exists()) return;
-
-      const data = snap.data();
-      const blockedIds = data.blockedUsers || [];
-
-      if (blockedIds.length === 0) {
-        setBlockedUsers([]);
+    const fetchBlocked = async () => {
+      try {
+        const ids = await getBlockedUsers(userId);
+        setBlockedUsers(ids);
+      } catch (e) {
+        console.error("Error loading blocked users:", e);
+      } finally {
         setLoadingBlockedUsers(false);
-        return;
       }
+    };
 
-      const profiles = await getBlockedUsers(userId);
-      setBlockedUsers(profiles);
-      setLoadingBlockedUsers(false);
-    });
+    fetchBlocked();
 
-    return unsubscribe;
+    const channel = supabase
+      .channel(`blocked_users:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "blocked_users",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => fetchBlocked()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [userId]);
 
   const handleUnblockUser = async (blockedUserId, onSuccess) => {
@@ -38,17 +47,13 @@ export function useBlockedUsers(userId) {
       throw new Error("Invalid blocked user");
     }
 
-    const userRef = doc(db, "users", userId);
-
-    await updateDoc(userRef, {
-      blockedUsers: arrayRemove(blockedUserId),
-    });
-
+    await unblockUser(userId, blockedUserId);
+    setBlockedUsers((prev) => prev.filter((id) => id !== blockedUserId));
     if (onSuccess) onSuccess();
   };
 
   return {
-    blockedUsers,          
+    blockedUsers,
     showBlockedUsers,
     setShowBlockedUsers,
     loadingBlockedUsers,

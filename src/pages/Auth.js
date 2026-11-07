@@ -1,16 +1,6 @@
 import React, { useState } from "react";
-import {
-  signInWithPopup,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  updateProfile,
-  GoogleAuthProvider,
-  signInWithCredential,
-} from "firebase/auth";
-import { auth, googleProvider } from "../firebase/firebase";
+import { supabase } from "../supabase/supabase";
 import { createUserProfile } from "../firebase/firestore";
-import { Capacitor } from "@capacitor/core";
-import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { Spinner } from "../Components/Spinner";
 import "../styles/Auth.css";
 
@@ -29,54 +19,21 @@ function Auth() {
   };
 
   const signInWithGoogle = async () => {
-    const platform = Capacitor.getPlatform();
-    const isNative = platform === "android" || platform === "ios";
-
     setLoading(true);
     setError("");
 
     try {
-      if (isNative) {
-        console.log("[Auth] Attempting native Google sign-in...");
-        const result = await FirebaseAuthentication.signInWithGoogle();
+      const { error: signInErr } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        },
+      });
 
-        if (!result || !result.credential || !result.credential.idToken) {
-          throw new Error("No ID token returned from native Google sign-in");
-        }
-
-        const credential = GoogleAuthProvider.credential(
-          result.credential.idToken
-        );
-        const userCredential = await signInWithCredential(auth, credential);
-
-        const derivedUsername = deriveUsernameFromEmail(
-          userCredential.user.email || ""
-        );
-        await createUserProfile(userCredential.user, derivedUsername);
-        console.log("[Auth] Native Google sign-in successful");
-      } else {
-        console.log("[Auth] Attempting web Google sign-in popup...");
-        const result = await signInWithPopup(auth, googleProvider);
-
-        const derivedUsername = deriveUsernameFromEmail(result.user.email || "");
-        await createUserProfile(result.user, derivedUsername);
-        console.log("[Auth] Web Google sign-in successful");
-      }
+      if (signInErr) throw signInErr;
     } catch (err) {
       console.error("[Auth] Error signing in with Google:", err);
-
-      let errorMessage = "Error signing in with Google: ";
-      if (err.code === 'auth/popup-blocked') {
-        errorMessage += "Pop-up was blocked by your browser. Please allow pop-ups for this site.";
-      } else if (err.code === 'auth/popup-closed-by-user') {
-        errorMessage += "Sign-in was cancelled.";
-      } else if (err.code === 'auth/network-request-failed') {
-        errorMessage += "Network error. Please check your internet connection.";
-      } else {
-        errorMessage += (err.message || err);
-      }
-      
-      setError(errorMessage);
+      setError(err.message || String(err));
     } finally {
       setLoading(false);
     }
@@ -89,28 +46,56 @@ function Auth() {
 
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        const { data, error: loginErr } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (loginErr) throw loginErr;
+
+        if (data?.user) {
+          const u = {
+            uid: data.user.id,
+            id: data.user.id,
+            email: data.user.email,
+            displayName:
+              data.user.user_metadata?.full_name ||
+              data.user.email?.split("@")[0] ||
+              "User",
+            photoURL: data.user.user_metadata?.avatar_url || "",
+          };
+          await createUserProfile(u);
+        }
       } else {
         if (!name.trim()) {
           throw new Error("Full name is required");
         }
-
         if (!email.trim()) {
           throw new Error("Email is required");
         }
 
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-
-        await updateProfile(userCredential.user, {
-          displayName: name,
-        });
-
         const derivedUsername = deriveUsernameFromEmail(email);
-        await createUserProfile(userCredential.user, derivedUsername);
+        const { data, error: signupErr } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name,
+              name: name,
+            },
+          },
+        });
+        if (signupErr) throw signupErr;
+
+        if (data?.user) {
+          const u = {
+            uid: data.user.id,
+            id: data.user.id,
+            email: data.user.email,
+            displayName: name,
+            photoURL: "",
+          };
+          await createUserProfile(u, derivedUsername);
+        }
       }
     } catch (err) {
       console.error("Authentication error:", err);

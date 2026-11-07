@@ -2,11 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import WebRTCService from '../services/webrtc';
 import CallService from '../services/callService';
 import { notificationService } from "../services/notifications";
-import { ref, onValue } from "firebase/database";
-import { database } from "../firebase/firebase";
-import { getUserProfile } from "../firebase/firestore";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase/firebase";
+import { getUserProfile, getBlockedUsers } from "../firebase/firestore";
 
 export function useCall(user, friend, chatId) {
     const friendId = friend?.uid || friend?.id;
@@ -55,17 +51,20 @@ export function useCall(user, friend, chatId) {
 
     useEffect(() => {
         if (!user?.uid || !friendId) return;
-        const userRef = doc(db, "users", user.uid);
-        const unsubscribe = onSnapshot(userRef, (doc) => {
-        if (doc.exists()) {
-            const userData = doc.data();
-            const blockedList = userData.blockedUsers || [];
-            const isUserBlocked = blockedList.includes(friendId);
-            setIsBlocked(isUserBlocked);
-        }
-        }); 
+        let active = true;
+        const checkBlocked = async () => {
+          try {
+            const blockedList = await getBlockedUsers(user.uid);
+            if (active) {
+              setIsBlocked(blockedList.includes(friendId));
+            }
+          } catch (e) {
+            console.error('Error checking blocked status:', e);
+          }
+        };
+        checkBlocked();
         return () => {
-        if (unsubscribe) unsubscribe();
+          active = false;
         };
     }, [user?.uid, friendId]);
 
@@ -192,15 +191,12 @@ export function useCall(user, friend, chatId) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!callIdRef.current) return;
-        const callRef = ref(database, `activeCalls/${callIdRef.current}`);
         
         if (callEndListenerRef.current) {
             callEndListenerRef.current();
         }
 
-        const unsubscribe = onValue(callRef, (snapshot) => {
-            const callData = snapshot.val();
-            
+        const unsubscribe = CallService.listenToCallStatus(callIdRef.current, (callData) => {
             if (!callData) {
             if (callStateRef.current === 'active' || callStateRef.current === 'connecting') {
                 console.log('Call ended remotely by other user');
@@ -320,28 +316,11 @@ export function useCall(user, friend, chatId) {
         }
     };
 
-    const listenForWebRTCProgress = (callId) => {
-        console.log('👂 Setting up WebRTC progress listener for:', callId);
-        const signalsRef = ref(database, `callSignals/${callId}`);
-        const unsubscribe = onValue(signalsRef, (snapshot) => {
-        const signals = snapshot.val();
-        if (signals) {
-            const signalCount = Object.keys(signals).length;
-            console.log(`📡 WebRTC signals exchanged: ${signalCount}`);
-            const hasOffer = Object.values(signals).some(s => s.type === 'offer');
-            const hasAnswer = Object.values(signals).some(s => s.type === 'answer');
-            const hasCandidates = Object.values(signals).some(s => s.type === 'candidate');
-        
-            if (hasOffer && hasAnswer && hasCandidates) {
-            console.log('✅ WebRTC negotiation complete - should be connecting soon');
-            }
-        }
-        });
-        return unsubscribe;
+    const listenForWebRTCProgress = (_callId) => {
+        return () => {};
     };
 
-    const listenForSignaling = (callId) => {
-        console.log('👂 Setting up signaling listener for call:', callId);
+    const listenForSignaling = (_callId) => {
         WebRTCService.setOnDisconnect(() => {
         console.log('⚠️ WebRTC disconnected, attempting reconnect...');
         setTimeout(() => {
@@ -355,14 +334,12 @@ export function useCall(user, friend, chatId) {
 
     const listenForCallAcceptance = (callId) => {
     console.log('Listening for call acceptance:', callId);
-    const callRef = ref(database, `activeCalls/${callId}`);
     if (callAcceptanceListenerRef.current) {
         callAcceptanceListenerRef.current();
         callAcceptanceListenerRef.current = null;
     }
     
-    const unsubscribe = onValue(callRef, (snapshot) => {
-        const callData = snapshot.val();
+    const unsubscribe = CallService.listenToCallStatus(callId, (callData) => {
         if (!callData) {
         console.log('Call data removed - call ended');
         if (callStateRef.current === 'active' || callStateRef.current === 'connecting') {

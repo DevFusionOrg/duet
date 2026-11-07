@@ -289,9 +289,11 @@ function MusicPlayer({ chatId, user, isVisible, onClose, pinned = false }) {
       }
 
       try {
-        const fnResp = await fetch(
-          `https://asia-south1-duet-2025.cloudfunctions.net/searchSong?q=${encodeURIComponent(query)}`
-        );
+        const searchUrl =
+          typeof window !== "undefined" && window.location.origin.includes("localhost")
+            ? `https://duetchat.vercel.app/api/searchSong?q=${encodeURIComponent(query)}`
+            : `/api/searchSong?q=${encodeURIComponent(query)}`;
+        const fnResp = await fetch(searchUrl);
         if (fnResp.ok) {
           const fnData = await fnResp.json();
           const normalized = normalizeVideo(fnData);
