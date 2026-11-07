@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { deleteFriend, getUserProfile } from "../../firebase/firestore";
-import { collection, getCountFromServer } from "firebase/firestore";
-import { db } from "../../firebase/firebase";
+import { deleteFriend, getUserProfile, getUserFriends } from "../../firebase/firestore";
 
 function ProfilePopup({
   friend,
@@ -22,9 +20,9 @@ function ProfilePopup({
       if (active) setProfile(data);
     });
 
-    getCountFromServer(collection(db, "users", friend.uid, "friends"))
-      .then((snapshot) => {
-        if (active) setFriendCount(snapshot.data().count || 0);
+    getUserFriends(friend.uid)
+      .then((ids) => {
+        if (active) setFriendCount(ids?.length || 0);
       })
       .catch(() => {
         if (active) setFriendCount(0);

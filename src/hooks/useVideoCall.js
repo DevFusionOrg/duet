@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import WebRTCService from '../services/webrtc';
 import callService from '../services/callService';
-import { ref, onValue } from 'firebase/database';
-import { database } from '../firebase/firebase';
 
 export function useVideoCall(user, friend, chatId) {
   const friendId = friend?.uid || friend?.id;
@@ -133,10 +131,7 @@ export function useVideoCall(user, friend, chatId) {
   const listenForCallAcceptance = useCallback((callId) => {
     console.log('🎯 Listening for acceptance of call:', callId);
     
-    const callRef = ref(database, `activeCalls/${callId}`);
-    
-    return onValue(callRef, async (snapshot) => {
-      const callData = snapshot.val();
+    return callService.listenToCallStatus(callId, async (callData) => {
       if (!callData) return;
       
       console.log('Call status update:', callData.status);

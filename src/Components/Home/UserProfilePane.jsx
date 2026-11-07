@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { collection, doc, getCountFromServer, getDoc } from "firebase/firestore";
-import { db } from "../../firebase/firebase";
-import { getUserProfile, sendFriendRequest } from "../../firebase/firestore";
+import { supabase } from "../../supabase/supabase";
+import { getUserProfile, sendFriendRequest, getUserFriends } from "../../firebase/firestore";
 
 function UserProfilePane({ userId, currentUserId, onClose, onStartChat }) {
   const [profile, setProfile] = useState(null);
@@ -17,17 +16,22 @@ function UserProfilePane({ userId, currentUserId, onClose, onStartChat }) {
 
     const load = async () => {
       try {
-        const [profileData, friendsCountSnap, friendshipSnap, sentRequestSnap] = await Promise.all([
+        const [profileData, friendIds, friendshipRes, sentReqRes] = await Promise.all([
           getUserProfile(userId),
-          getCountFromServer(collection(db, "users", userId, "friends")),
-          currentUserId ? getDoc(doc(db, "users", currentUserId, "friends", userId)) : Promise.resolve({ exists: () => false }),
-          currentUserId ? getDoc(doc(db, "users", currentUserId, "sentFriendRequests", userId)) : Promise.resolve({ exists: () => false, data: () => ({}) }),
+          getUserFriends(userId),
+          currentUserId
+            ? supabase.from("friends").select("id").eq("user_id", currentUserId).eq("friend_id", userId).maybeSingle()
+            : Promise.resolve({ data: null }),
+          currentUserId
+            ? supabase.from("friend_requests").select("id").eq("from_user_id", currentUserId).eq("to_user_id", userId).eq("status", "pending").maybeSingle()
+            : Promise.resolve({ data: null }),
         ]);
+
         if (!active) return;
         setProfile(profileData || null);
-        setFriendCount(friendsCountSnap?.data()?.count || 0);
-        setIsFriend(!!friendshipSnap?.exists?.());
-        setRequestSent(!!sentRequestSnap?.exists?.() && (sentRequestSnap?.data?.()?.status || "pending") === "pending");
+        setFriendCount(friendIds?.length || 0);
+        setIsFriend(!!friendshipRes?.data);
+        setRequestSent(!!sentReqRes?.data);
       } catch (error) {
         if (!active) return;
         setProfile(null);
@@ -51,94 +55,80 @@ function UserProfilePane({ userId, currentUserId, onClose, onStartChat }) {
     );
   }
 
-  const profileName = profile.displayName || profile.username || "User";
-  const profileUsername = profile.username || "user";
-  const isSelf = currentUserId && (profile.uid === currentUserId || userId === currentUserId);
-
-  const handleAddFriend = async () => {
-    if (!currentUserId || !userId || isSelf || isFriend || requestSent) return;
-    setActionLoading(true);
-    setActionMessage("");
+  const handleSendRequest = async () => {
+    if (!currentUserId || !userId || requestSent || isFriend) return;
     try {
+      setActionLoading(true);
+      setActionMessage("");
       await sendFriendRequest(currentUserId, userId);
       setRequestSent(true);
-      setActionMessage("Friend request sent");
+      setActionMessage("Friend request sent!");
     } catch (error) {
-      setActionMessage(error?.message || "Unable to send request");
+      setActionMessage(error.message || "Failed to send friend request");
     } finally {
       setActionLoading(false);
     }
   };
 
+  const isOwn = currentUserId === userId;
+
   return (
     <div className="desktop-profile-pane">
-      <div className="desktop-profile-pane-header">
-        <h2>Profile</h2>
-        <button type="button" className="desktop-profile-close" onClick={onClose}>✕</button>
+      <div className="desktop-profile-header">
+        <h3>User Profile</h3>
+        <button type="button" className="close-button" onClick={onClose}>
+          ×
+        </button>
       </div>
 
-      <div className="desktop-profile-pane-body">
-        <div className="desktop-profile-summary">
-          <div className="desktop-profile-summary-left">
-            <img
-              src={profile.photoURL || "/default-avatar.png"}
-              alt={profileName}
-              className="desktop-profile-avatar"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = "/default-avatar.png";
-              }}
-            />
-          </div>
-          <div className="desktop-profile-summary-right">
-            <div className="desktop-profile-stat-card">
-              <div className="desktop-profile-stat-number">{friendCount}</div>
-              <div className="desktop-profile-stat-label">Friends</div>
-            </div>
-          </div>
+      <div className="desktop-profile-card">
+        <img
+          src={profile.photoURL || "/default-avatar.png"}
+          alt={profile.displayName || profile.username}
+          className="desktop-profile-avatar"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = "/default-avatar.png";
+          }}
+        />
+
+        <h4 className="desktop-profile-name">{profile.displayName || "User"}</h4>
+        <p className="desktop-profile-username">@{profile.username || "username"}</p>
+
+        {profile.bio && <p className="desktop-profile-bio">{profile.bio}</p>}
+
+        <div className="desktop-profile-stats">
+          <span>{friendCount} Friends</span>
         </div>
 
-        <div className="desktop-profile-display">
-          <div className="desktop-profile-field">
-            <div className="desktop-profile-field-label">Username</div>
-            <div className="desktop-profile-field-value">@{profileUsername}</div>
-          </div>
+        {actionMessage && <p className="action-message">{actionMessage}</p>}
 
-          <div className="desktop-profile-field">
-            <div className="desktop-profile-field-label">Name</div>
-            <div className="desktop-profile-field-value">{profileName}</div>
-          </div>
-
-          {profile.bio && (
-            <div className="desktop-profile-field">
-              <div className="desktop-profile-field-label">Bio</div>
-              <div className="desktop-profile-bio">{profile.bio}</div>
-            </div>
+        <div className="desktop-profile-actions">
+          {isOwn ? (
+            <p className="desktop-profile-own-tag">This is you</p>
+          ) : isFriend ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => onStartChat && onStartChat({ ...profile, uid: userId, id: userId })}
+            >
+              Start Chat
+            </button>
+          ) : requestSent ? (
+            <button type="button" className="btn btn-secondary" disabled>
+              Request Pending
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSendRequest}
+              disabled={actionLoading}
+            >
+              {actionLoading ? "Sending..." : "Add Friend"}
+            </button>
           )}
         </div>
-
-        {!isSelf && (
-          <div className="desktop-profile-actions">
-            <button
-              type="button"
-              className={`desktop-profile-friend-btn ${isFriend ? 'friends' : ''}`}
-              onClick={handleAddFriend}
-              disabled={isFriend || requestSent || actionLoading}
-            >
-              {isFriend ? '✓ Friends' : requestSent ? 'Request Sent' : actionLoading ? 'Sending...' : 'Add Friend'}
-            </button>
-            <button
-              type="button"
-              className="desktop-profile-chat-btn"
-              onClick={() => onStartChat({ ...profile, uid: userId, id: userId })}
-              disabled={!isFriend}
-              title={!isFriend ? 'Add as friend first to start messaging' : 'Open chat'}
-            >
-              {isFriend ? 'Message' : 'Friends only'}
-            </button>
-          </div>
-        )}
-        {!!actionMessage && <p className="desktop-profile-action-message">{actionMessage}</p>}
       </div>
     </div>
   );

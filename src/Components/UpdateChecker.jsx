@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import PropTypes from "prop-types";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../firebase/firebase";
+import { supabase } from "../supabase/supabase";
 import { Device } from "@capacitor/device";
 import { notificationService } from "../services/notifications";
 
@@ -47,10 +46,21 @@ export default function UpdateChecker({ className, showButton = true }) {
   }, []);
 
   async function fetchLatestFromFirestore() {
-    const ref = doc(db, "appConfig", "latestRelease");
-    const snap = await getDoc(ref);
-    if (!snap.exists()) throw new Error("Latest release not found in Firestore");
-    return snap.data();
+    const releaseUrl =
+      typeof window !== "undefined" && window.location.origin.includes("localhost")
+        ? "https://duetchat.vercel.app/api/getLatestRelease"
+        : "/api/getLatestRelease";
+    try {
+      const res = await fetch(releaseUrl);
+      if (res.ok) return await res.json();
+    } catch {}
+
+    const { data } = await supabase
+      .from("app_config")
+      .select("data")
+      .eq("key", "latestRelease")
+      .single();
+    return data?.data || { version: "1.1.9", apkUrl: "", notes: "" };
   }
 
   const checkForUpdates = async () => {

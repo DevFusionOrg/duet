@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
-import { updateProfile } from "firebase/auth";
-import { updateDoc, doc } from "firebase/firestore";
-import { db } from "../firebase/firebase";
+import { supabase } from "../supabase/supabase";
+import { updateUserProfilePicture } from "../firebase/firestore";
 import { openProfilePictureUploadWidget, getOptimizedProfilePictureUrl } from "../services/cloudinary";
 
 export function useProfilePicture(user, setProfile, setMessage) {
@@ -13,7 +12,6 @@ export function useProfilePicture(user, setProfile, setMessage) {
     setMessage("");
 
     try {
-      // Pass callback to show loading when upload actually starts
       const result = await openProfilePictureUploadWidget(() => {
         setUploadingImage(true);
       });
@@ -21,16 +19,11 @@ export function useProfilePicture(user, setProfile, setMessage) {
       if (result) {
         const optimizedUrl = getOptimizedProfilePictureUrl(result.public_id, 200);
 
-        await updateProfile(user, {
-          photoURL: optimizedUrl
+        await supabase.auth.updateUser({
+          data: { avatar_url: optimizedUrl, picture: optimizedUrl }
         });
 
-        const userRef = doc(db, "users", user.uid);
-        await updateDoc(userRef, {
-          photoURL: optimizedUrl,
-          cloudinaryPublicId: result.public_id,
-          profilePictureUpdatedAt: new Date().toISOString()
-        });
+        await updateUserProfilePicture(user.uid, optimizedUrl, result.public_id);
 
         setMessage("Profile picture updated successfully!");
         setProfile(prev => ({
@@ -55,22 +48,16 @@ export function useProfilePicture(user, setProfile, setMessage) {
     if (!user) return;
 
     try {
-      const originalPhotoURL = user.providerData?.[0]?.photoURL || null;
-      await updateProfile(user, {
-        photoURL: originalPhotoURL
+      await supabase.auth.updateUser({
+        data: { avatar_url: null, picture: null }
       });
 
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
-        photoURL: originalPhotoURL,
-        cloudinaryPublicId: null,
-        profilePictureUpdatedAt: null
-      });
+      await updateUserProfilePicture(user.uid, null, null);
 
       setMessage("Profile picture removed successfully!");
       setProfile(prev => ({
         ...prev,
-        photoURL: originalPhotoURL,
+        photoURL: null,
         cloudinaryPublicId: null
       }));
     } catch (error) {
