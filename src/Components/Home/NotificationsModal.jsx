@@ -24,17 +24,23 @@ function NotificationsModal({ isOpen, onClose, user, onFriendRequestUpdate, asPa
         setHasMore(hasMore);
         setNextCursor(nextCursor || null);
 
-        const { db } = await import("../../firebase/firebase");
-        const { collection, getDocs, query, orderBy } = await import("firebase/firestore");
+        const { supabase } = await import("../../supabase/supabase");
         const { getUserFriendsWithProfiles } = await import("../../firebase/firestore");
 
         let sent = [];
         try {
-          const sentRef = collection(db, "users", user.uid, "sentFriendRequests");
-          const sentSnap = await getDocs(query(sentRef, orderBy("timestamp", "desc")));
-          sent = sentSnap.docs
-            .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
-            .filter((item) => (item.status || "pending") === "pending" && item.to);
+          const { data: sentData } = await supabase
+            .from("friend_requests")
+            .select("to_user_id, created_at")
+            .eq("from_user_id", user.uid)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false });
+
+          sent = (sentData || []).map((row) => ({
+            id: row.to_user_id,
+            to: row.to_user_id,
+            timestamp: new Date(row.created_at),
+          }));
         } catch (err) {
           console.warn("Failed to load sent friend requests:", err);
         }
@@ -139,13 +145,13 @@ function NotificationsModal({ isOpen, onClose, user, onFriendRequestUpdate, asPa
     setActionMessage("");
 
     try {
-      const { db } = await import("../../firebase/firebase");
-      const { doc, deleteDoc } = await import("firebase/firestore");
+      const { supabase } = await import("../../supabase/supabase");
 
-      await Promise.all([
-        deleteDoc(doc(db, 'users', toUserId, 'friendRequests', user.uid)).catch(() => {}),
-        deleteDoc(doc(db, 'users', user.uid, 'sentFriendRequests', toUserId)).catch(() => {}),
-      ]);
+      await supabase
+        .from("friend_requests")
+        .delete()
+        .eq("from_user_id", user.uid)
+        .eq("to_user_id", toUserId);
 
       setSentRequests((prev) => prev.filter((item) => item.uid !== toUserId));
       setActionMessage(`✅ Cancelled request to ${toUserName}`);

@@ -1,6 +1,5 @@
 
-import { database } from '../firebase/firebase';
-import { ref, set, onValue, remove, off } from 'firebase/database';
+import { supabase } from '../supabase/supabase';
 
 class WebRTCService {
   constructor() {
@@ -66,15 +65,7 @@ class WebRTCService {
     this.isVideoEnabled = isVideoCall; 
     this.currentFacingMode = 'user';
 
-    this.signalingRef = ref(database, `callSignals/${callId}`);
-
-    if (isInitiator) {
-      try {
-        await remove(this.signalingRef);
-      } catch (error) {
-        console.warn('Could not clear previous signaling data:', error);
-      }
-    }
+    this.signalingChannel = supabase.channel(`call_signals:${callId}`);
 
     try {
       
@@ -566,12 +557,17 @@ class WebRTCService {
 
   async sendSignals(signals) {
     try {
-      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_batch`);
-      await set(signalRef, {
-        signals,
-        timestamp: Date.now(),
-        senderId: this.isInitiator ? 'caller' : 'callee'
-      });
+      if (this.signalingChannel) {
+        await this.signalingChannel.send({
+          type: 'broadcast',
+          event: 'signals_batch',
+          payload: {
+            signals,
+            timestamp: Date.now(),
+            senderId: this.isInitiator ? 'caller' : 'callee',
+          },
+        });
+      }
     } catch (error) {
       console.error('Error sending signals:', error);
     }
@@ -579,12 +575,17 @@ class WebRTCService {
 
   async sendSignal(signal) {
     try {
-      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_${signal.type}`);
-      await set(signalRef, {
-        ...signal,
-        timestamp: Date.now(),
-        senderId: this.isInitiator ? 'caller' : 'callee'
-      });
+      if (this.signalingChannel) {
+        await this.signalingChannel.send({
+          type: 'broadcast',
+          event: 'signal',
+          payload: {
+            ...signal,
+            timestamp: Date.now(),
+            senderId: this.isInitiator ? 'caller' : 'callee',
+          },
+        });
+      }
     } catch (error) {
       console.error('Error sending signal:', error);
     }
@@ -592,41 +593,46 @@ class WebRTCService {
 
   async sendEndCallSignal() {
     try {
-      const signalRef = ref(database, `callSignals/${this.callId}/${Date.now()}_end`);
-      await set(signalRef, {
-        type: 'end-call',
-        timestamp: Date.now(),
-        senderId: this.isInitiator ? 'caller' : 'callee'
-      });
+      if (this.signalingChannel) {
+        await this.signalingChannel.send({
+          type: 'broadcast',
+          event: 'end_call',
+          payload: {
+            type: 'end-call',
+            timestamp: Date.now(),
+            senderId: this.isInitiator ? 'caller' : 'callee',
+          },
+        });
+      }
     } catch (error) {
       console.error('Error sending end call signal:', error);
     }
   }
 
   listenForSignals() {
-    if (!this.signalingRef || this.signalingListener) {
-      return;
+    if (!this.signalingChannel) {
+      this.signalingChannel = supabase.channel(`call_signals:${this.callId}`);
     }
 
-    this.signalingListener = onValue(this.signalingRef, (snapshot) => {
-      const signals = snapshot.val();
+    const mySenderId = this.isInitiator ? 'caller' : 'callee';
 
-      if (signals) {
-        Object.keys(signals).forEach(key => {
-          const signalData = signals[key];
-
-          if (signalData.signals && Array.isArray(signalData.signals)) {
-            signalData.signals.forEach(signal => {
-              this.handleSignal(signal);
-            });
-          } else {
-            this.handleSignal(signalData);
-            }
-        });
-      }
-    }, (error) => {
-      console.error('Error listening for signals:', error);
-    });
+    this.signalingChannel
+      .on('broadcast', { event: 'signal' }, ({ payload }) => {
+        if (payload && payload.senderId !== mySenderId) {
+          this.handleSignal(payload);
+        }
+      })
+      .on('broadcast', { event: 'signals_batch' }, ({ payload }) => {
+        if (payload && payload.senderId !== mySenderId && Array.isArray(payload.signals)) {
+          payload.signals.forEach((s) => this.handleSignal(s));
+        }
+      })
+      .on('broadcast', { event: 'end_call' }, ({ payload }) => {
+        if (payload && payload.senderId !== mySenderId) {
+          this.handleSignal({ type: 'end-call' });
+        }
+      })
+      .subscribe();
   }
 
   async restartIce() {
@@ -727,17 +733,13 @@ class WebRTCService {
         }
       }
 
-      if (this.signalingListener && this.signalingRef) {
-        off(this.signalingRef, 'value', this.signalingListener);
-        this.signalingListener = null;
-      }
-
-      if (this.signalingRef) {
+      if (this.signalingChannel) {
         try {
-          await remove(this.signalingRef);
+          supabase.removeChannel(this.signalingChannel);
         } catch (error) {
-          console.warn('Could not remove signaling data:', error);
+          console.warn('Could not remove signaling channel:', error);
         }
+        this.signalingChannel = null;
       }
 
       console.log('Call ended and cleaned up successfully');

@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { updateProfile } from "firebase/auth";
-import { updateDoc, doc, setDoc } from "firebase/firestore";
-import { db } from "../firebase/firebase";
+import { supabase } from "../supabase/supabase";
 import { 
   listenToUserProfile, 
   getUserProfile,
-  updateUsernameTransaction,
+  updateUsername,
+  createUserProfile,
 } from "../firebase/firestore";
 
 export function useProfiles(user, uid) {
@@ -24,44 +23,17 @@ export function useProfiles(user, uid) {
       const profileUid = uid || user?.uid;
       let userProfile = await getUserProfile(profileUid);
 
-      if (!userProfile && isOwnProfile) {
-        const baseUsername = user.email?.split("@")[0] || "user";
-        let finalUsername = baseUsername;
-        let counter = 1;
-
-        while (true) {
-          try {
-            await updateUsernameTransaction(user.uid, finalUsername);
-            break;
-          } catch (err) {
-            finalUsername = `${baseUsername}${counter++}`;
-          }
-        }
-
-        userProfile = {
-          uid: user.uid,
-          displayName: user.displayName || "User",
-          email: user.email,
-          photoURL: user.photoURL,
-          username: finalUsername,
-          bio: "",
-          friends: [],
-          friendRequests: [],
-          createdAt: new Date(),
-        };
-
-        const userRef = doc(db, "users", user.uid);
-        await setDoc(userRef, userProfile);
+      if (!userProfile && isOwnProfile && user) {
+        await createUserProfile(user);
+        userProfile = await getUserProfile(profileUid);
       }
 
-      else if (!userProfile) {
+      if (!userProfile) {
         userProfile = {
           uid: profileUid,
           displayName: "User",
           username: "user",
           bio: "",
-          friends: [],
-          friendRequests: [],
         };
       }
 
@@ -88,8 +60,8 @@ export function useProfiles(user, uid) {
         setProfile(userProfile);
         if (isOwnProfile) {
           setFormData({
-            displayName: userProfile.displayName || user.displayName || "",
-            username: userProfile.username || user.email?.split("@")[0] || "",
+            displayName: userProfile.displayName || user?.displayName || "",
+            username: userProfile.username || user?.email?.split("@")[0] || "",
             bio: userProfile.bio || "",
           });
         }
@@ -110,34 +82,37 @@ export function useProfiles(user, uid) {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) return false;
 
     setLoading(true);
     setMessage("");
 
     try {
       if (formData.displayName !== user.displayName) {
-        await updateProfile(user, { displayName: formData.displayName });
+        await supabase.auth.updateUser({
+          data: { full_name: formData.displayName, name: formData.displayName }
+        });
       }
 
-      if (formData.username !== profile.username) {
-        await updateUsernameTransaction(
-          user.uid,
-          formData.username,
-          profile.username
-        );
+      if (formData.username && formData.username !== profile?.username) {
+        await updateUsername(user.uid, formData.username);
       }
 
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
-        displayName: formData.displayName,
-        bio: formData.bio,
-      });
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          display_name: formData.displayName,
+          bio: formData.bio,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", user.uid);
+
+      if (error) throw error;
 
       setMessage("Profile updated!");
       return true;
     } catch (error) {
-      console.error(error);
+      console.error("Profile update error:", error);
       setMessage(error.message);
       return false;
     } finally {

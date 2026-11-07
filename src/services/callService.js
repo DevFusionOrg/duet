@@ -1,39 +1,35 @@
-import { database, db } from '../firebase/firebase';
-import { ref, set, onValue, remove, update, get } from 'firebase/database';
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc
-} from 'firebase/firestore';
+import { supabase } from '../supabase/supabase';
 
 class CallService {
-  constructor() {
-    this.activeCallsRef = ref(database, 'activeCalls');
-  }
-
   async createCall(callerId, callerName, receiverId, receiverName) {
     try {
       const callId = `${callerId}_${receiverId}_${Date.now()}`;
-      
+
       const callData = {
+        id: callId,
+        caller_id: callerId,
+        caller_name: callerName,
+        receiver_id: receiverId,
+        receiver_name: receiverName,
+        status: 'ringing',
+        type: 'audio',
+        duration: 0,
+      };
+
+      const { error } = await supabase.from('active_calls').upsert(callData);
+      if (error) throw error;
+
+      return {
         callId,
         callerId,
         callerName,
         receiverId,
         receiverName,
         status: 'ringing',
-        createdAt: Date.now(),
         type: 'audio',
-        acceptedAt: null,
-        endedAt: null,
-        duration: 0
+        createdAt: Date.now(),
+        duration: 0,
       };
-
-      const callRef = ref(database, `activeCalls/${callId}`);
-      await set(callRef, callData);
-
-      return { callId, ...callData };
     } catch (error) {
       console.error('❌ Error creating audio call:', error);
       throw error;
@@ -43,25 +39,32 @@ class CallService {
   async createVideoCall(callerId, callerName, receiverId, receiverName) {
     try {
       const callId = `${callerId}_${receiverId}_${Date.now()}`;
-      
+
       const callData = {
+        id: callId,
+        caller_id: callerId,
+        caller_name: callerName,
+        receiver_id: receiverId,
+        receiver_name: receiverName,
+        status: 'ringing',
+        type: 'video',
+        duration: 0,
+      };
+
+      const { error } = await supabase.from('active_calls').upsert(callData);
+      if (error) throw error;
+
+      return {
         callId,
         callerId,
         callerName,
         receiverId,
         receiverName,
         status: 'ringing',
-        createdAt: Date.now(),
         type: 'video',
-        acceptedAt: null,
-        endedAt: null,
-        duration: 0
+        createdAt: Date.now(),
+        duration: 0,
       };
-
-      const callRef = ref(database, `activeCalls/${callId}`);
-      await set(callRef, callData);
-
-      return { callId, ...callData };
     } catch (error) {
       console.error('❌ Error creating video call:', error);
       throw error;
@@ -70,172 +73,196 @@ class CallService {
 
   async acceptCall(callId, receiverId) {
     try {
-      const callRef = ref(database, `activeCalls/${callId}`);
-      const snapshot = await get(callRef);
-      const callData = snapshot.val();
-      
-      if (!callData) {
-        throw new Error('Call not found');
-      }
-      
-      if (callData.receiverId !== receiverId) {
-        throw new Error('Unauthorized to accept this call');
-      }
+      const { data, error } = await supabase
+        .from('active_calls')
+        .update({
+          status: 'accepted',
+          accepted_at: new Date().toISOString(),
+        })
+        .eq('id', callId)
+        .select('*')
+        .single();
 
-      await update(callRef, {
-        status: 'accepted',
-        acceptedAt: Date.now()
-      });
+      if (error) throw error;
 
-      return callData;
+      return {
+        callId: data.id,
+        callerId: data.caller_id,
+        callerName: data.caller_name,
+        receiverId: data.receiver_id,
+        receiverName: data.receiver_name,
+        status: data.status,
+        type: data.type,
+      };
     } catch (error) {
       console.error('❌ Error accepting call:', error);
       throw error;
     }
   }
 
-  async declineCall(callId, receiverId) {
+  async declineCall(callId) {
     try {
-      const callRef = ref(database, `activeCalls/${callId}`);
-      const snapshot = await get(callRef);
-      const callData = snapshot.val();
-      
-      if (!callData) {
-        return; 
-      }
+      await supabase
+        .from('active_calls')
+        .update({
+          status: 'declined',
+          ended_at: new Date().toISOString(),
+        })
+        .eq('id', callId);
 
-      await update(callRef, {
-        status: 'declined',
-        endedAt: Date.now()
-      });
-
-      setTimeout(() => {
-        remove(callRef).catch(() => {});
+      setTimeout(async () => {
+        try {
+          await supabase.from('active_calls').delete().eq('id', callId);
+        } catch {}
       }, 30000);
-
     } catch (error) {
       console.error('❌ Error declining call:', error);
-      throw error;
     }
   }
 
   async endCall(callId, userId, duration = 0, status = 'ended') {
     try {
-      const callRef = ref(database, `activeCalls/${callId}`);
-      const snapshot = await get(callRef);
-      const callData = snapshot.val();
-
-      if (!callData) {
-        return;
-      }
-
-      const isParticipant = callData.callerId === userId || callData.receiverId === userId;
-      if (!isParticipant) {
-        console.warn('User not authorized to end this call');
-        return;
-      }
-
       const finalStatus = status === 'ended' && duration === 0 ? 'missed' : status;
 
-      await update(callRef, {
-        status: finalStatus,
-        endedAt: Date.now(),
-        duration: duration || 0
-      });
+      await supabase
+        .from('active_calls')
+        .update({
+          status: finalStatus,
+          ended_at: new Date().toISOString(),
+          duration: duration || 0,
+        })
+        .eq('id', callId);
 
-      setTimeout(() => {
-        remove(callRef).catch(() => {});
-      }, 3000);
-
+      setTimeout(async () => {
+        try {
+          await supabase.from('active_calls').delete().eq('id', callId);
+        } catch {}
+      }, 5000);
     } catch (error) {
       console.error('❌ Error ending call:', error);
     }
   }
 
   listenForIncomingCalls(userId, callback) {
-    const callsRef = ref(database, 'activeCalls');
-    
-    const unsubscribe = onValue(callsRef, (snapshot) => {
-      const calls = snapshot.val();
-      const incomingCalls = [];
-      
-      if (calls) {
-        Object.keys(calls).forEach(callId => {
-          const call = calls[callId];
-          
-          if (call.receiverId === userId && call.status === 'ringing') {
-            incomingCalls.push({ ...call, callId });
-          }
-        });
-      }
-      
-      callback(incomingCalls);
-    }, (error) => {
-      console.error('❌ Error listening for calls:', error);
-      callback([]);
-    });
+    if (!userId) return () => {};
 
-    return unsubscribe;
+    const fetchIncoming = async () => {
+      try {
+        const { data } = await supabase
+          .from('active_calls')
+          .select('*')
+          .eq('receiver_id', userId)
+          .eq('status', 'ringing');
+
+        const calls = (data || []).map((c) => ({
+          callId: c.id,
+          callerId: c.caller_id,
+          callerName: c.caller_name,
+          receiverId: c.receiver_id,
+          receiverName: c.receiver_name,
+          status: c.status,
+          type: c.type,
+          createdAt: c.created_at ? new Date(c.created_at).getTime() : Date.now(),
+        }));
+
+        callback(calls);
+      } catch (err) {
+        console.error('Error fetching incoming calls:', err);
+      }
+    };
+
+    fetchIncoming();
+
+    const channel = supabase
+      .channel(`incoming_calls:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'active_calls',
+          filter: `receiver_id=eq.${userId}`,
+        },
+        () => fetchIncoming()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }
+
+  listenToCallStatus(callId, callback) {
+    if (!callId) return () => {};
+
+    const channel = supabase
+      .channel(`call_status:${callId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'active_calls',
+          filter: `id=eq.${callId}`,
+        },
+        (payload) => {
+          if (payload.new) {
+            callback({
+              callId: payload.new.id,
+              status: payload.new.status,
+              acceptedAt: payload.new.accepted_at ? new Date(payload.new.accepted_at).getTime() : null,
+              endedAt: payload.new.ended_at ? new Date(payload.new.ended_at).getTime() : null,
+              duration: payload.new.duration || 0,
+              ...payload.new,
+            });
+          } else {
+            callback(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }
 
   async sendCallNotification(chatId, userId, friendId, type, duration = 0, callData = null) {
     try {
-      if (!chatId) {
-        return;
-      }
+      if (!chatId) return;
 
-      const messagesRef = collection(db, 'chats', chatId, 'messages');
-      
       let messageText = '';
       let senderId = '';
-      let callAction = '';
-      let callInitiatorId = '';
 
       if (type === 'ended') {
         if (duration > 0) {
           messageText = `Call (${this.formatDuration(duration)})`;
-          callAction = 'ended';
         } else {
           messageText = `Missed call`;
-          callAction = 'missed';
         }
-        
-        if (callData && callData.callerId) {
-          callInitiatorId = callData.callerId;
-          senderId = callInitiatorId;
-        } else {
-          callInitiatorId = userId;
-          senderId = userId;
-        }
+        senderId = callData?.callerId || userId;
       } else if (type === 'missed') {
         messageText = `Missed call`;
         senderId = friendId;
-        callAction = 'missed';
-        callInitiatorId = friendId;
       }
 
       if (messageText) {
-        await addDoc(messagesRef, {
-          senderId: senderId,
+        await supabase.from('messages').insert({
+          chat_id: chatId,
+          sender_id: senderId,
           text: messageText,
-          timestamp: new Date(),
           type: 'call',
-          callType: type,
-          callAction: callAction,
-          callDuration: duration,
-          callInitiatorId: callInitiatorId,
-          read: false,
-          deletionTime: new Date(Date.now() + 12 * 60 * 60 * 1000),
-          isCallLog: true
+          created_at: new Date().toISOString(),
         });
 
-        const chatRef = doc(db, 'chats', chatId);
-        await updateDoc(chatRef, {
-          lastMessage: messageText,
-          lastMessageAt: new Date()
-        });
+        await supabase
+          .from('chats')
+          .update({
+            last_message: messageText,
+            last_message_at: new Date().toISOString(),
+          })
+          .eq('id', chatId);
       }
-
     } catch (error) {
       console.error('❌ Error sending call notification:', error);
     }
@@ -243,62 +270,36 @@ class CallService {
 
   async sendVideoCallNotification(chatId, userId, friendId, type, duration = 0, callData = null) {
     try {
-      if (!chatId) {
-        return;
-      }
+      if (!chatId) return;
 
-      const messagesRef = collection(db, 'chats', chatId, 'messages');
-      
       let messageText = '';
       let senderId = '';
-      let callAction = '';
-      let callInitiatorId = '';
 
       if (type === 'ended') {
-        if (duration > 0) {
-          messageText = `Video call (${this.formatDuration(duration)})`;
-          callAction = 'ended';
-        } else {
-          messageText = `Missed video call`;
-          callAction = 'missed';
-        }
-        
-        if (callData && callData.callerId) {
-          callInitiatorId = callData.callerId;
-          senderId = callInitiatorId;
-        } else {
-          callInitiatorId = userId;
-          senderId = userId;
-        }
+        messageText = duration > 0 ? `Video call (${this.formatDuration(duration)})` : 'Missed video call';
+        senderId = callData?.callerId || userId;
       } else if (type === 'missed') {
-        messageText = `Missed video call`;
+        messageText = 'Missed video call';
         senderId = friendId;
-        callAction = 'missed';
-        callInitiatorId = friendId;
       }
 
       if (messageText) {
-        await addDoc(messagesRef, {
-          senderId: senderId,
+        await supabase.from('messages').insert({
+          chat_id: chatId,
+          sender_id: senderId,
           text: messageText,
-          timestamp: new Date(),
           type: 'video-call',
-          callType: type,
-          callAction: callAction,
-          callDuration: duration,
-          callInitiatorId: callInitiatorId,
-          read: false,
-          deletionTime: new Date(Date.now() + 12 * 60 * 60 * 1000),
-          isCallLog: true
+          created_at: new Date().toISOString(),
         });
 
-        const chatRef = doc(db, 'chats', chatId);
-        await updateDoc(chatRef, {
-          lastMessage: messageText,
-          lastMessageAt: new Date()
-        });
+        await supabase
+          .from('chats')
+          .update({
+            last_message: messageText,
+            last_message_at: new Date().toISOString(),
+          })
+          .eq('id', chatId);
       }
-
     } catch (error) {
       console.error('❌ Error sending video call notification:', error);
     }
@@ -313,5 +314,4 @@ class CallService {
 }
 
 const callServiceInstance = new CallService();
-
 export default callServiceInstance;

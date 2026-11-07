@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  updatePassword,
-  EmailAuthProvider,
-  reauthenticateWithCredential,
-  signOut,
-} from "firebase/auth";
-import { auth } from "../firebase/firebase";
+import { supabase } from "../supabase/supabase";
 
 import ProfileHeader from '../Components/Profile/ProfileHeader';
 import ProfileForm from '../Components/Profile/ProfileForm';
@@ -143,7 +137,11 @@ export default function Profile({
   const fetchLatestRelease = async () => {
     setUpdateInfo((s) => ({ ...s, loading: true, error: null }));
     try {
-      const response = await fetch("https://asia-south1-duet-2025.cloudfunctions.net/getLatestRelease");
+      const releaseUrl =
+        typeof window !== "undefined" && window.location.origin.includes("localhost")
+          ? "https://duetchat.vercel.app/api/getLatestRelease"
+          : "/api/getLatestRelease";
+      const response = await fetch(releaseUrl);
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error || "Latest release not found");
@@ -183,12 +181,10 @@ export default function Profile({
         return;
       }
 
-      const credential = EmailAuthProvider.credential(
-        user.email,
-        passwordData.currentPassword,
-      );
-      await reauthenticateWithCredential(user, credential);
-      await updatePassword(user, passwordData.newPassword);
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword,
+      });
+      if (error) throw error;
 
       setMessage("Password updated successfully!");
       setPasswordData({
@@ -199,11 +195,7 @@ export default function Profile({
       setChangingPassword(false);
     } catch (error) {
       console.error("Error updating password:", error);
-      if (error.code === "auth/wrong-password") {
-        setMessage("Current password is incorrect");
-      } else {
-        setMessage("Error updating password: " + error.message);
-      }
+      setMessage("Error updating password: " + error.message);
     }
     setPasswordLoading(false);
   };
@@ -213,18 +205,6 @@ export default function Profile({
       ...prev,
       [field]: value
     }));
-  };
-
-  const reauthenticateForDeletion = async () => {
-    const usesPasswordProvider = user?.providerData?.some((p) => p.providerId === "password");
-    if (usesPasswordProvider) {
-      const password = window.prompt("Enter your password to delete your account. This cannot be undone.");
-      if (!password) {
-        throw new Error("Password is required to delete the account");
-      }
-      const credential = EmailAuthProvider.credential(user.email, password);
-      await reauthenticateWithCredential(user, credential);
-    }
   };
 
   const handleDeleteAccount = async () => {
@@ -238,9 +218,8 @@ export default function Profile({
     setMessage("");
 
     try {
-      await reauthenticateForDeletion();
       await deleteUserAccount(user.uid, { deleteAuth: true });
-      await signOut(auth);
+      await supabase.auth.signOut();
       window.location.href = "/";
     } catch (error) {
       console.error("Error deleting account:", error);
@@ -474,7 +453,7 @@ export default function Profile({
                 <button
                   onClick={async () => {
                     try {
-                      await signOut(auth);
+                      await supabase.auth.signOut();
                       window.location.href = "/";
                     } catch (error) {
                       console.error("Error logging out:", error);

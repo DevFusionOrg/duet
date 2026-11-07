@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, Suspense } from "react";
 import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
-import { auth } from "./firebase/firebase";
+import { supabase } from "./supabase/supabase";
 import { createUserProfile } from "./firebase/firestore";
 import { setupPresence } from "./firebase/presence";
 import Auth from "./pages/Auth";
@@ -151,7 +151,26 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+    const normalizeUser = (authUser) => {
+      if (!authUser) return null;
+      return {
+        uid: authUser.id,
+        id: authUser.id,
+        email: authUser.email,
+        displayName:
+          authUser.user_metadata?.full_name ||
+          authUser.user_metadata?.name ||
+          (authUser.email ? authUser.email.split("@")[0] : "User"),
+        photoURL:
+          authUser.user_metadata?.avatar_url ||
+          authUser.user_metadata?.picture ||
+          "",
+      };
+    };
+
+    // Initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const currentUser = normalizeUser(session?.user);
       setUser(currentUser);
       setLoading(false);
 
@@ -164,7 +183,22 @@ function App() {
       }
     });
 
-    return unsubscribe;
+    // Auth change listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = normalizeUser(session?.user);
+      setUser(currentUser);
+      setLoading(false);
+
+      if (currentUser) {
+        createUserProfile(currentUser).catch(console.error);
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

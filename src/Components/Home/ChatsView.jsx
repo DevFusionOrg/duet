@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import LoadingScreen from '../LoadingScreen';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '../../firebase/firebase';
 import { getOptimizedProfilePictureUrl } from '../../services/cloudinary';
 
 function ChatsView({ chats, loading, onStartChat, onOpenProfile, friendsOnlineStatus, user, friends = [] }) {
@@ -10,20 +8,12 @@ function ChatsView({ chats, loading, onStartChat, onOpenProfile, friendsOnlineSt
 
   useEffect(() => {
     if (!user?.uid) return;
-    
-    const loadMutedChats = async () => {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setMutedChats(userData.mutedChats || []);
-        }
-      } catch (error) {
-        console.error('Error loading muted chats:', error);
-      }
-    };
-    
-    loadMutedChats();
+    try {
+      const saved = localStorage.getItem(`mutedChats_${user.uid}`);
+      if (saved) setMutedChats(JSON.parse(saved));
+    } catch (e) {
+      console.warn('Error reading muted chats from storage', e);
+    }
   }, [user?.uid]);
 
   const formatChatTimestamp = (timestamp) => {
@@ -72,15 +62,10 @@ function ChatsView({ chats, loading, onStartChat, onOpenProfile, friendsOnlineSt
       : [...mutedChats, chatId];
     
     setMutedChats(newMuted);
-
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        mutedChats: newMuted
-      });
-    } catch (error) {
-      console.error('Error updating muted chats:', error);
-      
-      setMutedChats(mutedChats);
+      localStorage.setItem(`mutedChats_${user.uid}`, JSON.stringify(newMuted));
+    } catch (e) {
+      console.warn('Error saving muted chats', e);
     }
   };
 
